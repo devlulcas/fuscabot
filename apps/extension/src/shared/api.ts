@@ -114,6 +114,10 @@ export const api = {
         method: "POST",
       },
     ),
+  retryEnrichment: (id: string): Promise<unknown> =>
+    apiRequest(`/v1/resources/${encodeURIComponent(id)}/enrichment/retry`, {
+      method: "POST",
+    }),
   session: async (): Promise<DiscordSession> =>
     (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session")).data,
   guilds: async (): Promise<DiscordGuild[]> =>

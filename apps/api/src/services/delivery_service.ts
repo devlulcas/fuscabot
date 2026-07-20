@@ -4,7 +4,12 @@ import type { DeliveryRepository } from "../repositories/delivery_repository.ts"
 import type { ResourceRepository } from "../repositories/resource_repository.ts";
 import { formatDiscordSnapshot } from "./message_formatter.ts";
 
-export type DeliveryTarget = { channelId: string; discordChannelId: string; guildId: string };
+export type DeliveryTarget = {
+  workspaceId: string;
+  channelId: string;
+  discordChannelId: string;
+  guildId: string;
+};
 
 export class DeliveryService {
   constructor(
@@ -18,7 +23,7 @@ export class DeliveryService {
     kind: DeliveryKind,
     tags: string[] = [],
   ) {
-    const resource = await this.resources.findById(resourceId);
+    const resource = await this.resources.findById(target.workspaceId, resourceId);
     if (!resource) throw new ResourceForDeliveryNotFoundError();
     const snapshot = formatDiscordSnapshot(resource, kind, tags);
     const pending = await this.deliveries.createPending({

@@ -16,6 +16,7 @@ const EnvSchema = z.object({
 export type Env = z.infer<typeof EnvSchema>;
 
 const RuntimeEnvSchema = EnvSchema.extend({
+  DATABASE_URL: z.string().url(),
   OWNER_DISCORD_USER_ID: z.string().min(1),
   DISCORD_BOT_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),

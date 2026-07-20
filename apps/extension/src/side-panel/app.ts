@@ -13,16 +13,16 @@ void render();
 async function render(): Promise<void> {
   const route = parseRoute(location.hash);
   document.querySelectorAll("nav a").forEach((link) =>
-    link.toggleAttribute(
-      "aria-current",
-      link.getAttribute("href")?.includes(route.name) ?? false,
-    )
+    link.getAttribute("href")?.includes(route.name)
+      ? link.setAttribute("aria-current", "page")
+      : link.removeAttribute("aria-current")
   );
   app.replaceChildren();
   try {
     if (route.name === "capture") await renderCapture(route.captureId);
     else if (route.name === "settings") await renderSettings();
     else await renderLibrary();
+    app.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
   } catch (error) {
     showError(error);
   }
@@ -42,12 +42,23 @@ async function renderCapture(captureId?: string): Promise<void> {
     `<section class="stack"><h1>Capture</h1><div class="skeleton"></div><p>Saving your link before preparing it…</p></section>`;
   const stored = await chrome.storage.local.get("pendingCapture");
   const pending = asPendingCapture(stored.pendingCapture);
-  if (!captureId || pending?.captureId !== captureId) return renderManual({});
-  if (pending.state === "failed") {
+  if (!captureId) return renderManual({});
+  if (pending?.captureId === captureId && pending.state === "failed") {
     return renderManual(pending.fallback ?? {}, pending.error);
   }
-  if (!pending.resourceId) return;
-  renderEditor(await api.getResource(pending.resourceId));
+  const resourceId = pending?.captureId === captureId && pending.resourceId
+    ? pending.resourceId
+    : captureId;
+  const resource = await api.getResource(resourceId);
+  renderEditor(resource);
+  if (resource.enrichmentStatus === "preparing") {
+    setTimeout(() => {
+      const current = parseRoute(location.hash);
+      if (current.name === "capture" && current.captureId === captureId) {
+        void render();
+      }
+    }, 1_500);
+  }
 }
 
 function renderManual(fallback: CaptureFallback, error?: string): void {
@@ -95,7 +106,7 @@ function renderManual(fallback: CaptureFallback, error?: string): void {
 
 function renderEditor(resource: ApiResource): void {
   app.innerHTML =
-    `<section class="stack"><h1>Capture</h1><article class="card"><strong>${
+    `<section class="stack"><h1 tabindex="-1">Capture</h1><article class="card"><strong>${
       escapeHtml(resource.title)
     }</strong><p class="muted">${escapeHtml(resource.originalUrl)}</p>${
       resource.selectedQuote
@@ -103,8 +114,10 @@ function renderEditor(resource: ApiResource): void {
         : ""
     }</article>${
       resource.enrichmentStatus === "failed"
-        ? '<p class="notice error">AI preparation failed. You can still edit manually.</p>'
-        : ""
+        ? '<p class="notice error" role="alert">AI preparation failed. You can still edit manually. <button type="button" data-retry-ai>Retry AI</button></p>'
+        : resource.enrichmentStatus === "preparing"
+        ? '<p class="notice" role="status">AI preparation is still running. This view updates automatically.</p>'
+        : '<p class="notice" role="status">AI preparation is ready. Review everything before publishing.</p>'
     }<form class="stack"><label>Summary<textarea name="summary">${
       escapeHtml(resource.summary)
     }</textarea></label><label>Why it is useful<textarea name="whyUseful">${
@@ -119,6 +132,16 @@ function renderEditor(resource: ApiResource): void {
       ).join("")
     }</select></label><div class="actions"><button type="button" data-read-later>Save to Read Later</button><button class="primary" data-publish disabled>Publish to selected channel</button></div></form></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
+  app.querySelector<HTMLButtonElement>("[data-retry-ai]")?.addEventListener(
+    "click",
+    async (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      button.disabled = true;
+      button.textContent = "Retrying…";
+      await api.retryEnrichment(resource.id);
+      await render();
+    },
+  );
   const select = requiredElement<HTMLSelectElement>(form, '[name="channelId"]');
   const publish = requiredElement<HTMLButtonElement>(form, "[data-publish]");
   const sync = (): void => {
@@ -129,23 +152,43 @@ function renderEditor(resource: ApiResource): void {
     event.preventDefault();
     const channelId = select.value;
     if (!channelId) return;
+    publish.disabled = true;
     await api.updateResource(resource.id, {
       summary: optionalFormValue(form, "summary"),
       whyUseful: optionalFormValue(form, "whyUseful"),
       personalNote: optionalFormValue(form, "personalNote"),
     });
-    showSuccess(await api.publish(resource.id, channelId));
+    try {
+      showSuccess(await api.publish(resource.id, channelId));
+    } finally {
+      publish.disabled = false;
+    }
   });
   requiredElement<HTMLButtonElement>(form, "[data-read-later]")
     .addEventListener(
       "click",
-      () => void api.readLater(resource.id).then(showSuccess).catch(showError),
+      async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        button.disabled = true;
+        try {
+          await api.updateResource(resource.id, {
+            summary: optionalFormValue(form, "summary"),
+            whyUseful: optionalFormValue(form, "whyUseful"),
+            personalNote: optionalFormValue(form, "personalNote"),
+          });
+          showSuccess(await api.readLater(resource.id));
+        } catch (cause) {
+          showError(cause);
+        } finally {
+          button.disabled = false;
+        }
+      },
     );
 }
 
 async function renderLibrary(): Promise<void> {
   app.innerHTML =
-    `<section class="stack"><h1>Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label></form><div data-results><div class="skeleton"></div></div></section>`;
+    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label></form><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   const results = requiredElement<HTMLElement>(app, "[data-results]");
   const load = async (): Promise<void> => {
@@ -156,7 +199,9 @@ async function renderLibrary(): Promise<void> {
           escapeHtml(resource.title)
         }</strong><span class="muted">${
           escapeHtml(resource.originalUrl)
-        }</span><a href="#/capture/${
+        }</span><a href="${
+          escapeHtml(resource.originalUrl)
+        }" target="_blank" rel="noopener noreferrer">Open source</a><a href="#/capture/${
           escapeHtml(resource.id)
         }">Review</a></article>`
       ).join("")
@@ -183,7 +228,7 @@ async function renderSettings(): Promise<void> {
     }
   }
   app.innerHTML =
-    `<section class="stack"><h1>Settings</h1><form class="card stack"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
+    `<section class="stack"><h1 tabindex="-1">Settings</h1><form class="card stack"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
     }"></label><button class="primary">Save API URL</button></form><section class="card stack"><h2>Discord</h2><p class="notice">${
       connected ? "Connected as the configured owner." : "Not connected."
@@ -263,7 +308,7 @@ function showSuccess(delivery: { discordUrl?: string }): void {
       delivery.discordUrl
         ? ` <a href="${
           escapeHtml(delivery.discordUrl)
-        }" target="_blank">Open in Discord</a>`
+        }" target="_blank" rel="noopener noreferrer">Open in Discord</a>`
         : ""
     }</p>`,
   );
@@ -271,7 +316,7 @@ function showSuccess(delivery: { discordUrl?: string }): void {
 
 function showError(error: unknown): void {
   app.innerHTML =
-    `<section class="notice error"><h1>Something went wrong</h1><p>${
+    `<section class="notice error" role="alert"><h1 tabindex="-1">Something went wrong</h1><p>${
       escapeHtml(error instanceof Error ? error.message : "Unknown error")
     }</p></section>`;
 }

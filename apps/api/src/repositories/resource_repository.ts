@@ -3,19 +3,20 @@ import type { Resource, ResourcePatch } from "../domain/resource.ts";
 export type ResourceQuery = { search?: string; archived?: boolean; limit: number; offset: number };
 
 export interface ResourceRepository {
-  findById(id: string): Promise<Resource | null>;
+  findById(workspaceId: string, id: string): Promise<Resource | null>;
   findByCanonicalKey(workspaceId: string, key: string): Promise<Resource | null>;
   create(resource: Resource): Promise<Resource>;
   list(workspaceId: string, query: ResourceQuery): Promise<Resource[]>;
-  update(id: string, patch: ResourcePatch): Promise<Resource | null>;
-  delete(id: string): Promise<boolean>;
+  update(workspaceId: string, id: string, patch: ResourcePatch): Promise<Resource | null>;
+  delete(workspaceId: string, id: string): Promise<boolean>;
 }
 
 export class InMemoryResourceRepository implements ResourceRepository {
   #resources = new Map<string, Resource>();
 
-  findById(id: string) {
-    return Promise.resolve(this.#resources.get(id) ?? null);
+  findById(workspaceId: string, id: string) {
+    const resource = this.#resources.get(id);
+    return Promise.resolve(resource?.workspaceId === workspaceId ? resource : null);
   }
   findByCanonicalKey(workspaceId: string, key: string) {
     return Promise.resolve(
@@ -40,9 +41,9 @@ export class InMemoryResourceRepository implements ResourceRepository {
       .slice(query.offset, query.offset + query.limit);
     return Promise.resolve(rows);
   }
-  update(id: string, patch: ResourcePatch) {
+  update(workspaceId: string, id: string, patch: ResourcePatch) {
     const current = this.#resources.get(id);
-    if (!current) return Promise.resolve(null);
+    if (!current || current.workspaceId !== workspaceId) return Promise.resolve(null);
     const { archived, ...fields } = patch;
     const updated = {
       ...current,
@@ -57,7 +58,10 @@ export class InMemoryResourceRepository implements ResourceRepository {
     this.#resources.set(id, updated);
     return Promise.resolve(updated);
   }
-  delete(id: string) {
-    return Promise.resolve(this.#resources.delete(id));
+  delete(workspaceId: string, id: string) {
+    const current = this.#resources.get(id);
+    return Promise.resolve(
+      current?.workspaceId === workspaceId ? this.#resources.delete(id) : false,
+    );
   }
 }

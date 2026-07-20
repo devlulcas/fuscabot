@@ -12,12 +12,15 @@
     "@std/assert": "jsr:@std/assert@^1.0.13",
     "drizzle-orm": "npm:drizzle-orm@^0.44.2",
     "drizzle-orm/pg-core": "npm:drizzle-orm@^0.44.2/pg-core",
+    "pg": "npm:pg@^8.16.3",
+    "@types/pg": "npm:@types/pg@^8.15.5",
     "zod": "jsr:@zod/zod@4"
   },
   "tasks": {
     "dev": "deno run --watch --allow-env --allow-net src/server.ts",
     "start": "deno run --allow-env --allow-net src/server.ts",
     "check": "deno check main.ts src/server.ts src/db/schema.ts",
+    "migrate": "deno run --allow-env=DATABASE_URL --allow-net --allow-read=migrations src/db/migrate.ts",
     "test": "deno test --allow-env"
   },
   "fmt": { "lineWidth": 100 },

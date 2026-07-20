@@ -9,7 +9,7 @@ export class ResourceService {
   ) {}
 
   async capture(input: CaptureInput): Promise<{ resource: Resource; created: boolean }> {
-    const byCaptureId = await this.repository.findById(input.captureId);
+    const byCaptureId = await this.repository.findById(this.workspaceId, input.captureId);
     if (byCaptureId) return { resource: byCaptureId, created: false };
     const urls = canonicalizeUrl(input.url, input.metadata.canonicalUrl);
     const { canonicalUrl, canonicalUrlKey, normalizedUrl, sourceDomain } = urls;
@@ -46,15 +46,15 @@ export class ResourceService {
     return { resource: await this.repository.create(resource), created: true };
   }
   get(id: string) {
-    return this.repository.findById(id);
+    return this.repository.findById(this.workspaceId, id);
   }
   list(query: ResourceQuery) {
     return this.repository.list(this.workspaceId, query);
   }
   patch(id: string, patch: ResourcePatch) {
-    return this.repository.update(id, patch);
+    return this.repository.update(this.workspaceId, id, patch);
   }
   delete(id: string) {
-    return this.repository.delete(id);
+    return this.repository.delete(this.workspaceId, id);
   }
 }

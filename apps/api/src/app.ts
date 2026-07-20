@@ -1,4 +1,4 @@
-import { Hono } from "@hono/hono";
+import { type Context, Hono } from "@hono/hono";
 import { z } from "zod";
 import type { DiscordClient } from "./integrations/discord_client.ts";
 import { CaptureSchema, ResourcePatchSchema } from "./domain/resource.ts";
@@ -7,10 +7,56 @@ import { InMemoryResourceRepository } from "./repositories/resource_repository.t
 import type { AuthService, SessionClaims } from "./services/auth_service.ts";
 import { ResourceService } from "./services/resource_service.ts";
 
+export type ChannelRecord = {
+  id: string;
+  discordChannelId: string;
+  name: string;
+  parentName: string | null;
+  discordTopic: string | null;
+  routingDescription: string | null;
+  isActiveForRouting: boolean;
+  isReadLater: boolean;
+  availability: "available" | "unavailable";
+  lastSyncedAt: string | null;
+};
+
+export interface ChannelCoordinator {
+  selectGuild(ownerId: string, guildId: string): Promise<ChannelRecord[]>;
+  sync(ownerId: string, guildId?: string): Promise<ChannelRecord[]>;
+  list(ownerId: string): Promise<ChannelRecord[]>;
+  update(
+    ownerId: string,
+    channelId: string,
+    patch: {
+      routingDescription?: string | null;
+      isActiveForRouting?: boolean;
+      isReadLater?: boolean;
+    },
+  ): Promise<ChannelRecord | null>;
+}
+
+export interface DeliveryCoordinator {
+  publish(
+    ownerId: string,
+    resourceId: string,
+    input: { channelId?: string; kind: "share" | "read_later" },
+  ): Promise<unknown>;
+  list(ownerId: string, resourceId: string): Promise<unknown[]>;
+  retry(ownerId: string, deliveryId: string): Promise<unknown>;
+}
+
+export interface EnrichmentCoordinator {
+  prepare(ownerId: string, resourceId: string): Promise<void>;
+  retry(ownerId: string, resourceId: string): Promise<unknown>;
+}
+
 export type AppDependencies = {
   resources: ResourceService;
   auth?: AuthService;
   discord?: DiscordClient;
+  channels?: ChannelCoordinator;
+  deliveries?: DeliveryCoordinator;
+  enrichment?: EnrichmentCoordinator;
   allowedOrigins?: string[];
   requireAuth?: boolean;
 };
@@ -106,11 +152,44 @@ export function createApp(
     if (!allowedGuilds.includes(guildId)) {
       return error(c, 403, "FORBIDDEN", "This Discord server is not allowed");
     }
+    if (deps.channels) {
+      return c.json({ data: await deps.channels.sync(c.get("session").sub, guildId) });
+    }
     return c.json({ data: await deps.discord.listGuildTextChannels(guildId) });
+  });
+  app.post("/v1/setup/discord/guild", async (c) => {
+    if (!deps.channels) return error(c, 503, "DEPENDENCY_ERROR", "Channel storage is unavailable");
+    const { guildId } = z.object({ guildId: z.string().min(1) }).parse(await c.req.json());
+    if (!c.get("session").guildIds.includes(guildId)) {
+      return error(c, 403, "FORBIDDEN", "This Discord server is not allowed");
+    }
+    return c.json({ data: await deps.channels.selectGuild(c.get("session").sub, guildId) });
+  });
+  app.get("/v1/channels", async (c) => {
+    if (!deps.channels) return error(c, 503, "DEPENDENCY_ERROR", "Channel storage is unavailable");
+    return c.json({ data: await deps.channels.list(c.get("session").sub) });
+  });
+  app.patch("/v1/channels/:id", async (c) => {
+    if (!deps.channels) return error(c, 503, "DEPENDENCY_ERROR", "Channel storage is unavailable");
+    const patch = z.object({
+      routingDescription: z.string().trim().max(1_000).nullable().optional(),
+      isActiveForRouting: z.boolean().optional(),
+      isReadLater: z.boolean().optional(),
+    }).strict().parse(await c.req.json());
+    const row = await deps.channels.update(c.get("session").sub, c.req.param("id"), patch);
+    return row ? c.json({ data: row }) : error(c, 404, "NOT_FOUND", "Channel not found");
   });
   app.post("/v1/resources/captures", async (c) => {
     const input = CaptureSchema.parse(await c.req.json());
     const result = await deps.resources.capture(input);
+    if (result.created && deps.enrichment) {
+      deps.enrichment.prepare(c.get("session")?.sub ?? "", result.resource.id).catch((cause) =>
+        console.error(
+          "Background enrichment failed",
+          cause instanceof Error ? cause.message : cause,
+        )
+      );
+    }
     return c.json(
       { data: result.resource, meta: { created: result.created } },
       result.created ? 201 : 200,
@@ -146,6 +225,36 @@ export function createApp(
         ? c.body(null, 204)
         : error(c, 404, "NOT_FOUND", "Resource not found"),
   );
+  app.post("/v1/resources/:id/enrichment/retry", async (c) => {
+    if (!deps.enrichment) return error(c, 503, "DEPENDENCY_ERROR", "Enrichment is unavailable");
+    return c.json({ data: await deps.enrichment.retry(c.get("session").sub, c.req.param("id")) });
+  });
+  app.get("/v1/resources/:id/deliveries", async (c) => {
+    if (!deps.deliveries) return error(c, 503, "DEPENDENCY_ERROR", "Delivery is unavailable");
+    return c.json({ data: await deps.deliveries.list(c.get("session").sub, c.req.param("id")) });
+  });
+  const publish = async (
+    c: Context<{ Variables: { session: SessionClaims } }>,
+    kind: "share" | "read_later",
+  ) => {
+    if (!deps.deliveries) return error(c, 503, "DEPENDENCY_ERROR", "Delivery is unavailable");
+    const body = kind === "share"
+      ? z.object({ channelId: z.string().uuid() }).parse(await c.req.json())
+      : {};
+    return c.json({
+      data: await deps.deliveries.publish(c.get("session").sub, c.req.param("id")!, {
+        ...body,
+        kind,
+      }),
+    }, 201);
+  };
+  app.post("/v1/resources/:id/deliveries", (c) => publish(c, "share"));
+  app.post("/v1/resources/:id/deliveries/discord", (c) => publish(c, "share"));
+  app.post("/v1/resources/:id/deliveries/read-later", (c) => publish(c, "read_later"));
+  app.post("/v1/deliveries/:id/retry", async (c) => {
+    if (!deps.deliveries) return error(c, 503, "DEPENDENCY_ERROR", "Delivery is unavailable");
+    return c.json({ data: await deps.deliveries.retry(c.get("session").sub, c.req.param("id")) });
+  });
   return app;
 }
 

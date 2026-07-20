@@ -22,7 +22,12 @@ const capture: CaptureInput = {
     sourceLanguage: "en",
   },
 };
-const target = { channelId: crypto.randomUUID(), discordChannelId: "123", guildId: "456" };
+const target = {
+  workspaceId: "00000000-0000-4000-8000-000000000001",
+  channelId: crypto.randomUUID(),
+  discordChannelId: "123",
+  guildId: "456",
+};
 
 Deno.test("delivery transitions pending to sent and deduplicates", async () => {
   const resources = new InMemoryResourceRepository();
