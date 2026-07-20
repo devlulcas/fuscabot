@@ -20,6 +20,10 @@ await Promise.all([
     new URL("side-panel/styles.css", source),
     new URL("side-panel/styles.css", output),
   ),
+  copyDirectory(
+    new URL("side-panel/styles/", source),
+    new URL("side-panel/styles/", output),
+  ),
   ...[16, 32, 48, 128].map((size) =>
     Deno.copyFile(
       new URL(`public/icons/icon-${size}.png`, root),
@@ -48,3 +52,14 @@ async function bundle(input: string, destination: string): Promise<void> {
 }
 
 console.log("Built unpacked extension in apps/extension/dist");
+
+async function copyDirectory(source: URL, destination: URL): Promise<void> {
+  await Deno.mkdir(destination, { recursive: true });
+  for await (const entry of Deno.readDir(source)) {
+    const relativeName = entry.isDirectory ? `${entry.name}/` : entry.name;
+    const from = new URL(relativeName, source);
+    const to = new URL(relativeName, destination);
+    if (entry.isDirectory) await copyDirectory(from, to);
+    else if (entry.isFile) await Deno.copyFile(from, to);
+  }
+}

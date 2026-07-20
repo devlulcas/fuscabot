@@ -1,0 +1,60 @@
+.stack {
+  display: grid;
+  gap: 10px;
+
+  & .stack {
+    gap: 8px;
+  }
+}
+
+.title-row,
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.section-heading {
+  align-items: start;
+
+  & .muted {
+    margin-top: 3px;
+    font-size: 11px;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.primary-actions {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+
+  & [data-variant="primary"] {
+    width: 100%;
+  }
+}
+
+.settings {
+  gap: 14px;
+}
+
+.settings-card {
+  gap: 14px;
+  padding-block: 16px;
+  padding-inline: 13px;
+}
+
+.tag-list,
+[data-results] {
+  display: grid;
+  gap: 11px;
+}
+
+.loading-view {
+  padding-top: 20px;
+}

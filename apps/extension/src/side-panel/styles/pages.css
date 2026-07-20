@@ -1,0 +1,132 @@
+form[role="search"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #11151dbb;
+
+  & label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.resource {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 8px;
+  padding-block: 12px;
+
+  & strong,
+  & .muted {
+    grid-column: 1 / -1;
+  }
+
+  & > a:not([data-component="button"]) {
+    color: var(--accent-2);
+    font-size: 11px;
+  }
+
+  & [data-component="button"] {
+    justify-self: end;
+  }
+}
+
+.channel-settings {
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--subtle-background);
+}
+
+.channel-settings-head,
+.read-later-picker {
+  padding-inline: 11px;
+}
+
+.channel-settings-head {
+  padding-top: 12px;
+}
+
+.read-later-picker {
+  gap: 6px;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+
+  &.inline-error {
+    color: var(--danger);
+  }
+}
+
+.channel-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+
+.channel-row {
+  display: grid;
+  gap: 10px;
+  padding: 14px 11px;
+
+  & + & {
+    border-top: 1px solid var(--line);
+  }
+
+  & textarea {
+    min-height: 50px;
+  }
+}
+
+.channel-row-head,
+.channel-row-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.channel-identity {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+
+  & strong,
+  & span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.switch-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.channel-topic {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.availability {
+  color: var(--muted);
+  font: 700 9px/1 ui-monospace, monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+
+  &.available {
+    color: var(--accent-2);
+  }
+}

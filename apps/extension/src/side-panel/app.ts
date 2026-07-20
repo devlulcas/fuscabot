@@ -80,7 +80,7 @@ function renderManual(fallback: CaptureFallback, error?: string): void {
       escapeHtml(fallback.title)
     }"></label><label>Selected quote<textarea name="selectedQuote">${
       escapeHtml(fallback.selectedQuote)
-    }</textarea></label><button class="primary">Capture &amp; prepare</button></form></section>`;
+    }</textarea></label><button data-variant="primary">Capture &amp; prepare</button></form></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -142,7 +142,7 @@ async function renderEditor(resource: ApiResource): Promise<void> {
           escapeHtml(
             resource.enrichmentError ?? "You can edit the capture manually.",
           )
-        } <button type="button" data-retry-ai>Retry</button></p>`
+        } <button type="button" data-variant="ghost" data-size="compact" data-retry-ai>Retry</button></p>`
         : resource.enrichmentStatus === "preparing"
         ? '<p class="notice" role="status">Preparing the AI draft… This view updates automatically.</p>'
         : `<details class="ai-note"><summary>AI routing note</summary><p>${
@@ -175,9 +175,9 @@ async function renderEditor(resource: ApiResource): Promise<void> {
           escapeHtml(channel.name)
         }</option>`
       ).join("")
-    }</select></label><div class="actions primary-actions"><button type="button" data-save>Update</button><button type="button" data-read-later>Read later</button><button class="primary" data-publish disabled>Publish</button></div><details class="danger-zone"><summary>More actions</summary><div class="actions"><button type="button" data-archive>${
+    }</select></label><div class="actions primary-actions"><button type="button" data-variant="secondary" data-save>Update</button><button type="button" data-variant="secondary" data-read-later>Read later</button><button data-variant="primary" data-publish disabled>Publish</button></div><details class="danger-zone"><summary>More actions</summary><div class="actions"><button type="button" data-variant="ghost" data-archive>${
       resource.archivedAt ? "Restore from archive" : "Archive"
-    }</button><button class="danger" type="button" data-delete>Delete permanently</button></div></details></form></section>`;
+    }</button><button type="button" data-variant="danger" data-delete>Delete permanently</button></div></details></form></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   app.querySelector<HTMLButtonElement>("[data-retry-ai]")?.addEventListener(
     "click",
@@ -272,7 +272,7 @@ async function renderEditor(resource: ApiResource): Promise<void> {
 
 async function renderLibrary(): Promise<void> {
   app.innerHTML =
-    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label><label>State<select name="state"><option value="">All active</option><option value="inbox">Inbox</option><option value="read_later">Read Later</option><option value="shared">Shared</option><option value="archived">Archived</option></select></label><label>Domain<input name="domain" placeholder="example.com"></label><label>AI status<select name="enrichmentStatus"><option value="">Any</option><option value="failed">Failed</option><option value="preparing">Preparing</option><option value="ready">Ready</option></select></label><label>Sort<select name="sort"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="updated">Recently updated</option></select></label><button>Apply</button></form><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
+    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label><label>State<select name="state"><option value="">All active</option><option value="inbox">Inbox</option><option value="read_later">Read Later</option><option value="shared">Shared</option><option value="archived">Archived</option></select></label><label>Domain<input name="domain" placeholder="example.com"></label><label>AI status<select name="enrichmentStatus"><option value="">Any</option><option value="failed">Failed</option><option value="preparing">Preparing</option><option value="ready">Ready</option></select></label><label>Sort<select name="sort"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="updated">Recently updated</option></select></label><button data-variant="secondary">Apply</button></form><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   const results = requiredElement<HTMLElement>(app, "[data-results]");
   const load = async (): Promise<void> => {
@@ -307,7 +307,7 @@ async function renderLibrary(): Promise<void> {
           escapeHtml(resource.originalUrl)
         }" target="_blank" rel="noopener noreferrer">Open source</a><a href="#/capture/${
           escapeHtml(resource.id)
-        }" class="review-button">Review</a></article>`
+        }" data-component="button" data-variant="secondary" data-size="compact">Review</a></article>`
       ).join("")
       : '<p class="notice">No resources found. Capture a page to start your library.</p>';
   };
@@ -326,9 +326,9 @@ async function renderSettings(): Promise<void> {
   app.innerHTML =
     `<section class="stack settings"><h1 tabindex="-1">Settings</h1><form class="card stack settings-card"><h2>API</h2><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
-    }"></label><button class="primary">Save API URL</button></form><section class="card stack settings-card"><h2>Discord account</h2><p class="notice">${
+    }"></label><button data-variant="primary">Save API URL</button></form><section class="card stack settings-card"><h2>Discord account</h2><p class="notice">${
       connected ? "Connected as the configured owner." : "Not connected."
-    }</p><button data-connect>${
+    }</p><button data-variant="secondary" data-connect>${
       connected ? "Reconnect Discord" : "Connect Discord"
     }</button></section></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
@@ -360,7 +360,7 @@ async function renderChannels(): Promise<void> {
   }
   if (!connected) {
     app.innerHTML =
-      '<section class="stack settings"><h1 tabindex="-1">Channels</h1><p class="notice">Connect Discord in Settings before importing channels.</p><a class="page-action" href="#/settings">Open Settings</a></section>';
+      '<section class="stack settings"><h1 tabindex="-1">Channels</h1><p class="notice">Connect Discord in Settings before importing channels.</p><a data-component="button" data-variant="secondary" href="#/settings">Open Settings</a></section>';
     return;
   }
   app.innerHTML =
@@ -374,7 +374,7 @@ async function renderChannels(): Promise<void> {
           ).join("")
         }</select></label>`
         : ""
-    }<div class="actions"><button class="primary" data-sync ${
+    }<div class="actions"><button data-variant="primary" data-sync ${
       guilds.length ? "" : "disabled"
     }>Sync channels now</button></div><div data-channels>${
       channelSettings(storedChannels)
@@ -405,12 +405,12 @@ async function renderTags(): Promise<void> {
     : false;
   if (!connected) {
     app.innerHTML =
-      '<section class="stack settings"><h1 tabindex="-1">Tags</h1><p class="notice">Connect Discord in Settings before managing tags.</p><a class="page-action" href="#/settings">Open Settings</a></section>';
+      '<section class="stack settings"><h1 tabindex="-1">Tags</h1><p class="notice">Connect Discord in Settings before managing tags.</p><a data-component="button" data-variant="secondary" href="#/settings">Open Settings</a></section>';
     return;
   }
   const storedTags = await api.tags().catch(() => []);
   app.innerHTML =
-    `<section class="stack settings"><h1 tabindex="-1">Tags</h1><section class="card stack settings-card"><div class="section-heading"><div><h2>Canonical tags</h2><p class="muted">Maintain bilingual labels and aliases used by AI suggestions.</p></div></div><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button class="primary">Add canonical tag</button></form><p class="muted" data-tags>${
+    `<section class="stack settings"><h1 tabindex="-1">Tags</h1><section class="card stack settings-card"><div class="section-heading"><div><h2>Canonical tags</h2><p class="muted">Maintain bilingual labels and aliases used by AI suggestions.</p></div></div><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button data-variant="primary">Add canonical tag</button></form><p class="muted" data-tags>${
       storedTags.length
         ? storedTags.map((tag) => `#${escapeHtml(tag.slug)}`).join(" · ")
         : "No tags yet."
@@ -541,13 +541,13 @@ function tagSettings(tags: Awaited<ReturnType<typeof api.tags>>): string {
       escapeHtml(portuguese)
     }"></label><label>Aliases<input name="aliases" value="${
       escapeHtml(tag.aliases.join(", "))
-    }"></label><div class="actions"><button value="save">Save tag</button><select name="targetId"><option value="">Merge into…</option>${
+    }"></label><div class="actions"><button data-variant="secondary" value="save">Save tag</button><select name="targetId"><option value="">Merge into…</option>${
       tags.filter((target) => target.id !== tag.id).map((target) =>
         `<option value="${escapeHtml(target.id)}">#${
           escapeHtml(target.slug)
         }</option>`
       ).join("")
-    }</select><button value="merge">Merge</button></div></form>`;
+    }</select><button data-variant="danger" value="merge">Merge</button></div></form>`;
   }).join("");
 }
 
@@ -590,7 +590,7 @@ function channelSettings(channels: DiscordChannel[]): string {
         escapeHtml(channel.availability)
       }">${
         escapeHtml(channel.availability)
-      }</span><button>Save routing</button></div></form>`
+      }</span><button data-variant="secondary" data-size="compact">Save routing</button></div></form>`
     ).join("")
   }</div></section>`;
 }
