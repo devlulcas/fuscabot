@@ -12,6 +12,15 @@ Deno.test("normalizes API origins", () => {
     normalizeBaseUrl("javascript:alert(1)"),
     "https://fuscabot.devlulcas.deno.net",
   );
+  assertEquals(normalizeBaseUrl("http://example.com"), "http://localhost:8000");
+  assertEquals(
+    normalizeBaseUrl("https://user:secret@example.com"),
+    "http://localhost:8000",
+  );
+  assertEquals(
+    normalizeBaseUrl("https://example.com/api?token=x"),
+    "http://localhost:8000",
+  );
 });
 Deno.test("cleans optional capture text", () => {
   assertEquals(cleanOptionalText("  hello\n world "), "hello world");

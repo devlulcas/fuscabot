@@ -43,7 +43,15 @@ export function normalizeBaseUrl(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) return DEFAULT_API_BASE_URL;
   try {
     const url = new URL(value.trim());
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
+    const localHost = url.hostname === "localhost" ||
+      url.hostname === "127.0.0.1" ||
+      url.hostname === "[::1]";
+    if (
+      (url.protocol !== "https:" && !(url.protocol === "http:" && localHost)) ||
+      url.username !== "" || url.password !== "" || url.search !== "" ||
+      url.hash !== "" ||
+      (url.pathname !== "" && url.pathname !== "/")
+    ) {
       return DEFAULT_API_BASE_URL;
     }
     const normalized = url.href.replace(/\/$/, "");

@@ -48,6 +48,10 @@ Deno.test("selectCanonicalUrl rejects unrelated and unsafe canonicals", () => {
     selectCanonicalUrl("https://example.com/a", "mailto:a@example.com"),
     null,
   );
+  assertEquals(
+    selectCanonicalUrl("https://docs.example.co.uk/a", "https://co.uk/a"),
+    null,
+  );
 });
 
 Deno.test("canonicalizeUrl chooses the accepted canonical as duplicate key", () => {

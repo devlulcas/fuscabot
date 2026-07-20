@@ -37,8 +37,14 @@ export function normalizeUrl(value: string): string {
 }
 
 function isRelatedHost(original: string, candidate: string): boolean {
-  return original === candidate || original.endsWith(`.${candidate}`) ||
-    candidate.endsWith(`.${original}`);
+  if (original === candidate) return true;
+  const withoutWww = (host: string): string =>
+    host.startsWith("www.") ? host.slice(4) : host;
+  if (withoutWww(original) === withoutWww(candidate)) return true;
+
+  // Moving from a host to one of its children is safe. Moving to an arbitrary
+  // parent is not: the parent could be a public suffix such as `com`/`co.uk`.
+  return candidate.endsWith(`.${original}`);
 }
 
 /** Resolves a page canonical and rejects credentials, non-web URLs, and unrelated hosts. */

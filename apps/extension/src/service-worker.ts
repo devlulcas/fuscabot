@@ -1,6 +1,7 @@
 import { extractPageMetadata } from "./metadata.ts";
 import { api } from "./shared/api.ts";
 import { createCapturePayload } from "./shared/capture.ts";
+import { savePendingCapture } from "./shared/pending-capture.ts";
 import { type CaptureKind, capturePath } from "./shared/types.ts";
 
 const MENU = {
@@ -39,9 +40,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     ? "selection"
     : "page";
   const captureId = crypto.randomUUID();
-  await chrome.storage.local.set({
-    pendingCapture: { captureId, state: "saving" },
-  });
+  await savePendingCapture({ captureId, state: "saving" });
 
   try {
     const [{ result: metadata }] = await chrome.scripting.executeScript({
@@ -58,21 +57,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       linkUrl: info.linkUrl,
       selectionText: info.selectionText,
     }));
-    await chrome.storage.local.set({
-      pendingCapture: { captureId, resourceId: resource.id, state: "saved" },
+    await savePendingCapture({
+      captureId,
+      resourceId: resource.id,
+      state: "saved",
     });
     await openPanel(tab, capturePath(captureId));
   } catch (error) {
-    await chrome.storage.local.set({
-      pendingCapture: {
-        captureId,
-        state: "failed",
-        error: error instanceof Error ? error.message : "Capture failed",
-        fallback: {
-          url: info.linkUrl ?? tab.url,
-          title: tab.title,
-          selectedQuote: info.selectionText,
-        },
+    await savePendingCapture({
+      captureId,
+      state: "failed",
+      error: error instanceof Error ? error.message : "Capture failed",
+      fallback: {
+        url: info.linkUrl ?? tab.url,
+        title: tab.title,
+        selectedQuote: info.selectionText,
       },
     });
     await openPanel(tab, capturePath(captureId));

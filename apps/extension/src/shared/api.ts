@@ -1,3 +1,8 @@
+import {
+  ApiErrorSchema,
+  DeliverySchema,
+  ResourceSchema,
+} from "../../../../packages/contracts/mod.ts";
 import type { ApiError as ApiErrorBody } from "../../../../packages/contracts/mod.ts";
 import { getConfig } from "./config.ts";
 import type {
@@ -14,6 +19,13 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+export class ContractResponseError extends Error {
+  constructor(message = "The API returned an invalid response") {
+    super(message);
+    this.name = "ContractResponseError";
   }
 }
 
@@ -56,7 +68,6 @@ export async function apiRequest<T>(
   return body as T;
 }
 
-type DataEnvelope<T> = { data: T };
 type DeliveryResult = { discordUrl?: string };
 export type DiscordSession = {
   discordUserId: string;
@@ -74,45 +85,57 @@ export type DiscordChannel = {
 
 export const api = {
   async createCapture(payload: CapturePayload): Promise<ApiResource> {
-    return (await apiRequest<DataEnvelope<ApiResource>>(
-      "/v1/resources/captures",
-      {
-        method: "POST",
-        body: payload,
-      },
-    )).data;
+    return parseResourceEnvelope(
+      await apiRequest<unknown>(
+        "/v1/resources/captures",
+        {
+          method: "POST",
+          body: payload,
+        },
+      ),
+    );
   },
   async getResource(id: string, signal?: AbortSignal): Promise<ApiResource> {
-    return (await apiRequest<DataEnvelope<ApiResource>>(
-      `/v1/resources/${encodeURIComponent(id)}`,
-      { signal },
-    )).data;
+    return parseResourceEnvelope(
+      await apiRequest<unknown>(
+        `/v1/resources/${encodeURIComponent(id)}`,
+        { signal },
+      ),
+    );
   },
   async updateResource(
     id: string,
     patch: UpdateResourcePayload,
   ): Promise<ApiResource> {
-    return (await apiRequest<DataEnvelope<ApiResource>>(
-      `/v1/resources/${encodeURIComponent(id)}`,
-      { method: "PATCH", body: patch },
-    )).data;
+    return parseResourceEnvelope(
+      await apiRequest<unknown>(
+        `/v1/resources/${encodeURIComponent(id)}`,
+        { method: "PATCH", body: patch },
+      ),
+    );
   },
   async listResources(query = ""): Promise<ApiResource[]> {
-    return (await apiRequest<DataEnvelope<ApiResource[]>>(
-      `/v1/resources?${new URLSearchParams({ search: query })}`,
-    )).data;
+    return parseResourceListEnvelope(
+      await apiRequest<unknown>(
+        `/v1/resources?${new URLSearchParams({ search: query })}`,
+      ),
+    );
   },
-  publish: (id: string, channelId: string): Promise<DeliveryResult> =>
-    apiRequest(`/v1/resources/${encodeURIComponent(id)}/deliveries`, {
-      method: "POST",
-      body: { channelId },
-    }),
-  readLater: (id: string): Promise<DeliveryResult> =>
-    apiRequest(
-      `/v1/resources/${encodeURIComponent(id)}/deliveries/read-later`,
-      {
+  publish: async (id: string, channelId: string): Promise<DeliveryResult> =>
+    parseDeliveryResult(
+      await apiRequest(`/v1/resources/${encodeURIComponent(id)}/deliveries`, {
         method: "POST",
-      },
+        body: { channelId },
+      }),
+    ),
+  readLater: async (id: string): Promise<DeliveryResult> =>
+    parseDeliveryResult(
+      await apiRequest(
+        `/v1/resources/${encodeURIComponent(id)}/deliveries/read-later`,
+        {
+          method: "POST",
+        },
+      ),
     ),
   retryEnrichment: (id: string): Promise<unknown> =>
     apiRequest(`/v1/resources/${encodeURIComponent(id)}/enrichment/retry`, {
@@ -134,12 +157,58 @@ export const api = {
 };
 
 function errorMessage(value: unknown): string | undefined {
-  if (typeof value !== "object" || value === null || !("error" in value)) {
-    return undefined;
+  const parsed = ApiErrorSchema.safeParse(value);
+  return parsed.success ? parsed.data.error.message : undefined;
+}
+
+export function parseResourceEnvelope(value: unknown): ApiResource {
+  const data = envelopeData(value);
+  const parsed = ResourceSchema.safeParse(data);
+  if (!parsed.success) throw new ContractResponseError();
+  const channels = readChannels(data);
+  return channels === undefined ? parsed.data : { ...parsed.data, channels };
+}
+
+export function parseResourceListEnvelope(value: unknown): ApiResource[] {
+  const data = envelopeData(value);
+  if (!Array.isArray(data)) throw new ContractResponseError();
+  return data.map((resource) => parseResourceEnvelope({ data: resource }));
+}
+
+export function parseDeliveryResult(value: unknown): DeliveryResult {
+  const data = isRecord(value) && "data" in value ? value.data : value;
+  const parsed = DeliverySchema.safeParse(data);
+  if (parsed.success) {
+    return { discordUrl: parsed.data.externalUrl ?? undefined };
   }
-  const error = value.error;
-  return typeof error === "object" && error !== null && "message" in error &&
-      typeof error.message === "string"
-    ? error.message
-    : undefined;
+
+  // Temporary compatibility for the original extension/API mock boundary.
+  if (
+    isRecord(data) &&
+    (data.discordUrl === undefined || typeof data.discordUrl === "string")
+  ) {
+    return { discordUrl: data.discordUrl };
+  }
+  throw new ContractResponseError();
+}
+
+function envelopeData(value: unknown): unknown {
+  if (!isRecord(value) || !("data" in value)) throw new ContractResponseError();
+  return value.data;
+}
+
+function readChannels(value: unknown): ApiResource["channels"] {
+  if (!isRecord(value) || !("channels" in value)) return undefined;
+  if (!Array.isArray(value.channels)) throw new ContractResponseError();
+  return value.channels.map((channel) => {
+    if (
+      !isRecord(channel) || typeof channel.id !== "string" ||
+      typeof channel.name !== "string"
+    ) throw new ContractResponseError();
+    return { id: channel.id, name: channel.name };
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

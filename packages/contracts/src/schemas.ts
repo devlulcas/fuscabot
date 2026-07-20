@@ -2,6 +2,11 @@ import { z } from "zod";
 
 const nonBlank = z.string().trim().min(1);
 const nullableText = z.string().trim().min(1).nullable();
+const httpUrl = z.url().refine((value) => {
+  const url = new URL(value);
+  return (url.protocol === "http:" || url.protocol === "https:") &&
+    url.username === "" && url.password === "";
+}, "Expected an HTTP(S) URL without credentials");
 
 export const LanguageSchema = z.enum(["pt-BR", "en"]);
 export type Language = z.infer<typeof LanguageSchema>;
@@ -10,19 +15,19 @@ export const EnrichmentStatusSchema = z.enum(["preparing", "ready", "failed"]);
 export type EnrichmentStatus = z.infer<typeof EnrichmentStatusSchema>;
 
 export const CaptureMetadataSchema = z.object({
-  canonicalUrl: z.url().nullable().default(null),
+  canonicalUrl: httpUrl.nullable().default(null),
   description: nullableText.default(null),
   siteName: nullableText.default(null),
   author: nullableText.default(null),
   publishedAt: z.iso.datetime({ offset: true }).nullable().default(null),
-  imageUrl: z.url().nullable().default(null),
+  imageUrl: httpUrl.nullable().default(null),
   sourceLanguage: nonBlank.nullable().default(null),
 });
 export type CaptureMetadata = z.infer<typeof CaptureMetadataSchema>;
 
 export const CaptureSchema = z.object({
   captureId: z.uuid(),
-  url: z.url(),
+  url: httpUrl,
   title: nonBlank.max(1_000),
   selectedQuote: z.string().trim().min(1).max(10_000).nullable().default(null),
   linkText: z.string().trim().min(1).max(500).nullable().default(null),
@@ -96,10 +101,10 @@ export const ResourceTagSchema = z.object({
 
 export const ResourceSchema = z.object({
   id: z.uuid(),
-  originalUrl: z.url(),
-  normalizedUrl: z.url(),
-  canonicalUrl: z.url().nullable(),
-  canonicalUrlKey: z.url(),
+  originalUrl: httpUrl,
+  normalizedUrl: httpUrl,
+  canonicalUrl: httpUrl.nullable(),
+  canonicalUrlKey: httpUrl,
   sourceDomain: nonBlank,
   sourceLanguage: nonBlank.default("unknown"),
   outputLanguage: LanguageSchema.default("pt-BR"),
@@ -108,7 +113,7 @@ export const ResourceSchema = z.object({
   siteName: nullableText,
   author: nullableText,
   publishedAtSource: z.iso.datetime({ offset: true }).nullable(),
-  imageUrl: z.url().nullable(),
+  imageUrl: httpUrl.nullable(),
   selectedQuote: nullableText,
   summary: nullableText,
   whyUseful: nullableText,
@@ -127,7 +132,7 @@ export const DeliveryKindSchema = z.enum(["read_later", "share"]);
 
 export const DeliverySnapshotSchema = z.object({
   title: nonBlank.max(256),
-  url: z.url(),
+  url: httpUrl,
   summary: nullableText,
   whyUseful: nullableText,
   personalNote: nullableText,
@@ -146,7 +151,7 @@ export const DeliverySchema = z.object({
   deliveryKind: DeliveryKindSchema,
   messageSnapshot: DeliverySnapshotSchema,
   externalMessageId: nonBlank.nullable(),
-  externalUrl: z.url().nullable(),
+  externalUrl: httpUrl.nullable(),
   status: DeliveryStatusSchema,
   error: nullableText,
   sentAt: z.iso.datetime({ offset: true }).nullable(),
