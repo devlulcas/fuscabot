@@ -23,7 +23,7 @@ Tasks are ordered by dependency, not merely by product phase.
 
 - [ ] **W2.1 Session security** — OAuth state storage, owner allow-list,
       short-lived access and rotating/revocable refresh tokens.
-- [ ] **W2.2 Discord OAuth setup** — start/callback flow, guild eligibility and
+- [x] **W2.2 Discord OAuth setup** — start/callback flow, guild eligibility and
       one-guild selection.
 - [ ] **W2.3 Channel synchronization** — text-channel-only import, preserve user
       routing configuration, unavailable-channel handling.
