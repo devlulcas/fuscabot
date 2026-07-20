@@ -148,6 +148,7 @@ export const enrichmentRuns = pgTable("enrichment_runs", {
   output: jsonb("output"),
   status: text("status").notNull(),
   error: text("error"),
+  retryable: boolean("retryable").notNull().default(false),
   durationMs: integer("duration_ms"),
   ...timestamps,
 });

@@ -26,6 +26,8 @@ export type EnrichmentState = {
   promptVersion: typeof ENRICHMENT_PROMPT_VERSION | null;
 };
 
+export type EnrichmentClaim = { state: EnrichmentState; claimed: boolean };
+
 export function compactEnrichmentInput(
   input: Omit<EnrichmentInput, "version">,
 ): EnrichmentInput {

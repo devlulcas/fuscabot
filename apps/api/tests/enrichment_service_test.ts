@@ -52,6 +52,26 @@ Deno.test("service makes concurrent preparation idempotent", async () => {
   assertEquals(two, one);
 });
 
+Deno.test("store claim prevents external work across service instances", async () => {
+  const store = new InMemoryEnrichmentStore([initial()]);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => release = resolve);
+  let calls = 0;
+  const client = {
+    enrich: async () => {
+      calls++;
+      await gate;
+      return draft;
+    },
+  };
+  const first = new EnrichmentService(store, client).prepare(resourceId);
+  await Promise.resolve();
+  const second = await new EnrichmentService(store, client).prepare(resourceId);
+  assertEquals([second.status, calls], ["preparing", 1]);
+  release();
+  assertEquals((await first).status, "ready");
+});
+
 Deno.test("failure retains manual fallback input and explicit retry succeeds", async () => {
   const state = initial();
   state.draft = { ...draft, summary: "User-authored fallback" };
