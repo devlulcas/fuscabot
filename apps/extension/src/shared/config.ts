@@ -3,7 +3,11 @@ import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 const CONFIG_KEY = "extensionConfig";
 const LEGACY_API_BASE_URL = "https://api.fuscabot.dev";
-export type ExtensionConfig = { apiBaseUrl: string; accessToken?: string };
+export type ExtensionConfig = {
+  apiBaseUrl: string;
+  accessToken?: string;
+  selectedGuildId?: string;
+};
 
 export async function getConfig(): Promise<ExtensionConfig> {
   const stored = await chrome.storage.local.get(CONFIG_KEY);
@@ -14,6 +18,9 @@ export async function getConfig(): Promise<ExtensionConfig> {
     accessToken: typeof config.accessToken === "string"
       ? config.accessToken
       : undefined,
+    selectedGuildId: typeof config.selectedGuildId === "string"
+      ? config.selectedGuildId
+      : undefined,
   };
 }
 
@@ -23,6 +30,9 @@ export async function saveConfig(config: unknown): Promise<ExtensionConfig> {
     apiBaseUrl: normalizeBaseUrl(record.apiBaseUrl),
     accessToken: typeof record.accessToken === "string"
       ? record.accessToken
+      : undefined,
+    selectedGuildId: typeof record.selectedGuildId === "string"
+      ? record.selectedGuildId
       : undefined,
   };
   await chrome.storage.local.set({ [CONFIG_KEY]: value });

@@ -15,6 +15,21 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
+const RuntimeEnvSchema = EnvSchema.extend({
+  OWNER_DISCORD_USER_ID: z.string().min(1),
+  DISCORD_BOT_TOKEN: z.string().min(1),
+  DISCORD_CLIENT_ID: z.string().min(1),
+  DISCORD_CLIENT_SECRET: z.string().min(1),
+  DISCORD_OAUTH_REDIRECT_URI: z.url(),
+  APP_SESSION_SIGNING_SECRET: z.string().min(32),
+});
+
+export type RuntimeEnv = z.infer<typeof RuntimeEnvSchema>;
+
 export function loadEnv(source: Record<string, string | undefined> = Deno.env.toObject()): Env {
   return EnvSchema.parse(source);
+}
+
+export function requireRuntimeEnv(env: Env): RuntimeEnv {
+  return RuntimeEnvSchema.parse(env);
 }

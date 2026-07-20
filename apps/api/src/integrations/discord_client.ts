@@ -7,6 +7,7 @@ export type DiscordTextChannel = {
 };
 
 export type DiscordMessage = { id: string; channel_id: string };
+export type DiscordGuild = { id: string; name: string; icon: string | null };
 export type DiscordFetch = typeof fetch;
 
 export class DiscordApiError extends Error {
@@ -32,6 +33,10 @@ export class DiscordClient {
       `/guilds/${guildId}/channels`,
     );
     return channels.filter((channel): channel is DiscordTextChannel => channel.type === 0);
+  }
+
+  getGuild(guildId: string): Promise<DiscordGuild> {
+    return this.call(`/guilds/${guildId}`);
   }
 
   createChannelMessage(channelId: string, payload: DiscordMessagePayload): Promise<DiscordMessage> {

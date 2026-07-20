@@ -58,6 +58,19 @@ export async function apiRequest<T>(
 
 type DataEnvelope<T> = { data: T };
 type DeliveryResult = { discordUrl?: string };
+export type DiscordSession = {
+  discordUserId: string;
+  guildIds: string[];
+  expiresAt: string;
+};
+export type DiscordGuild = { id: string; name: string; icon: string | null };
+export type DiscordChannel = {
+  id: string;
+  name: string;
+  type: 0;
+  parent_id: string | null;
+  topic: string | null;
+};
 
 export const api = {
   async createCapture(payload: CapturePayload): Promise<ApiResource> {
@@ -101,9 +114,19 @@ export const api = {
         method: "POST",
       },
     ),
-  settings: (): Promise<unknown> => apiRequest("/v1/settings"),
-  syncChannels: (): Promise<unknown> =>
-    apiRequest("/v1/discord/channels/sync", { method: "POST" }),
+  session: async (): Promise<DiscordSession> =>
+    (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session")).data,
+  guilds: async (): Promise<DiscordGuild[]> =>
+    (await apiRequest<DataEnvelope<DiscordGuild[]>>("/v1/setup/discord/guilds"))
+      .data,
+  syncChannels: async (guildId: string): Promise<DiscordChannel[]> =>
+    (await apiRequest<DataEnvelope<DiscordChannel[]>>(
+      "/v1/discord/channels/sync",
+      {
+        method: "POST",
+        body: { guildId },
+      },
+    )).data,
 };
 
 function errorMessage(value: unknown): string | undefined {

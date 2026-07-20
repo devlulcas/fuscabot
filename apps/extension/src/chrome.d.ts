@@ -59,4 +59,11 @@ declare namespace chrome {
     function get(keys?: string | string[]): Promise<Record<string, unknown>>;
     function set(items: Record<string, unknown>): Promise<void>;
   }
+  namespace identity {
+    function getRedirectURL(path?: string): string;
+    function launchWebAuthFlow(options: {
+      url: string;
+      interactive: boolean;
+    }): Promise<string | undefined>;
+  }
 }

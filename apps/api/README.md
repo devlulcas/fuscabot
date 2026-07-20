@@ -17,6 +17,19 @@ deno task check
 
 `GET /health` is intentionally available without a database connection.
 
+## Discord connection
+
+The extension uses Chrome's controlled web-auth flow. It opens `/v1/auth/discord/start`, the API
+validates a signed OAuth state and the configured owner Discord user ID, then hands a one-hour
+application session back through Chrome's `chromiumapp.org` redirect. API routes under `/v1` require
+that bearer session except for the Discord start/callback endpoints.
+
+The configured Discord OAuth callback remains:
+
+```text
+https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback
+```
+
 ## Database
 
 Apply `migrations/0000_initial.sql` to a disposable local PostgreSQL database. The migration

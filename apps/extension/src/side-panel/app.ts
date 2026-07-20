@@ -171,32 +171,89 @@ async function renderLibrary(): Promise<void> {
 
 async function renderSettings(): Promise<void> {
   const config = await getConfig();
+  let connected = false;
+  let guilds: Array<{ id: string; name: string }> = [];
+  if (config.accessToken) {
+    try {
+      await api.session();
+      guilds = await api.guilds();
+      connected = true;
+    } catch {
+      connected = false;
+    }
+  }
   app.innerHTML =
     `<section class="stack"><h1>Settings</h1><form class="card stack"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
-    }"></label><label>Session token<input name="accessToken" type="password" value="${
-      escapeHtml(config.accessToken)
-    }" autocomplete="off"></label><button class="primary">Save connection</button></form><section class="card"><h2>Discord</h2><div class="actions"><button data-connect>Connect Discord</button><button data-sync>Sync channels now</button></div></section></section>`;
+    }"></label><button class="primary">Save API URL</button></form><section class="card stack"><h2>Discord</h2><p class="notice">${
+      connected ? "Connected as the configured owner." : "Not connected."
+    }</p>${
+      connected && guilds.length
+        ? `<label>Server<select data-guild>${
+          guilds.map((guild) =>
+            `<option value="${escapeHtml(guild.id)}" ${
+              guild.id === config.selectedGuildId ? "selected" : ""
+            }>${escapeHtml(guild.name)}</option>`
+          ).join("")
+        }</select></label>`
+        : ""
+    }<div class="actions"><button data-connect>${
+      connected ? "Reconnect Discord" : "Connect Discord"
+    }</button><button data-sync ${
+      connected && guilds.length ? "" : "disabled"
+    }>Sync channels now</button></div><div data-channels></div></section></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveConfig(Object.fromEntries(new FormData(form)));
+    await saveConfig({ ...config, apiBaseUrl: formValue(form, "apiBaseUrl") });
     requiredElement<HTMLButtonElement>(form, "button").textContent = "Saved";
   });
   requiredElement<HTMLButtonElement>(app, "[data-connect]").addEventListener(
     "click",
-    () => open(`${config.apiBaseUrl}/v1/auth/discord/start`, "_blank"),
+    () => void connectDiscord(config).catch(showError),
   );
   const sync = requiredElement<HTMLButtonElement>(app, "[data-sync]");
   sync.addEventListener("click", async () => {
     sync.disabled = true;
     try {
-      await api.syncChannels();
-      sync.textContent = "Synced";
+      const select = app.querySelector<HTMLSelectElement>("[data-guild]");
+      if (!select?.value) throw new Error("Choose a Discord server");
+      const channels = await api.syncChannels(select.value);
+      await saveConfig({ ...config, selectedGuildId: select.value });
+      sync.textContent = `Synced ${channels.length}`;
+      requiredElement<HTMLElement>(app, "[data-channels]").innerHTML =
+        channels.length
+          ? `<p class="muted">${
+            channels.map((channel) => `#${escapeHtml(channel.name)}`).join(
+              " · ",
+            )
+          }</p>`
+          : '<p class="notice">No accessible standard text channels found.</p>';
     } finally {
       sync.disabled = false;
     }
   });
+}
+
+async function connectDiscord(
+  config: Awaited<ReturnType<typeof getConfig>>,
+): Promise<void> {
+  const extensionRedirect = chrome.identity.getRedirectURL("discord");
+  const url = new URL("/v1/auth/discord/start", config.apiBaseUrl);
+  url.searchParams.set("extension_redirect", extensionRedirect);
+  const result = await chrome.identity.launchWebAuthFlow({
+    url: url.href,
+    interactive: true,
+  });
+  if (!result) throw new Error("Discord connection was cancelled");
+  const accessToken = new URLSearchParams(new URL(result).hash.slice(1)).get(
+    "access_token",
+  );
+  if (!accessToken) {
+    throw new Error("Discord connection did not return a session");
+  }
+  await saveConfig({ ...config, accessToken });
+  await renderSettings();
 }
 
 function showSuccess(delivery: { discordUrl?: string }): void {

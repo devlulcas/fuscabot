@@ -4,6 +4,11 @@
     "./apps/extension",
     "./packages/contracts"
   ],
+  "deploy": {
+    "org": "devlulcas",
+    "app": "fuscabot",
+    "entrypoint": "apps/api/src/server.ts"
+  },
   "tasks": {
     "check": "deno task fmt:check && deno task lint && deno task typecheck && deno task test",
     "fmt": "deno fmt",
