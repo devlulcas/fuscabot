@@ -46,6 +46,29 @@ Deno.test("capture is idempotent and strips tracking keys", async () => {
   assertEquals(second.status, 200);
   assertEquals((await second.json()).meta.created, false);
 });
+Deno.test("capture waits for enrichment and returns the prepared resource", async () => {
+  const resources = new ResourceService(new InMemoryResourceRepository());
+  let prepared = false;
+  const instance = createApp({
+    resources,
+    enrichment: {
+      async prepare(_ownerId, resourceId) {
+        await resources.patch(resourceId, { summary: "Prepared by AI" });
+        prepared = true;
+      },
+      retry: () => Promise.resolve(undefined),
+      get: () => Promise.resolve(undefined),
+    },
+  });
+  const response = await instance.request("/v1/resources/captures", {
+    method: "POST",
+    body: JSON.stringify(capture),
+    headers: { "content-type": "application/json" },
+  });
+  const body = await response.json();
+  assertEquals(prepared, true);
+  assertEquals(body.data.summary, "Prepared by AI");
+});
 Deno.test("CRUD and validation error envelope", async () => {
   const instance = app();
   await instance.request("/v1/resources/captures", {

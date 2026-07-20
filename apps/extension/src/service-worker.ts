@@ -30,9 +30,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
 
-chrome.action.onClicked.addListener((tab) => openPanel(tab, "/library"));
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (tab?.id === undefined || tab.windowId === undefined) return;
   const kind: CaptureKind = info.menuItemId === MENU.link
     ? "link"
@@ -40,7 +38,24 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     ? "selection"
     : "page";
   const captureId = crypto.randomUUID();
-  await savePendingCapture({ captureId, state: "saving" });
+
+  // Chrome only permits this call while the context-menu gesture is active.
+  // Do not place any awaited work before it.
+  void chrome.sidePanel.open({ windowId: tab.windowId }).catch((cause) =>
+    console.error("Could not open the capture panel", cause)
+  );
+  void captureFromContextMenu(info, tab, kind, captureId);
+});
+
+async function captureFromContextMenu(
+  info: chrome.contextMenus.OnClickData,
+  tab: chrome.tabs.Tab,
+  kind: CaptureKind,
+  captureId: string,
+): Promise<void> {
+  if (tab.id === undefined) return;
+  await savePendingCapture({ captureId, state: "extracting" });
+  await navigatePanel(tab, captureId);
 
   try {
     const [{ result: metadata }] = await chrome.scripting.executeScript({
@@ -48,6 +63,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       func: extractPageMetadata,
     });
     if (metadata === undefined) throw new Error("Could not read page metadata");
+    await savePendingCapture({ captureId, state: "preparing" });
+    await notifyCapture(captureId);
     const resource = await api.createCapture(createCapturePayload({
       captureId,
       kind,
@@ -60,9 +77,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     await savePendingCapture({
       captureId,
       resourceId: resource.id,
-      state: "saved",
+      state: "ready",
     });
-    await openPanel(tab, capturePath(captureId));
   } catch (error) {
     await savePendingCapture({
       captureId,
@@ -74,18 +90,27 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         selectedQuote: info.selectionText,
       },
     });
-    await openPanel(tab, capturePath(captureId));
   }
-  await chrome.runtime.sendMessage({ type: "capture-updated", captureId })
-    .catch(() => undefined);
-});
+  await notifyCapture(captureId);
+}
 
-async function openPanel(tab: chrome.tabs.Tab, path: string): Promise<void> {
-  if (tab.id === undefined || tab.windowId === undefined) return;
+async function navigatePanel(
+  tab: chrome.tabs.Tab,
+  captureId: string,
+): Promise<void> {
+  if (tab.id === undefined) return;
   await chrome.sidePanel.setOptions({
     tabId: tab.id,
-    path: `side-panel/index.html#${path}`,
+    path: `side-panel/index.html#${capturePath(captureId)}`,
     enabled: true,
   });
-  await chrome.sidePanel.open({ windowId: tab.windowId });
+  await chrome.runtime.sendMessage({
+    type: "navigate-capture",
+    captureId,
+  }).catch(() => undefined);
+}
+
+async function notifyCapture(captureId: string): Promise<void> {
+  await chrome.runtime.sendMessage({ type: "capture-updated", captureId })
+    .catch(() => undefined);
 }

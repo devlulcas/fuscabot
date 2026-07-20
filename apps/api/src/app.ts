@@ -228,16 +228,19 @@ export function createApp(
   app.post("/v1/resources/captures", async (c) => {
     const input = CaptureSchema.parse(await c.req.json());
     const result = await deps.resources.capture(input);
-    if (result.created && deps.enrichment) {
-      deps.enrichment.prepare(c.get("session")?.sub ?? "", result.resource.id).catch((cause) =>
-        console.error(
-          "Background enrichment failed",
-          cause instanceof Error ? cause.message : cause,
-        )
+    let resource = result.resource;
+    if (
+      deps.enrichment &&
+      (result.created || resource.enrichmentStatus === "preparing")
+    ) {
+      await deps.enrichment.prepare(
+        c.get("session")?.sub ?? "",
+        resource.id,
       );
+      resource = await deps.resources.get(resource.id) ?? resource;
     }
     return c.json(
-      { data: result.resource, meta: { created: result.created } },
+      { data: resource, meta: { created: result.created } },
       result.created ? 201 : 200,
     );
   });

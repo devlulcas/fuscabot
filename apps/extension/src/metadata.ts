@@ -11,6 +11,7 @@ export type PageMetadata = {
   publishedAt?: string;
   selectedText?: string;
   sourceLanguage?: string;
+  excerpt?: string;
 };
 
 /** This self-contained function is serialized by chrome.scripting.executeScript. */
@@ -45,5 +46,11 @@ export function extractPageMetadata(): PageMetadata {
     publishedAt: content('meta[property="article:published_time"]'),
     selectedText: getSelection()?.toString().trim() || undefined,
     sourceLanguage: document.documentElement.lang.trim() || undefined,
+    excerpt: (document.querySelector("article, main")?.textContent ??
+      document.body?.innerText ?? "").replace(/\s+/g, " ").trim().slice(
+        0,
+        2_000,
+      ) ||
+      undefined,
   };
 }

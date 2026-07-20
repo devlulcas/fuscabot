@@ -76,7 +76,11 @@ export class MistralClient {
 }
 
 function systemPrompt(): string {
-  return `${ENRICHMENT_PROMPT_VERSION}\nReturn JSON only. Draft concise context for a private link library. Respect outputLanguage. Use only supplied tag slugs and channel IDs; propose bilingual tags separately. Never publish. Low confidence requires channelId null. Required keys: summary, whyUseful, outputLanguage, suggestedTagSlugs, proposedNewTags, channelSuggestion, includeQuoteInDelivery.`;
+  return `${ENRICHMENT_PROMPT_VERSION}
+Return one JSON object only, without markdown. Draft concise context for a private link library. Respect outputLanguage. Never publish or invent facts.
+Use only supplied tag slugs in suggestedTagSlugs and supplied UUID channel IDs in channelSuggestion.channelId. Put novel bilingual tags in proposedNewTags. If routing confidence is low, channelId must be null.
+The exact shape is:
+{"summary":"string","whyUseful":"string","outputLanguage":"pt-BR or en","suggestedTagSlugs":["existing-slug"],"proposedNewTags":[{"english":"string","portuguese":"string","aliases":["string"]}],"channelSuggestion":{"channelId":"supplied UUID or null","confidence":"high or medium or low","reason":"string"},"includeQuoteInDelivery":false}`;
 }
 
 async function parseResponse(response: Response): Promise<EnrichmentDraft> {

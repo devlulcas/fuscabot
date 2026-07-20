@@ -46,7 +46,8 @@ export function createCapturePayload(
         ? null
         : safeHttpUrl(input.metadata.canonicalUrl, input.metadata.url),
       description: cleanOptionalText(
-        input.metadata.openGraphDescription ?? input.metadata.description,
+        input.metadata.openGraphDescription ?? input.metadata.description ??
+          input.metadata.excerpt,
         5_000,
       ),
       siteName: cleanOptionalText(input.metadata.siteName, 500),

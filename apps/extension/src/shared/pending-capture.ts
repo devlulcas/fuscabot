@@ -2,7 +2,7 @@
 export type PendingCapture = {
   captureId: string;
   resourceId?: string;
-  state: "saving" | "saved" | "failed";
+  state: "extracting" | "preparing" | "ready" | "failed";
   error?: string;
   fallback?: {
     url?: string;
@@ -21,4 +21,22 @@ export async function savePendingCapture(value: PendingCapture): Promise<void> {
 
 export function pendingCaptureKey(captureId: string): string {
   return `pendingCapture:${captureId}`;
+}
+
+export async function getPendingCapture(
+  captureId: string,
+): Promise<PendingCapture | undefined> {
+  const key = pendingCaptureKey(captureId);
+  const stored = await chrome.storage.local.get([key, "pendingCapture"]);
+  const keyed = stored[key];
+  if (isPendingCapture(keyed)) return keyed;
+  return isPendingCapture(stored.pendingCapture) &&
+      stored.pendingCapture.captureId === captureId
+    ? stored.pendingCapture
+    : undefined;
+}
+
+function isPendingCapture(value: unknown): value is PendingCapture {
+  return typeof value === "object" && value !== null &&
+    typeof (value as PendingCapture).captureId === "string";
 }

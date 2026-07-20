@@ -1,11 +1,19 @@
 import { api, type DiscordChannel } from "../shared/api.ts";
 import { getConfig, saveConfig } from "../shared/config.ts";
+import { getPendingCapture } from "../shared/pending-capture.ts";
 import type { ApiResource, CapturePayload } from "../shared/types.ts";
 import { parseRoute } from "./router.ts";
 
 const app = requiredElement<HTMLElement>(document, "#app");
 globalThis.addEventListener("hashchange", () => void render());
 chrome.runtime.onMessage.addListener((message) => {
+  if (
+    message.type === "navigate-capture" &&
+    typeof message.captureId === "string"
+  ) {
+    location.hash = `#/capture/${encodeURIComponent(message.captureId)}`;
+    return;
+  }
   if (message.type === "capture-updated") void render();
 });
 void render();
@@ -29,22 +37,21 @@ async function render(): Promise<void> {
 }
 
 type CaptureFallback = { url?: string; title?: string; selectedQuote?: string };
-type PendingCapture = {
-  captureId?: string;
-  resourceId?: string;
-  state?: "saving" | "saved" | "failed";
-  error?: string;
-  fallback?: CaptureFallback;
-};
-
 async function renderCapture(captureId?: string): Promise<void> {
   app.innerHTML =
-    `<section class="stack"><h1>Capture</h1><div class="skeleton"></div><p>Saving your link before preparing it…</p></section>`;
-  const stored = await chrome.storage.local.get("pendingCapture");
-  const pending = asPendingCapture(stored.pendingCapture);
+    `<section class="stack loading-view"><div class="eyebrow">New capture</div><h1 tabindex="-1">Reading page</h1><div class="skeleton"></div><p class="muted">Extracting useful context and preparing an editable draft…</p></section>`;
   if (!captureId) return renderManual({});
-  if (pending?.captureId === captureId && pending.state === "failed") {
+  const pending = await getPendingCapture(captureId);
+  if (pending?.state === "failed") {
     return renderManual(pending.fallback ?? {}, pending.error);
+  }
+  if (pending?.state === "extracting" || pending?.state === "preparing") {
+    const heading = pending.state === "extracting"
+      ? "Reading page"
+      : "Writing your draft";
+    requiredElement<HTMLElement>(app, "h1").textContent = heading;
+    setTimeout(() => void render(), 500);
+    return;
   }
   const resourceId = pending?.captureId === captureId && pending.resourceId
     ? pending.resourceId
@@ -62,19 +69,16 @@ async function renderCapture(captureId?: string): Promise<void> {
 }
 
 function renderManual(fallback: CaptureFallback, error?: string): void {
-  app.innerHTML = `<section class="stack"><h1>Capture manually</h1>${
-    error
-      ? `<p class="notice error">${
-        escapeHtml(error)
-      }. Retry saving it below.</p>`
-      : ""
-  }<form class="stack"><label>URL<input name="url" type="url" required value="${
-    escapeHtml(fallback.url)
-  }"></label><label>Title<input name="title" required value="${
-    escapeHtml(fallback.title)
-  }"></label><label>Selected quote<textarea name="selectedQuote">${
-    escapeHtml(fallback.selectedQuote)
-  }</textarea></label><button class="primary">Save to Inbox</button></form></section>`;
+  app.innerHTML =
+    `<section class="stack"><div class="eyebrow">Fallback</div><h1>Capture manually</h1>${
+      error ? `<p class="notice error">${escapeHtml(error)}</p>` : ""
+    }<form class="stack"><label>URL<input name="url" type="url" required value="${
+      escapeHtml(fallback.url)
+    }"></label><label>Title<input name="title" required value="${
+      escapeHtml(fallback.title)
+    }"></label><label>Selected quote<textarea name="selectedQuote">${
+      escapeHtml(fallback.selectedQuote)
+    }</textarea></label><button class="primary">Capture &amp; prepare</button></form></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -98,7 +102,7 @@ function renderManual(fallback: CaptureFallback, error?: string): void {
     };
     const resource = await api.createCapture(payload);
     await chrome.storage.local.set({
-      pendingCapture: { captureId, resourceId: resource.id, state: "saved" },
+      pendingCapture: { captureId, resourceId: resource.id, state: "ready" },
     });
     location.hash = `#/capture/${captureId}`;
   });
@@ -108,33 +112,56 @@ async function renderEditor(resource: ApiResource): Promise<void> {
   const channels = await api.channels().catch(() => []);
   const tags = await api.tags().catch(() => []);
   const suggestion = resource.enrichment?.draft?.channelSuggestion;
+  const suggestedTags = resource.enrichment?.draft?.suggestedTagSlugs ?? [];
+  const selectedTags = [
+    ...new Set([
+      ...resource.tags.map((tag) => tag.slug),
+      ...suggestedTags,
+    ]),
+  ];
   app.innerHTML =
-    `<section class="stack"><h1 tabindex="-1">Capture</h1><article class="card"><strong>${
+    `<section class="stack editor"><div class="title-row"><div><div class="eyebrow">Captured</div><h1 tabindex="-1">Review draft</h1></div><span class="status ${
+      escapeHtml(resource.enrichmentStatus)
+    }">${
+      escapeHtml(resource.enrichmentStatus)
+    }</span></div><article class="source-card"><strong>${
       escapeHtml(resource.title)
-    }</strong><p class="muted">${escapeHtml(resource.originalUrl)}</p>${
+    }</strong><a class="source-url" href="${
+      escapeHtml(resource.originalUrl)
+    }" target="_blank" rel="noopener noreferrer">${
+      escapeHtml(resource.sourceDomain)
+    } ↗</a>${
       resource.selectedQuote
         ? `<blockquote>“${escapeHtml(resource.selectedQuote)}”</blockquote>`
         : ""
     }</article>${
       resource.enrichmentStatus === "failed"
-        ? '<p class="notice error" role="alert">AI preparation failed. You can still edit manually. <button type="button" data-retry-ai>Retry AI</button></p>'
+        ? `<p class="notice error" role="alert"><strong>AI draft failed.</strong> ${
+          escapeHtml(
+            resource.enrichmentError ?? "You can edit the capture manually.",
+          )
+        } <button type="button" data-retry-ai>Retry</button></p>`
         : resource.enrichmentStatus === "preparing"
-        ? '<p class="notice" role="status">AI preparation is still running. This view updates automatically.</p>'
-        : `<p class="notice" role="status">AI preparation is ready. Review everything before publishing.${
+        ? '<p class="notice" role="status">Preparing the AI draft… This view updates automatically.</p>'
+        : `<details class="ai-note"><summary>AI routing note</summary><p>${
           suggestion
-            ? ` Routing confidence: ${escapeHtml(suggestion.confidence)} — ${
+            ? `${escapeHtml(suggestion.confidence)} confidence — ${
               escapeHtml(suggestion.reason)
             }`
-            : ""
-        }</p>`
-    }<form class="stack"><label>Summary<textarea name="summary">${
+            : "No channel recommendation."
+        }</p></details>`
+    }<form class="stack"><label>Title<input name="title" required value="${
+      escapeHtml(resource.title)
+    }"></label><label>Summary<textarea name="summary">${
       escapeHtml(resource.summary)
     }</textarea></label><label>Why it is useful<textarea name="whyUseful">${
       escapeHtml(resource.whyUseful)
     }</textarea></label><label>Your note<textarea name="personalNote">${
       escapeHtml(resource.personalNote)
+    }</textarea></label><label>Selected context<textarea name="selectedQuote">${
+      escapeHtml(resource.selectedQuote)
     }</textarea></label><label>Tags<input name="tagSlugs" list="known-tags" value="${
-      escapeHtml(resource.tags.map((tag) => tag.slug).join(", "))
+      escapeHtml(selectedTags.join(", "))
     }" placeholder="deno, discord"></label><datalist id="known-tags">${
       tags.map((tag) => `<option value="${escapeHtml(tag.slug)}"></option>`)
         .join("")
@@ -146,9 +173,9 @@ async function renderEditor(resource: ApiResource): Promise<void> {
           escapeHtml(channel.name)
         }</option>`
       ).join("")
-    }</select></label><div class="actions"><button type="button" data-save>Save draft</button><button type="button" data-read-later>Save to Read Later</button><button class="primary" data-publish disabled>Publish to selected channel</button></div><div class="actions"><button type="button" data-archive>${
+    }</select></label><div class="actions primary-actions"><button type="button" data-save>Update</button><button type="button" data-read-later>Read later</button><button class="primary" data-publish disabled>Publish</button></div><details class="danger-zone"><summary>More actions</summary><div class="actions"><button type="button" data-archive>${
       resource.archivedAt ? "Restore from archive" : "Archive"
-    }</button><button type="button" data-delete>Delete permanently</button></div></form></section>`;
+    }</button><button class="danger" type="button" data-delete>Delete permanently</button></div></details></form></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   app.querySelector<HTMLButtonElement>("[data-retry-ai]")?.addEventListener(
     "click",
@@ -161,7 +188,7 @@ async function renderEditor(resource: ApiResource): Promise<void> {
     },
   );
   const select = requiredElement<HTMLSelectElement>(form, '[name="channelId"]');
-  if (suggestion?.confidence === "high" && suggestion.channelId) {
+  if (suggestion?.channelId) {
     select.value = suggestion.channelId;
   }
   const publish = requiredElement<HTMLButtonElement>(form, "[data-publish]");
@@ -171,9 +198,11 @@ async function renderEditor(resource: ApiResource): Promise<void> {
   select.addEventListener("change", sync);
   sync();
   const resourcePatch = () => ({
+    title: formValue(form, "title"),
     summary: optionalFormValue(form, "summary"),
     whyUseful: optionalFormValue(form, "whyUseful"),
     personalNote: optionalFormValue(form, "personalNote"),
+    selectedQuote: optionalFormValue(form, "selectedQuote"),
     tagSlugs: formValue(form, "tagSlugs").split(",").map((tag) => tag.trim())
       .filter(Boolean),
   });
@@ -559,10 +588,4 @@ function formValue(form: HTMLFormElement, name: string): string {
 
 function optionalFormValue(form: HTMLFormElement, name: string): string | null {
   return formValue(form, name).trim() || null;
-}
-
-function asPendingCapture(value: unknown): PendingCapture | undefined {
-  return typeof value === "object" && value !== null
-    ? value as PendingCapture
-    : undefined;
 }

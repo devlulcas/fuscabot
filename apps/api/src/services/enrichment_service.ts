@@ -59,6 +59,12 @@ export class EnrichmentService {
       return await this.store.completeReady(resourceId, draft);
     } catch (error) {
       const failure = safeFailure(error);
+      console.warn(JSON.stringify({
+        event: "enrichment_failed",
+        resourceId,
+        error: failure.message,
+        retryable: failure.retryable,
+      }));
       return await this.store.completeFailed(resourceId, failure.message, failure.retryable);
     }
   }
