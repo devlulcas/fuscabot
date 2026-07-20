@@ -334,9 +334,9 @@ async function renderSettings(): Promise<void> {
     }
   }
   app.innerHTML =
-    `<section class="stack"><h1 tabindex="-1">Settings</h1><form class="card stack"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
+    `<section class="stack settings"><h1 tabindex="-1">Settings</h1><form class="card stack settings-card"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
-    }"></label><button class="primary">Save API URL</button></form><section class="card stack"><h2>Discord</h2><p class="notice">${
+    }"></label><button class="primary">Save API URL</button></form><section class="card stack settings-card"><h2>Discord</h2><p class="notice">${
       connected ? "Connected as the configured owner." : "Not connected."
     }</p>${
       connected && guilds.length
@@ -354,7 +354,7 @@ async function renderSettings(): Promise<void> {
       connected && guilds.length ? "" : "disabled"
     }>Sync channels now</button></div><div data-channels>${
       channelSettings(storedChannels)
-    }</div></section><section class="card stack"><h2>Tags</h2><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button>Add canonical tag</button></form><p class="muted" data-tags>${
+    }</div></section><section class="card stack settings-card"><h2>Tags</h2><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button>Add canonical tag</button></form><p class="muted" data-tags>${
       storedTags.length
         ? storedTags.map((tag) => `#${escapeHtml(tag.slug)}`).join(" · ")
         : "No tags yet."
@@ -436,6 +436,37 @@ async function renderSettings(): Promise<void> {
   );
 
   function bindChannelSettings(): void {
+    const readLaterSelect = app.querySelector<HTMLSelectElement>(
+      "[data-read-later-channel]",
+    );
+    readLaterSelect?.addEventListener("change", async () => {
+      const previousId = readLaterSelect.dataset.current ?? "";
+      const nextId = readLaterSelect.value;
+      if (nextId === previousId) return;
+      readLaterSelect.disabled = true;
+      const status = app.querySelector<HTMLElement>("[data-read-later-status]");
+      try {
+        if (nextId) {
+          await api.updateChannel(nextId, {
+            isReadLater: true,
+            isActiveForRouting: true,
+          });
+          const routingToggle = app.querySelector<HTMLInputElement>(
+            `[data-channel-id="${CSS.escape(nextId)}"] [name="active"]`,
+          );
+          if (routingToggle) routingToggle.checked = true;
+        } else if (previousId) {
+          await api.updateChannel(previousId, { isReadLater: false });
+        }
+        readLaterSelect.dataset.current = nextId;
+        if (status) status.textContent = "Read Later destination saved.";
+      } catch (cause) {
+        readLaterSelect.value = previousId;
+        showInlineError(status, cause);
+      } finally {
+        readLaterSelect.disabled = false;
+      }
+    });
     app.querySelectorAll<HTMLFormElement>("[data-channel-form]").forEach(
       (channelForm) => {
         channelForm.addEventListener("submit", async (event) => {
@@ -453,7 +484,6 @@ async function renderSettings(): Promise<void> {
               ),
               isActiveForRouting:
                 new FormData(channelForm).get("active") === "on",
-              isReadLater: new FormData(channelForm).get("readLater") === "on",
             });
             button.textContent = "Saved";
           } finally {
@@ -496,30 +526,52 @@ function channelSettings(channels: DiscordChannel[]): string {
   if (!channels.length) {
     return '<p class="notice">No imported text channels yet.</p>';
   }
-  return `<div class="stack"><p class="muted">${channels.length} imported channels</p>${
-    channels.map((channel) =>
-      `<form class="card stack" data-channel-form data-channel-id="${
-        escapeHtml(channel.id)
-      }">
-        <strong>#${escapeHtml(channel.name)}</strong>
-        <span class="muted">${
-        escapeHtml(channel.parentName ?? "No category")
-      } · ${escapeHtml(channel.discordTopic ?? "No Discord topic")} · ${
-        escapeHtml(channel.availability)
-      }</span>
-        <label>Routing description<textarea name="routingDescription">${
-        escapeHtml(channel.routingDescription)
-      }</textarea></label>
-        <label><input type="checkbox" name="active" ${
-        channel.isActiveForRouting ? "checked" : ""
-      }> Active for routing</label>
-        <label><input type="checkbox" name="readLater" ${
-        channel.isReadLater ? "checked" : ""
-      }> Read Later destination</label>
-        <button>Save channel</button>
-      </form>`
+  const available = channels.filter((channel) =>
+    channel.availability === "available"
+  );
+  const readLaterId = available.find((channel) => channel.isReadLater)?.id ??
+    "";
+  return `<section class="channel-settings"><div class="channel-settings-head"><div><h3>Imported channels</h3><p class="muted">${available.length} available · ${channels.length} imported</p></div></div><label class="read-later-picker">Read Later destination<select data-read-later-channel data-current="${
+    escapeHtml(readLaterId)
+  }"><option value="">Not configured</option>${
+    available.map((channel) =>
+      `<option value="${escapeHtml(channel.id)}" ${
+        channel.id === readLaterId ? "selected" : ""
+      }>#${escapeHtml(channel.name)}${
+        channel.parentName ? ` — ${escapeHtml(channel.parentName)}` : ""
+      }</option>`
     ).join("")
-  }</div>`;
+  }</select><span class="field-hint" data-read-later-status>Links sent to Read Later will use this channel.</span></label><div class="channel-list">${
+    channels.map((channel) =>
+      `<form class="channel-row" data-channel-form data-channel-id="${
+        escapeHtml(channel.id)
+      }"><div class="channel-row-head"><div class="channel-identity"><strong>#${
+        escapeHtml(channel.name)
+      }</strong><span class="muted">${
+        escapeHtml(channel.parentName ?? "No category")
+      }</span></div><label class="switch-control"><input type="checkbox" name="active" ${
+        channel.isActiveForRouting ? "checked" : ""
+      } ${
+        channel.availability === "available" ? "" : "disabled"
+      }><span>Active for routing</span></label></div><p class="channel-topic">${
+        escapeHtml(channel.discordTopic ?? "No Discord topic")
+      }</p><label>Routing description<textarea name="routingDescription" placeholder="What belongs in this channel?">${
+        escapeHtml(channel.routingDescription)
+      }</textarea></label><div class="channel-row-footer"><span class="availability ${
+        escapeHtml(channel.availability)
+      }">${
+        escapeHtml(channel.availability)
+      }</span><button>Save routing</button></div></form>`
+    ).join("")
+  }</div></section>`;
+}
+
+function showInlineError(element: HTMLElement | null, cause: unknown): void {
+  if (!element) return;
+  element.textContent = cause instanceof Error
+    ? cause.message
+    : "Could not save";
+  element.classList.add("inline-error");
 }
 
 async function connectDiscord(

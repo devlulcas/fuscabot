@@ -105,6 +105,11 @@ h2 {
   font-size: 14px;
   letter-spacing: -.015em;
 }
+h3 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: -.01em;
+}
 
 .eyebrow {
   margin-bottom: 3px;
@@ -139,6 +144,14 @@ details {
 
 .card {
   padding: 10px;
+}
+.settings {
+  gap: 14px;
+}
+.settings-card {
+  gap: 14px;
+  padding-block: 16px;
+  padding-inline: 13px;
 }
 .source-card {
   display: grid;
@@ -190,6 +203,13 @@ textarea,
 select {
   width: 100%;
   padding: 7px 8px;
+}
+input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
 }
 textarea {
   min-height: 56px;
@@ -341,6 +361,92 @@ form[role="search"] label:first-child {
 .resource a {
   color: var(--accent-2);
   font-size: 11px;
+}
+
+.channel-settings {
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #0d1016aa;
+}
+.channel-settings-head,
+.read-later-picker {
+  padding-inline: 11px;
+}
+.channel-settings-head {
+  padding-top: 12px;
+}
+.read-later-picker {
+  gap: 6px;
+}
+.field-hint {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+.inline-error {
+  color: var(--danger);
+}
+.channel-list {
+  display: grid;
+  border-top: 1px solid var(--line);
+}
+.channel-row {
+  display: grid;
+  gap: 10px;
+  padding: 14px 11px;
+}
+.channel-row + .channel-row {
+  border-top: 1px solid var(--line);
+}
+.channel-row-head,
+.channel-row-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.channel-identity {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.channel-identity strong,
+.channel-identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.switch-control {
+  display: inline-flex;
+  flex: 0 0 auto;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.channel-topic {
+  color: var(--muted);
+  font-size: 10px;
+}
+.channel-row textarea {
+  min-height: 50px;
+}
+.channel-row-footer button {
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.availability {
+  color: var(--muted);
+  font: 700 9px/1 ui-monospace, monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.availability.available {
+  color: var(--accent-2);
 }
 
 @keyframes load {
