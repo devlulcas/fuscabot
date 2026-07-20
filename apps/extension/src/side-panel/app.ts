@@ -1,4 +1,4 @@
-import { api } from "../shared/api.ts";
+import { api, type DiscordChannel } from "../shared/api.ts";
 import { getConfig, saveConfig } from "../shared/config.ts";
 import type { ApiResource, CapturePayload } from "../shared/types.ts";
 import { parseRoute } from "./router.ts";
@@ -50,7 +50,7 @@ async function renderCapture(captureId?: string): Promise<void> {
     ? pending.resourceId
     : captureId;
   const resource = await api.getResource(resourceId);
-  renderEditor(resource);
+  await renderEditor(resource);
   if (resource.enrichmentStatus === "preparing") {
     setTimeout(() => {
       const current = parseRoute(location.hash);
@@ -104,7 +104,10 @@ function renderManual(fallback: CaptureFallback, error?: string): void {
   });
 }
 
-function renderEditor(resource: ApiResource): void {
+async function renderEditor(resource: ApiResource): Promise<void> {
+  const channels = await api.channels().catch(() => []);
+  const tags = await api.tags().catch(() => []);
+  const suggestion = resource.enrichment?.draft?.channelSuggestion;
   app.innerHTML =
     `<section class="stack"><h1 tabindex="-1">Capture</h1><article class="card"><strong>${
       escapeHtml(resource.title)
@@ -117,20 +120,35 @@ function renderEditor(resource: ApiResource): void {
         ? '<p class="notice error" role="alert">AI preparation failed. You can still edit manually. <button type="button" data-retry-ai>Retry AI</button></p>'
         : resource.enrichmentStatus === "preparing"
         ? '<p class="notice" role="status">AI preparation is still running. This view updates automatically.</p>'
-        : '<p class="notice" role="status">AI preparation is ready. Review everything before publishing.</p>'
+        : `<p class="notice" role="status">AI preparation is ready. Review everything before publishing.${
+          suggestion
+            ? ` Routing confidence: ${escapeHtml(suggestion.confidence)} — ${
+              escapeHtml(suggestion.reason)
+            }`
+            : ""
+        }</p>`
     }<form class="stack"><label>Summary<textarea name="summary">${
       escapeHtml(resource.summary)
     }</textarea></label><label>Why it is useful<textarea name="whyUseful">${
       escapeHtml(resource.whyUseful)
     }</textarea></label><label>Your note<textarea name="personalNote">${
       escapeHtml(resource.personalNote)
-    }</textarea></label><label>Destination<select name="channelId"><option value="">Choose a channel</option>${
-      (resource.channels ?? []).map((channel) =>
+    }</textarea></label><label>Tags<input name="tagSlugs" list="known-tags" value="${
+      escapeHtml(resource.tags.map((tag) => tag.slug).join(", "))
+    }" placeholder="deno, discord"></label><datalist id="known-tags">${
+      tags.map((tag) => `<option value="${escapeHtml(tag.slug)}"></option>`)
+        .join("")
+    }</datalist><label>Destination<select name="channelId"><option value="">Choose a channel</option>${
+      channels.filter((channel) =>
+        channel.isActiveForRouting && channel.availability === "available"
+      ).map((channel) =>
         `<option value="${escapeHtml(channel.id)}">#${
           escapeHtml(channel.name)
         }</option>`
       ).join("")
-    }</select></label><div class="actions"><button type="button" data-read-later>Save to Read Later</button><button class="primary" data-publish disabled>Publish to selected channel</button></div></form></section>`;
+    }</select></label><div class="actions"><button type="button" data-save>Save draft</button><button type="button" data-read-later>Save to Read Later</button><button class="primary" data-publish disabled>Publish to selected channel</button></div><div class="actions"><button type="button" data-archive>${
+      resource.archivedAt ? "Restore from archive" : "Archive"
+    }</button><button type="button" data-delete>Delete permanently</button></div></form></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   app.querySelector<HTMLButtonElement>("[data-retry-ai]")?.addEventListener(
     "click",
@@ -143,21 +161,41 @@ function renderEditor(resource: ApiResource): void {
     },
   );
   const select = requiredElement<HTMLSelectElement>(form, '[name="channelId"]');
+  if (suggestion?.confidence === "high" && suggestion.channelId) {
+    select.value = suggestion.channelId;
+  }
   const publish = requiredElement<HTMLButtonElement>(form, "[data-publish]");
   const sync = (): void => {
     publish.disabled = !select.value;
   };
   select.addEventListener("change", sync);
+  sync();
+  const resourcePatch = () => ({
+    summary: optionalFormValue(form, "summary"),
+    whyUseful: optionalFormValue(form, "whyUseful"),
+    personalNote: optionalFormValue(form, "personalNote"),
+    tagSlugs: formValue(form, "tagSlugs").split(",").map((tag) => tag.trim())
+      .filter(Boolean),
+  });
+  requiredElement<HTMLButtonElement>(form, "[data-save]").addEventListener(
+    "click",
+    async (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      button.disabled = true;
+      try {
+        await api.updateResource(resource.id, resourcePatch());
+        button.textContent = "Saved";
+      } finally {
+        button.disabled = false;
+      }
+    },
+  );
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const channelId = select.value;
     if (!channelId) return;
     publish.disabled = true;
-    await api.updateResource(resource.id, {
-      summary: optionalFormValue(form, "summary"),
-      whyUseful: optionalFormValue(form, "whyUseful"),
-      personalNote: optionalFormValue(form, "personalNote"),
-    });
+    await api.updateResource(resource.id, resourcePatch());
     try {
       showSuccess(await api.publish(resource.id, channelId));
     } finally {
@@ -171,11 +209,7 @@ function renderEditor(resource: ApiResource): void {
         const button = event.currentTarget as HTMLButtonElement;
         button.disabled = true;
         try {
-          await api.updateResource(resource.id, {
-            summary: optionalFormValue(form, "summary"),
-            whyUseful: optionalFormValue(form, "whyUseful"),
-            personalNote: optionalFormValue(form, "personalNote"),
-          });
+          await api.updateResource(resource.id, resourcePatch());
           showSuccess(await api.readLater(resource.id));
         } catch (cause) {
           showError(cause);
@@ -184,15 +218,54 @@ function renderEditor(resource: ApiResource): void {
         }
       },
     );
+  requiredElement<HTMLButtonElement>(form, "[data-archive]").addEventListener(
+    "click",
+    async () => {
+      await api.updateResource(resource.id, { archived: !resource.archivedAt });
+      location.hash = "#/library";
+    },
+  );
+  requiredElement<HTMLButtonElement>(form, "[data-delete]").addEventListener(
+    "click",
+    async () => {
+      if (
+        !confirm(
+          `Permanently delete “${resource.title}”? This cannot be undone.`,
+        )
+      ) return;
+      await api.deleteResource(resource.id);
+      location.hash = "#/library";
+    },
+  );
 }
 
 async function renderLibrary(): Promise<void> {
   app.innerHTML =
-    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label></form><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
+    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label><label>State<select name="state"><option value="">All active</option><option value="inbox">Inbox</option><option value="read_later">Read Later</option><option value="shared">Shared</option><option value="archived">Archived</option></select></label><label>Domain<input name="domain" placeholder="example.com"></label><label>AI status<select name="enrichmentStatus"><option value="">Any</option><option value="failed">Failed</option><option value="preparing">Preparing</option><option value="ready">Ready</option></select></label><label>Sort<select name="sort"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="updated">Recently updated</option></select></label><button>Apply</button></form><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   const results = requiredElement<HTMLElement>(app, "[data-results]");
   const load = async (): Promise<void> => {
-    const items = await api.listResources(formValue(form, "q"));
+    const state = formValue(form, "state") as
+      | ""
+      | "inbox"
+      | "read_later"
+      | "shared"
+      | "archived";
+    const enrichmentStatus = formValue(form, "enrichmentStatus") as
+      | ""
+      | "preparing"
+      | "ready"
+      | "failed";
+    const items = await api.listResources(
+      formValue(form, "q"),
+      {
+        archived: state ? undefined : false,
+        state: state || undefined,
+        domain: optionalFormValue(form, "domain") ?? undefined,
+        enrichmentStatus: enrichmentStatus || undefined,
+        sort: formValue(form, "sort") as "newest" | "oldest" | "updated",
+      },
+    );
     results.innerHTML = items.length
       ? items.map((resource) =>
         `<article class="card resource"><strong>${
@@ -218,10 +291,14 @@ async function renderSettings(): Promise<void> {
   const config = await getConfig();
   let connected = false;
   let guilds: Array<{ id: string; name: string }> = [];
+  let storedChannels: DiscordChannel[] = [];
+  let storedTags: Awaited<ReturnType<typeof api.tags>> = [];
   if (config.accessToken) {
     try {
       await api.session();
       guilds = await api.guilds();
+      storedChannels = await api.channels().catch(() => []);
+      storedTags = await api.tags().catch(() => []);
       connected = true;
     } catch {
       connected = false;
@@ -246,7 +323,15 @@ async function renderSettings(): Promise<void> {
       connected ? "Reconnect Discord" : "Connect Discord"
     }</button><button data-sync ${
       connected && guilds.length ? "" : "disabled"
-    }>Sync channels now</button></div><div data-channels></div></section></section>`;
+    }>Sync channels now</button></div><div data-channels>${
+      channelSettings(storedChannels)
+    }</div></section><section class="card stack"><h2>Tags</h2><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button>Add canonical tag</button></form><p class="muted" data-tags>${
+      storedTags.length
+        ? storedTags.map((tag) => `#${escapeHtml(tag.slug)}`).join(" · ")
+        : "No tags yet."
+    }</p><div data-tag-list>${
+      tagSettings(storedTags)
+    }</div></section></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -267,17 +352,145 @@ async function renderSettings(): Promise<void> {
       await saveConfig({ ...config, selectedGuildId: select.value });
       sync.textContent = `Synced ${channels.length}`;
       requiredElement<HTMLElement>(app, "[data-channels]").innerHTML =
-        channels.length
-          ? `<p class="muted">${
-            channels.map((channel) => `#${escapeHtml(channel.name)}`).join(
-              " · ",
-            )
-          }</p>`
-          : '<p class="notice">No accessible standard text channels found.</p>';
+        channelSettings(channels);
+      bindChannelSettings();
     } finally {
       sync.disabled = false;
     }
   });
+  bindChannelSettings();
+  requiredElement<HTMLFormElement>(app, "[data-tag-form]").addEventListener(
+    "submit",
+    async (event) => {
+      event.preventDefault();
+      const tagForm = event.currentTarget as HTMLFormElement;
+      const tag = await api.createTag({
+        slug: formValue(tagForm, "slug"),
+        english: formValue(tagForm, "english"),
+        portuguese: formValue(tagForm, "portuguese"),
+        aliases: formValue(tagForm, "aliases").split(",").map((value) =>
+          value.trim()
+        ).filter(
+          Boolean,
+        ),
+      });
+      requiredElement<HTMLElement>(app, "[data-tags]").textContent =
+        `Added #${tag.slug}`;
+      tagForm.reset();
+    },
+  );
+  app.querySelectorAll<HTMLFormElement>("[data-tag-edit]").forEach(
+    (tagForm) => {
+      tagForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const id = tagForm.dataset.tagId!;
+        const action = (event.submitter as HTMLButtonElement | null)?.value;
+        if (action === "merge") {
+          const targetId = formValue(tagForm, "targetId");
+          if (!targetId || !confirm("Merge this tag into the selected tag?")) {
+            return;
+          }
+          await api.mergeTag(id, targetId);
+        } else {
+          await api.updateTag(id, {
+            slug: formValue(tagForm, "slug"),
+            english: formValue(tagForm, "english"),
+            portuguese: formValue(tagForm, "portuguese"),
+            aliases: formValue(tagForm, "aliases").split(",").map((value) =>
+              value.trim()
+            ).filter(Boolean),
+          });
+        }
+        await renderSettings();
+      });
+    },
+  );
+
+  function bindChannelSettings(): void {
+    app.querySelectorAll<HTMLFormElement>("[data-channel-form]").forEach(
+      (channelForm) => {
+        channelForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const button = requiredElement<HTMLButtonElement>(
+            channelForm,
+            "button",
+          );
+          button.disabled = true;
+          try {
+            await api.updateChannel(channelForm.dataset.channelId!, {
+              routingDescription: optionalFormValue(
+                channelForm,
+                "routingDescription",
+              ),
+              isActiveForRouting:
+                new FormData(channelForm).get("active") === "on",
+              isReadLater: new FormData(channelForm).get("readLater") === "on",
+            });
+            button.textContent = "Saved";
+          } finally {
+            button.disabled = false;
+          }
+        });
+      },
+    );
+  }
+}
+
+function tagSettings(tags: Awaited<ReturnType<typeof api.tags>>): string {
+  return tags.map((tag) => {
+    const english = tag.labels.find((label) => label.language === "en")?.name ??
+      tag.slug;
+    const portuguese = tag.labels.find((label) =>
+      label.language === "pt-BR"
+    )?.name ?? tag.slug;
+    return `<form class="card stack" data-tag-edit data-tag-id="${
+      escapeHtml(tag.id)
+    }"><label>Slug<input name="slug" value="${
+      escapeHtml(tag.slug)
+    }"></label><label>English<input name="english" value="${
+      escapeHtml(english)
+    }"></label><label>Portuguese<input name="portuguese" value="${
+      escapeHtml(portuguese)
+    }"></label><label>Aliases<input name="aliases" value="${
+      escapeHtml(tag.aliases.join(", "))
+    }"></label><div class="actions"><button value="save">Save tag</button><select name="targetId"><option value="">Merge into…</option>${
+      tags.filter((target) => target.id !== tag.id).map((target) =>
+        `<option value="${escapeHtml(target.id)}">#${
+          escapeHtml(target.slug)
+        }</option>`
+      ).join("")
+    }</select><button value="merge">Merge</button></div></form>`;
+  }).join("");
+}
+
+function channelSettings(channels: DiscordChannel[]): string {
+  if (!channels.length) {
+    return '<p class="notice">No imported text channels yet.</p>';
+  }
+  return `<div class="stack"><p class="muted">${channels.length} imported channels</p>${
+    channels.map((channel) =>
+      `<form class="card stack" data-channel-form data-channel-id="${
+        escapeHtml(channel.id)
+      }">
+        <strong>#${escapeHtml(channel.name)}</strong>
+        <span class="muted">${
+        escapeHtml(channel.parentName ?? "No category")
+      } · ${escapeHtml(channel.discordTopic ?? "No Discord topic")} · ${
+        escapeHtml(channel.availability)
+      }</span>
+        <label>Routing description<textarea name="routingDescription">${
+        escapeHtml(channel.routingDescription)
+      }</textarea></label>
+        <label><input type="checkbox" name="active" ${
+        channel.isActiveForRouting ? "checked" : ""
+      }> Active for routing</label>
+        <label><input type="checkbox" name="readLater" ${
+        channel.isReadLater ? "checked" : ""
+      }> Read Later destination</label>
+        <button>Save channel</button>
+      </form>`
+    ).join("")
+  }</div>`;
 }
 
 async function connectDiscord(
@@ -294,10 +507,13 @@ async function connectDiscord(
   const accessToken = new URLSearchParams(new URL(result).hash.slice(1)).get(
     "access_token",
   );
-  if (!accessToken) {
+  const handoff = new URLSearchParams(new URL(result).hash.slice(1));
+  const refreshToken = handoff.get("refresh_token");
+  const sessionId = handoff.get("session_id");
+  if (!accessToken || !refreshToken || !sessionId) {
     throw new Error("Discord connection did not return a session");
   }
-  await saveConfig({ ...config, accessToken });
+  await saveConfig({ ...config, accessToken, refreshToken, sessionId });
   await renderSettings();
 }
 

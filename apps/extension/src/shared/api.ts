@@ -4,7 +4,7 @@ import {
   ResourceSchema,
 } from "../../../../packages/contracts/mod.ts";
 import type { ApiError as ApiErrorBody } from "../../../../packages/contracts/mod.ts";
-import { getConfig } from "./config.ts";
+import { getConfig, saveConfig } from "./config.ts";
 import type {
   ApiResource,
   CapturePayload,
@@ -49,12 +49,48 @@ export async function apiRequest<T>(
   if (config.accessToken) {
     headers.set("authorization", `Bearer ${config.accessToken}`);
   }
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+  let response = await fetch(`${config.apiBaseUrl}${path}`, {
     method: options.method ?? "GET",
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     signal: options.signal,
   });
+  if (response.status === 401 && config.refreshToken && config.sessionId) {
+    const refresh = await fetch(`${config.apiBaseUrl}/v1/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        sessionId: config.sessionId,
+        refreshToken: config.refreshToken,
+      }),
+    });
+    const refreshed = await refresh.json().catch(() => undefined);
+    const data = isRecord(refreshed) && isRecord(refreshed.data)
+      ? refreshed.data
+      : undefined;
+    if (
+      refresh.ok && data && typeof data.accessToken === "string" &&
+      typeof data.refreshToken === "string"
+    ) {
+      await saveConfig({
+        ...config,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
+      headers.set("authorization", `Bearer ${data.accessToken}`);
+      response = await fetch(`${config.apiBaseUrl}${path}`, {
+        method: options.method ?? "GET",
+        headers,
+        body: options.body === undefined
+          ? undefined
+          : JSON.stringify(options.body),
+        signal: options.signal,
+      });
+    }
+  }
   const body: unknown = response.status === 204
     ? undefined
     : await response.json().catch(() => undefined);
@@ -69,6 +105,7 @@ export async function apiRequest<T>(
 }
 
 type DeliveryResult = { discordUrl?: string };
+type DataEnvelope<T> = { data: T };
 export type DiscordSession = {
   discordUserId: string;
   guildIds: string[];
@@ -78,9 +115,20 @@ export type DiscordGuild = { id: string; name: string; icon: string | null };
 export type DiscordChannel = {
   id: string;
   name: string;
-  type: 0;
-  parent_id: string | null;
-  topic: string | null;
+  discordChannelId: string;
+  parentName: string | null;
+  discordTopic: string | null;
+  routingDescription: string | null;
+  isActiveForRouting: boolean;
+  isReadLater: boolean;
+  availability: "available" | "unavailable";
+  lastSyncedAt: string | null;
+};
+export type CanonicalTag = {
+  id: string;
+  slug: string;
+  labels: Array<{ language: "en" | "pt-BR"; name: string }>;
+  aliases: string[];
 };
 
 export const api = {
@@ -114,13 +162,25 @@ export const api = {
       ),
     );
   },
-  async listResources(query = ""): Promise<ApiResource[]> {
+  async listResources(query = "", options: {
+    archived?: boolean;
+    state?: "inbox" | "read_later" | "shared" | "archived";
+    domain?: string;
+    enrichmentStatus?: "preparing" | "ready" | "failed";
+    sort?: "newest" | "oldest" | "updated";
+  } = {}): Promise<ApiResource[]> {
+    const params = new URLSearchParams({ search: query });
+    for (const [key, value] of Object.entries(options)) {
+      if (value !== undefined && value !== "") params.set(key, String(value));
+    }
     return parseResourceListEnvelope(
       await apiRequest<unknown>(
-        `/v1/resources?${new URLSearchParams({ search: query })}`,
+        `/v1/resources?${params}`,
       ),
     );
   },
+  deleteResource: (id: string): Promise<void> =>
+    apiRequest(`/v1/resources/${encodeURIComponent(id)}`, { method: "DELETE" }),
   publish: async (id: string, channelId: string): Promise<DeliveryResult> =>
     parseDeliveryResult(
       await apiRequest(`/v1/resources/${encodeURIComponent(id)}/deliveries`, {
@@ -154,6 +214,66 @@ export const api = {
         body: { guildId },
       },
     )).data,
+  channels: async (): Promise<DiscordChannel[]> =>
+    (await apiRequest<DataEnvelope<DiscordChannel[]>>("/v1/channels")).data,
+  updateChannel: async (
+    id: string,
+    patch: {
+      routingDescription?: string | null;
+      isActiveForRouting?: boolean;
+      isReadLater?: boolean;
+    },
+  ): Promise<DiscordChannel> =>
+    (await apiRequest<DataEnvelope<DiscordChannel>>(
+      `/v1/channels/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: patch,
+      },
+    )).data,
+  selectGuild: async (guildId: string): Promise<DiscordChannel[]> =>
+    (await apiRequest<DataEnvelope<DiscordChannel[]>>(
+      "/v1/setup/discord/guild",
+      {
+        method: "POST",
+        body: { guildId },
+      },
+    )).data,
+  tags: async (search = ""): Promise<CanonicalTag[]> =>
+    (await apiRequest<DataEnvelope<CanonicalTag[]>>(
+      `/v1/tags?${new URLSearchParams({ search })}`,
+    )).data,
+  createTag: async (input: {
+    slug: string;
+    english: string;
+    portuguese: string;
+    aliases: string[];
+  }): Promise<CanonicalTag> =>
+    (await apiRequest<DataEnvelope<CanonicalTag>>("/v1/tags", {
+      method: "POST",
+      body: input,
+    })).data,
+  updateTag: async (
+    id: string,
+    input: {
+      slug: string;
+      english: string;
+      portuguese: string;
+      aliases: string[];
+    },
+  ): Promise<CanonicalTag> =>
+    (await apiRequest<DataEnvelope<CanonicalTag>>(
+      `/v1/tags/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: input,
+      },
+    )).data,
+  mergeTag: async (sourceId: string, targetId: string): Promise<CanonicalTag> =>
+    (await apiRequest<DataEnvelope<CanonicalTag>>(
+      `/v1/tags/${encodeURIComponent(sourceId)}/merge`,
+      { method: "POST", body: { targetId } },
+    )).data,
 };
 
 function errorMessage(value: unknown): string | undefined {
@@ -166,7 +286,15 @@ export function parseResourceEnvelope(value: unknown): ApiResource {
   const parsed = ResourceSchema.safeParse(data);
   if (!parsed.success) throw new ContractResponseError();
   const channels = readChannels(data);
-  return channels === undefined ? parsed.data : { ...parsed.data, channels };
+  const details = isRecord(data)
+    ? {
+      enrichment: data.enrichment as ApiResource["enrichment"],
+      deliveries: data.deliveries as ApiResource["deliveries"],
+    }
+    : {};
+  return channels === undefined
+    ? { ...parsed.data, ...details }
+    : { ...parsed.data, channels, ...details };
 }
 
 export function parseResourceListEnvelope(value: unknown): ApiResource[] {
@@ -185,9 +313,15 @@ export function parseDeliveryResult(value: unknown): DeliveryResult {
   // Temporary compatibility for the original extension/API mock boundary.
   if (
     isRecord(data) &&
-    (data.discordUrl === undefined || typeof data.discordUrl === "string")
+    (data.discordUrl === undefined || typeof data.discordUrl === "string") &&
+    (data.externalUrl === undefined || data.externalUrl === null ||
+      typeof data.externalUrl === "string")
   ) {
-    return { discordUrl: data.discordUrl };
+    return {
+      discordUrl: typeof data.externalUrl === "string"
+        ? data.externalUrl
+        : data.discordUrl as string | undefined,
+    };
   }
   throw new ContractResponseError();
 }

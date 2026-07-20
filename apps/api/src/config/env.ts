@@ -23,6 +23,7 @@ const RuntimeEnvSchema = EnvSchema.extend({
   DISCORD_CLIENT_SECRET: z.string().min(1),
   DISCORD_OAUTH_REDIRECT_URI: z.url(),
   APP_SESSION_SIGNING_SECRET: z.string().min(32),
+  MISTRAL_API_KEY: z.string().min(1),
 });
 
 export type RuntimeEnv = z.infer<typeof RuntimeEnvSchema>;

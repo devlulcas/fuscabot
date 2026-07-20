@@ -111,10 +111,39 @@ export class PostgresResourceRepository implements ResourceRepository {
       values.push(query.archived);
       predicates.push(`(r.archived_at IS NOT NULL) = $${values.length}`);
     }
+    if (query.domain) {
+      values.push(query.domain);
+      predicates.push(`r.source_domain = $${values.length}`);
+    }
+    if (query.enrichmentStatus) {
+      values.push(query.enrichmentStatus);
+      predicates.push(`r.enrichment_status = $${values.length}`);
+    }
+    if (query.tag) {
+      values.push(query.tag);
+      const parameter = `$${values.length}`;
+      predicates.push(
+        `EXISTS (SELECT 1 FROM resource_tags frt JOIN tags ft ON ft.id=frt.tag_id LEFT JOIN tag_labels ftl ON ftl.tag_id=ft.id LEFT JOIN tag_aliases fta ON fta.tag_id=ft.id WHERE frt.resource_id=r.id AND (ft.slug=${parameter} OR ftl.name=${parameter} OR fta.alias_normalized=${parameter}))`,
+      );
+    }
+    if (query.state === "archived") predicates.push("r.archived_at IS NOT NULL");
+    if (query.state === "inbox") {
+      predicates.push(
+        "r.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM deliveries sd WHERE sd.resource_id=r.id AND sd.status='sent')",
+      );
+    }
+    if (query.state === "shared" || query.state === "read_later") {
+      values.push(query.state === "shared" ? "share" : "read_later");
+      predicates.push(
+        `EXISTS (SELECT 1 FROM deliveries sd WHERE sd.resource_id=r.id AND sd.status='sent' AND sd.delivery_kind=$${values.length})`,
+      );
+    }
     if (query.search?.trim()) {
-      values.push(`%${escapeLike(query.search.trim())}%`);
+      values.push(query.search.trim(), `%${escapeLike(query.search.trim())}%`);
+      const fullText = `$${values.length - 1}`;
       const parameter = `$${values.length}`;
       predicates.push(`(
+        r.search_document @@ websearch_to_tsquery('simple', ${fullText}) OR
         r.title ILIKE ${parameter} ESCAPE '\\' OR r.original_url ILIKE ${parameter} ESCAPE '\\' OR
         r.source_domain ILIKE ${parameter} ESCAPE '\\' OR r.summary ILIKE ${parameter} ESCAPE '\\' OR
         r.why_useful ILIKE ${parameter} ESCAPE '\\' OR r.personal_note ILIKE ${parameter} ESCAPE '\\' OR
@@ -127,7 +156,7 @@ export class PostgresResourceRepository implements ResourceRepository {
     }
     values.push(query.limit, query.offset);
     const result = await this.database.query<ResourceRow>(
-      `${selectResource} WHERE ${predicates.join(" AND ")} ORDER BY r.created_at DESC LIMIT $${
+      `${selectResource} WHERE ${predicates.join(" AND ")} ORDER BY ${sortSql(query.sort)} LIMIT $${
         values.length - 1
       } OFFSET $${values.length}`,
       values,
@@ -149,13 +178,26 @@ export class PostgresResourceRepository implements ResourceRepository {
     if (patch.selectedQuote !== undefined) set("selected_quote", patch.selectedQuote);
     if (patch.outputLanguage !== undefined) set("output_language", patch.outputLanguage);
     if (patch.archived !== undefined) set("archived_at", patch.archived ? new Date() : null);
-    if (!assignments.length) return this.findById(workspaceId, id);
-    assignments.push("updated_at = now()");
-    const result = await this.database.query(
-      `UPDATE resources SET ${assignments.join(", ")} WHERE workspace_id = $1 AND id = $2`,
-      values,
-    );
-    return result.rowCount ? this.findById(workspaceId, id) : null;
+    let exists = true;
+    if (assignments.length) {
+      assignments.push("updated_at = now()");
+      const result = await this.database.query(
+        `UPDATE resources SET ${assignments.join(", ")} WHERE workspace_id = $1 AND id = $2`,
+        values,
+      );
+      exists = Boolean(result.rowCount);
+    } else {
+      exists = Boolean(await this.findById(workspaceId, id));
+    }
+    if (!exists) return null;
+    if (patch.tagSlugs) {
+      await this.database.query("DELETE FROM resource_tags WHERE resource_id=$1::uuid", [id]);
+      await this.database.query(
+        `INSERT INTO resource_tags(resource_id,tag_id,source) SELECT $1::uuid,id,'user' FROM tags WHERE workspace_id=$2::uuid AND slug=ANY($3::text[]) ON CONFLICT DO NOTHING`,
+        [id, workspaceId, patch.tagSlugs],
+      );
+    }
+    return this.findById(workspaceId, id);
   }
 
   async delete(workspaceId: string, id: string): Promise<boolean> {
@@ -165,6 +207,12 @@ export class PostgresResourceRepository implements ResourceRepository {
     );
     return Boolean(result.rowCount);
   }
+}
+
+function sortSql(sort: ResourceQuery["sort"]): string {
+  if (sort === "oldest") return "r.created_at ASC";
+  if (sort === "updated") return "r.updated_at DESC";
+  return "r.created_at DESC";
 }
 
 function mapResource(row: ResourceRow): Resource {

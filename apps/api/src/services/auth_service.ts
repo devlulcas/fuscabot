@@ -12,6 +12,7 @@ const StateSchema = z.object({
 
 const SessionSchema = z.object({
   sub: z.string().min(1),
+  sid: z.uuid(),
   guildIds: z.array(z.string().min(1)).max(100),
   exp: z.number().int().positive(),
 });
@@ -40,6 +41,21 @@ export type AuthConfig = {
   signingSecret: string;
 };
 
+export interface AuthPersistence {
+  saveState(hash: string, expiresAt: Date): Promise<void>;
+  consumeState(hash: string, now: Date): Promise<boolean>;
+  createSession(hash: string, expiresAt: Date, guildIds: string[]): Promise<string>;
+  rotateSession(
+    id: string,
+    previousHash: string,
+    nextHash: string,
+    expiresAt: Date,
+    now: Date,
+  ): Promise<string[] | null>;
+  isSessionActive(id: string, now: Date): Promise<boolean>;
+  revokeSession(id: string, now: Date): Promise<void>;
+}
+
 export class AuthError extends Error {
   constructor(
     message: string,
@@ -58,6 +74,7 @@ export class AuthService {
     private config: AuthConfig,
     private request: AuthFetch = fetch,
     private now: () => number = Date.now,
+    private persistence: AuthPersistence = new InMemoryAuthPersistence(),
   ) {
     this.#key = crypto.subtle.importKey(
       "raw",
@@ -70,9 +87,12 @@ export class AuthService {
 
   async authorizationUrl(extensionRedirect: string): Promise<string> {
     validateExtensionRedirect(extensionRedirect);
+    const nonce = crypto.randomUUID();
+    const expiresAt = this.now() + 10 * 60_000;
+    await this.persistence.saveState(await sha256(nonce), new Date(expiresAt));
     const state = await this.#sign({
-      nonce: crypto.randomUUID(),
-      exp: this.now() + 10 * 60_000,
+      nonce,
+      exp: expiresAt,
       extensionRedirect,
     });
     const url = new URL("https://discord.com/oauth2/authorize");
@@ -92,6 +112,8 @@ export class AuthService {
   async complete(code: string, stateToken: string): Promise<{
     extensionRedirect: string;
     accessToken: string;
+    refreshToken: string;
+    sessionId: string;
   }> {
     let state: z.infer<typeof StateSchema>;
     try {
@@ -101,6 +123,9 @@ export class AuthService {
     }
     if (state.exp < this.now()) {
       throw new AuthError("OAuth state expired", 400, "BAD_REQUEST");
+    }
+    if (!await this.persistence.consumeState(await sha256(state.nonce), new Date(this.now()))) {
+      throw new AuthError("OAuth state was already used or expired", 400, "BAD_REQUEST");
     }
     validateExtensionRedirect(state.extensionRedirect);
 
@@ -124,24 +149,61 @@ export class AuthService {
 
     const guildIds = userGuilds.filter(canManageGuild).map((guild) => guild.id);
     if (token.guild && !guildIds.includes(token.guild.id)) guildIds.push(token.guild.id);
-    const accessToken = await this.#sign({
-      sub: user.id,
-      guildIds: guildIds.slice(0, 100),
-      exp: this.now() + 60 * 60_000,
-    });
-    return { extensionRedirect: state.extensionRedirect, accessToken };
+    const refreshToken = randomToken();
+    const sessionId = await this.persistence.createSession(
+      await sha256(refreshToken),
+      new Date(this.now() + 30 * 24 * 60 * 60_000),
+      guildIds.slice(0, 100),
+    );
+    const accessToken = await this.#accessToken(user.id, sessionId, guildIds);
+    return { extensionRedirect: state.extensionRedirect, accessToken, refreshToken, sessionId };
+  }
+
+  async refresh(sessionId: string, refreshToken: string): Promise<{
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const next = randomToken();
+    const guildIds = await this.persistence.rotateSession(
+      sessionId,
+      await sha256(refreshToken),
+      await sha256(next),
+      new Date(this.now() + 30 * 24 * 60 * 60_000),
+      new Date(this.now()),
+    );
+    if (!guildIds) throw new AuthError("Refresh session is invalid", 401, "UNAUTHORIZED");
+    return {
+      accessToken: await this.#accessToken(this.config.ownerDiscordUserId, sessionId, guildIds),
+      refreshToken: next,
+    };
+  }
+
+  revoke(sessionId: string): Promise<void> {
+    return this.persistence.revokeSession(sessionId, new Date(this.now()));
   }
 
   async verifySession(token: string): Promise<SessionClaims> {
     try {
       const claims = SessionSchema.parse(await this.#verify(token));
-      if (claims.exp < this.now() || claims.sub !== this.config.ownerDiscordUserId) {
+      if (
+        claims.exp < this.now() || claims.sub !== this.config.ownerDiscordUserId ||
+        !await this.persistence.isSessionActive(claims.sid, new Date(this.now()))
+      ) {
         throw new Error("expired");
       }
       return claims;
     } catch {
       throw new AuthError("Session is invalid or expired", 401, "UNAUTHORIZED");
     }
+  }
+
+  #accessToken(sub: string, sid: string, guildIds: string[]): Promise<string> {
+    return this.#sign({
+      sub,
+      sid,
+      guildIds: guildIds.slice(0, 100),
+      exp: this.now() + 15 * 60_000,
+    });
   }
 
   async #exchangeCode(code: string): Promise<z.infer<typeof TokenResponseSchema>> {
@@ -202,6 +264,49 @@ export class AuthService {
   }
 }
 
+export class InMemoryAuthPersistence implements AuthPersistence {
+  readonly #states = new Map<string, number>();
+  readonly #sessions = new Map<
+    string,
+    { hash: string; expires: number; revoked: boolean; guildIds: string[] }
+  >();
+  saveState(hash: string, expiresAt: Date): Promise<void> {
+    this.#states.set(hash, expiresAt.getTime());
+    return Promise.resolve();
+  }
+  consumeState(hash: string, now: Date): Promise<boolean> {
+    const expiry = this.#states.get(hash);
+    if (!expiry || expiry <= now.getTime()) return Promise.resolve(false);
+    this.#states.delete(hash);
+    return Promise.resolve(true);
+  }
+  createSession(hash: string, expiresAt: Date, guildIds: string[]): Promise<string> {
+    const id = crypto.randomUUID();
+    this.#sessions.set(id, { hash, expires: expiresAt.getTime(), revoked: false, guildIds });
+    return Promise.resolve(id);
+  }
+  rotateSession(id: string, previousHash: string, nextHash: string, expiresAt: Date, now: Date) {
+    const session = this.#sessions.get(id);
+    if (
+      !session || session.revoked || session.expires <= now.getTime() ||
+      session.hash !== previousHash
+    ) {
+      return Promise.resolve(null);
+    }
+    this.#sessions.set(id, { ...session, hash: nextHash, expires: expiresAt.getTime() });
+    return Promise.resolve(session.guildIds);
+  }
+  isSessionActive(id: string, now: Date): Promise<boolean> {
+    const session = this.#sessions.get(id);
+    return Promise.resolve(Boolean(session && !session.revoked && session.expires > now.getTime()));
+  }
+  revokeSession(id: string): Promise<void> {
+    const session = this.#sessions.get(id);
+    if (session) session.revoked = true;
+    return Promise.resolve();
+  }
+}
+
 function canManageGuild(guild: z.infer<typeof UserGuildSchema>): boolean {
   if (guild.owner) return true;
   const permissions = BigInt(guild.permissions ?? "0");
@@ -230,4 +335,13 @@ function base64UrlDecode(value: string): ArrayBuffer {
     "=".repeat((4 - value.length % 4) % 4);
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
     .buffer as ArrayBuffer;
+}
+
+function randomToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+}
+
+async function sha256(value: string): Promise<string> {
+  return base64UrlEncode(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
 }

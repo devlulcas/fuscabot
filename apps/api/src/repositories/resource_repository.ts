@@ -1,6 +1,16 @@
 import type { Resource, ResourcePatch } from "../domain/resource.ts";
 
-export type ResourceQuery = { search?: string; archived?: boolean; limit: number; offset: number };
+export type ResourceQuery = {
+  search?: string;
+  archived?: boolean;
+  domain?: string;
+  enrichmentStatus?: "preparing" | "ready" | "failed";
+  tag?: string;
+  state?: "inbox" | "read_later" | "shared" | "archived";
+  sort?: "newest" | "oldest" | "updated";
+  limit: number;
+  offset: number;
+};
 
 export interface ResourceRepository {
   findById(workspaceId: string, id: string): Promise<Resource | null>;
@@ -33,6 +43,15 @@ export class InMemoryResourceRepository implements ResourceRepository {
     const search = query.search?.toLocaleLowerCase();
     const rows = [...this.#resources.values()].filter((r) => r.workspaceId === workspaceId)
       .filter((r) => query.archived === undefined || Boolean(r.archivedAt) === query.archived)
+      .filter((r) => !query.domain || r.sourceDomain === query.domain)
+      .filter((r) => !query.enrichmentStatus || r.enrichmentStatus === query.enrichmentStatus)
+      .filter((r) =>
+        !query.tag ||
+        r.tags.some((tag) =>
+          tag.slug === query.tag || tag.labels.some((label) => label.name === query.tag) ||
+          tag.aliases.includes(query.tag!)
+        )
+      )
       .filter((r) =>
         !search || [r.title, r.originalUrl, r.sourceDomain, r.summary, r.personalNote]
           .some((v) => v?.toLocaleLowerCase().includes(search))
@@ -44,7 +63,7 @@ export class InMemoryResourceRepository implements ResourceRepository {
   update(workspaceId: string, id: string, patch: ResourcePatch) {
     const current = this.#resources.get(id);
     if (!current || current.workspaceId !== workspaceId) return Promise.resolve(null);
-    const { archived, ...fields } = patch;
+    const { archived, tagSlugs: _tagSlugs, ...fields } = patch;
     const updated = {
       ...current,
       ...fields,

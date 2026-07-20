@@ -52,6 +52,7 @@ export const ResourcePatchSchema = z.object({
   selectedQuote: z.string().max(10_000).nullable().optional(),
   outputLanguage: LanguageSchema.optional(),
   archived: z.boolean().optional(),
+  tagSlugs: z.array(nonBlank.max(80)).max(20).optional(),
 }).strict();
 export type ResourcePatch = z.infer<typeof ResourcePatchSchema>;
 

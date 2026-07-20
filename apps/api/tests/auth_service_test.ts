@@ -56,10 +56,31 @@ Deno.test("OAuth completion enforces owner and creates a signed session", async 
   const claims = await service.verifySession(completed.accessToken);
   assertEquals(claims.sub, "owner-1");
   assertEquals(claims.guildIds, ["guild-1"]);
+  const refreshed = await service.refresh(completed.sessionId, completed.refreshToken);
+  assertEquals((await service.verifySession(refreshed.accessToken)).guildIds, ["guild-1"]);
+  await assertRejects(
+    () => service.refresh(completed.sessionId, completed.refreshToken),
+    AuthError,
+    "invalid",
+  );
+  await service.revoke(completed.sessionId);
+  await assertRejects(() => service.verifySession(refreshed.accessToken), AuthError);
   await assertRejects(
     () => service.verifySession(`${completed.accessToken}tampered`),
     AuthError,
   );
+});
+
+Deno.test("OAuth state is single use", async () => {
+  const service = new AuthService(config, discordFetch(), () => 1_000_000);
+  const authorization = new URL(
+    await service.authorizationUrl(
+      "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/discord",
+    ),
+  );
+  const state = authorization.searchParams.get("state")!;
+  await service.complete("code", state);
+  await assertRejects(() => service.complete("code", state), AuthError, "already used");
 });
 
 Deno.test("OAuth completion rejects a different Discord owner", async () => {

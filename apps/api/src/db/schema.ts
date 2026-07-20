@@ -173,6 +173,7 @@ export const authSessions = pgTable("auth_sessions", {
     onDelete: "cascade",
   }),
   refreshTokenHash: text("refresh_token_hash").notNull().unique(),
+  guildIds: text("guild_ids").array().notNull().default([]),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   ...timestamps,

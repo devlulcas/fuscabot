@@ -10,6 +10,20 @@ export type CaptureKind = typeof CAPTURE_KINDS[number];
 export type CapturePayload = Capture;
 export type ApiResource = Resource & {
   channels?: Array<{ id: string; name: string }>;
+  enrichment?: {
+    draft?: {
+      channelSuggestion?: {
+        channelId: string | null;
+        confidence: "high" | "medium" | "low";
+        reason: string;
+      };
+      includeQuoteInDelivery?: boolean;
+      suggestedTagSlugs?: string[];
+    } | null;
+  } | null;
+  deliveries?: Array<
+    { id: string; status: string; externalUrl?: string | null }
+  >;
 };
 export type UpdateResourcePayload = ResourcePatch;
 

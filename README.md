@@ -33,6 +33,6 @@ apps/extension    Plain TypeScript Manifest V3 extension
 packages/contracts Shared boundary schemas and pure domain rules
 ```
 
-Production deployment targets the current Deno Deploy platform through
-`deno deploy`. Deployment identity is intentionally not committed until the Deno
-organization and app are selected.
+Production deployment targets the `devlulcas/fuscabot` Deno Deploy app through
+`deno deploy`. The assigned managed PostgreSQL database is migrated by the
+configured pre-deploy command before each timeline is routed.

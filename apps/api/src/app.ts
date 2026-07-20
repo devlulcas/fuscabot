@@ -48,6 +48,21 @@ export interface DeliveryCoordinator {
 export interface EnrichmentCoordinator {
   prepare(ownerId: string, resourceId: string): Promise<void>;
   retry(ownerId: string, resourceId: string): Promise<unknown>;
+  get(ownerId: string, resourceId: string): Promise<unknown>;
+}
+
+export interface TagCoordinator {
+  list(ownerId: string, search?: string): Promise<unknown[]>;
+  create(
+    ownerId: string,
+    input: { slug: string; english: string; portuguese: string; aliases: string[] },
+  ): Promise<unknown>;
+  merge(ownerId: string, sourceId: string, targetId: string): Promise<unknown>;
+  update(
+    ownerId: string,
+    id: string,
+    input: { slug: string; english: string; portuguese: string; aliases: string[] },
+  ): Promise<unknown>;
 }
 
 export type AppDependencies = {
@@ -57,6 +72,7 @@ export type AppDependencies = {
   channels?: ChannelCoordinator;
   deliveries?: DeliveryCoordinator;
   enrichment?: EnrichmentCoordinator;
+  tags?: TagCoordinator;
   allowedOrigins?: string[];
   requireAuth?: boolean;
 };
@@ -64,10 +80,13 @@ export type AppDependencies = {
 export function createApp(
   deps: AppDependencies = { resources: new ResourceService(new InMemoryResourceRepository()) },
 ) {
-  const app = new Hono<{ Variables: { session: SessionClaims } }>();
+  const app = new Hono<{ Variables: { session: SessionClaims; requestId: string } }>();
   app.onError((cause, c) => handleError(c, cause));
   app.notFound((c) => error(c, 404, "NOT_FOUND", "Route not found"));
   app.use("*", async (c, next) => {
+    const requestId = crypto.randomUUID();
+    c.set("requestId", requestId);
+    const startedAt = performance.now();
     const origin = c.req.header("origin");
     const allowed = origin && deps.allowedOrigins?.includes(origin);
     if (c.req.method === "OPTIONS") {
@@ -77,6 +96,15 @@ export function createApp(
       });
     }
     await next();
+    c.res.headers.set("x-request-id", requestId);
+    console.info(JSON.stringify({
+      event: "request_complete",
+      requestId,
+      method: c.req.method,
+      path: c.req.path,
+      status: c.res.status,
+      durationMs: Math.round(performance.now() - startedAt),
+    }));
     if (allowed) {
       for (const [name, value] of corsHeaders(origin)) c.res.headers.set(name, value);
     }
@@ -102,13 +130,18 @@ export function createApp(
     );
     const result = await deps.auth.complete(query.code, query.state);
     const destination = new URL(result.extensionRedirect);
-    destination.hash = new URLSearchParams({ access_token: result.accessToken }).toString();
+    destination.hash = new URLSearchParams({
+      access_token: result.accessToken,
+      refresh_token: result.refreshToken,
+      session_id: result.sessionId,
+    }).toString();
     return c.redirect(destination.href);
   });
   app.use("/v1/*", async (c, next) => {
     if (
       c.req.path === "/v1/auth/discord/start" ||
-      c.req.path === "/v1/auth/discord/callback"
+      c.req.path === "/v1/auth/discord/callback" ||
+      c.req.path === "/v1/auth/refresh"
     ) return next();
     if (!deps.auth) {
       return deps.requireAuth
@@ -121,6 +154,19 @@ export function createApp(
     }
     c.set("session", await deps.auth.verifySession(authorization.slice(7)));
     await next();
+  });
+  app.post("/v1/auth/refresh", async (c) => {
+    if (!deps.auth) return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
+    const body = z.object({
+      sessionId: z.uuid(),
+      refreshToken: z.string().min(32),
+    }).parse(await c.req.json());
+    return c.json({ data: await deps.auth.refresh(body.sessionId, body.refreshToken) });
+  });
+  app.post("/v1/auth/logout", async (c) => {
+    if (!deps.auth) return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
+    await deps.auth.revoke(c.get("session").sid);
+    return c.body(null, 204);
   });
   app.get("/v1/auth/session", (c) => {
     const session = c.get("session");
@@ -199,6 +245,11 @@ export function createApp(
     const query = z.object({
       search: z.string().optional(),
       archived: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
+      domain: z.string().trim().min(1).optional(),
+      enrichmentStatus: z.enum(["preparing", "ready", "failed"]).optional(),
+      tag: z.string().trim().min(1).optional(),
+      state: z.enum(["inbox", "read_later", "shared", "archived"]).optional(),
+      sort: z.enum(["newest", "oldest", "updated"]).default("newest"),
       limit: z.coerce.number().int().min(1).max(100).default(25),
       offset: z.coerce.number().int().min(0).default(0),
     }).parse(c.req.query());
@@ -209,7 +260,15 @@ export function createApp(
   });
   app.get("/v1/resources/:id", async (c) => {
     const row = await deps.resources.get(c.req.param("id"));
-    return row ? c.json({ data: row }) : error(c, 404, "NOT_FOUND", "Resource not found");
+    if (!row) return error(c, 404, "NOT_FOUND", "Resource not found");
+    const ownerId = c.get("session")?.sub;
+    const [enrichment, deliveries] = ownerId
+      ? await Promise.all([
+        deps.enrichment?.get(ownerId, row.id).catch(() => null),
+        deps.deliveries?.list(ownerId, row.id).catch(() => []),
+      ])
+      : [undefined, undefined];
+    return c.json({ data: { ...row, enrichment, deliveries } });
   });
   app.patch("/v1/resources/:id", async (c) => {
     const row = await deps.resources.patch(
@@ -234,7 +293,7 @@ export function createApp(
     return c.json({ data: await deps.deliveries.list(c.get("session").sub, c.req.param("id")) });
   });
   const publish = async (
-    c: Context<{ Variables: { session: SessionClaims } }>,
+    c: Context<{ Variables: { session: SessionClaims; requestId: string } }>,
     kind: "share" | "read_later",
   ) => {
     if (!deps.deliveries) return error(c, 503, "DEPENDENCY_ERROR", "Delivery is unavailable");
@@ -254,6 +313,37 @@ export function createApp(
   app.post("/v1/deliveries/:id/retry", async (c) => {
     if (!deps.deliveries) return error(c, 503, "DEPENDENCY_ERROR", "Delivery is unavailable");
     return c.json({ data: await deps.deliveries.retry(c.get("session").sub, c.req.param("id")) });
+  });
+  app.get("/v1/tags", async (c) => {
+    if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
+    return c.json({ data: await deps.tags.list(c.get("session").sub, c.req.query("search")) });
+  });
+  app.post("/v1/tags", async (c) => {
+    if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
+    const input = z.object({
+      slug: z.string().trim().min(1).max(80),
+      english: z.string().trim().min(1).max(80),
+      portuguese: z.string().trim().min(1).max(80),
+      aliases: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+    }).parse(await c.req.json());
+    return c.json({ data: await deps.tags.create(c.get("session").sub, input) }, 201);
+  });
+  app.post("/v1/tags/:id/merge", async (c) => {
+    if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
+    const { targetId } = z.object({ targetId: z.uuid() }).parse(await c.req.json());
+    return c.json({
+      data: await deps.tags.merge(c.get("session").sub, c.req.param("id"), targetId),
+    });
+  });
+  app.patch("/v1/tags/:id", async (c) => {
+    if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
+    const input = z.object({
+      slug: z.string().trim().min(1).max(80),
+      english: z.string().trim().min(1).max(80),
+      portuguese: z.string().trim().min(1).max(80),
+      aliases: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
+    }).parse(await c.req.json());
+    return c.json({ data: await deps.tags.update(c.get("session").sub, c.req.param("id"), input) });
   });
   return app;
 }

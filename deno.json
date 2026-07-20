@@ -11,7 +11,8 @@
       "type": "dynamic",
       "entrypoint": "./apps/api/main.ts",
       "cwd": "."
-    }
+    },
+    "predeploy": "deno task --cwd apps/api migrate"
   },
   "tasks": {
     "check": "deno task fmt:check && deno task lint && deno task typecheck && deno task test",

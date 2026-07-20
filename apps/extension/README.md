@@ -36,6 +36,7 @@ and 128 pixels and copied into the unpacked build by `scripts/build.ts`.
   deliberately uses browser-compatible syntax; the builder copies it as
   JavaScript and rewrites local import extensions.
 
-The API routes follow the implementation plan's `/v1` resource shape. Manual
-states remain usable when enrichment fails, and standard publication stays
-disabled until the user selects a destination.
+The API routes follow the implementation plan's `/v1` resource shape. The
+extension rotates expired application sessions automatically, polls enrichment,
+keeps manual editing available on failure, and disables publication until a
+valid destination is selected.

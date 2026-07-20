@@ -12,14 +12,17 @@ Deno.test("normalizes API origins", () => {
     normalizeBaseUrl("javascript:alert(1)"),
     "https://fuscabot.devlulcas.deno.net",
   );
-  assertEquals(normalizeBaseUrl("http://example.com"), "http://localhost:8000");
+  assertEquals(
+    normalizeBaseUrl("http://example.com"),
+    "https://fuscabot.devlulcas.deno.net",
+  );
   assertEquals(
     normalizeBaseUrl("https://user:secret@example.com"),
-    "http://localhost:8000",
+    "https://fuscabot.devlulcas.deno.net",
   );
   assertEquals(
     normalizeBaseUrl("https://example.com/api?token=x"),
-    "http://localhost:8000",
+    "https://fuscabot.devlulcas.deno.net",
   );
 });
 Deno.test("cleans optional capture text", () => {

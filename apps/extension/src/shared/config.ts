@@ -6,6 +6,8 @@ const LEGACY_API_BASE_URL = "https://api.fuscabot.dev";
 export type ExtensionConfig = {
   apiBaseUrl: string;
   accessToken?: string;
+  refreshToken?: string;
+  sessionId?: string;
   selectedGuildId?: string;
 };
 
@@ -17,6 +19,12 @@ export async function getConfig(): Promise<ExtensionConfig> {
     apiBaseUrl: normalizeBaseUrl(config.apiBaseUrl),
     accessToken: typeof config.accessToken === "string"
       ? config.accessToken
+      : undefined,
+    refreshToken: typeof config.refreshToken === "string"
+      ? config.refreshToken
+      : undefined,
+    sessionId: typeof config.sessionId === "string"
+      ? config.sessionId
       : undefined,
     selectedGuildId: typeof config.selectedGuildId === "string"
       ? config.selectedGuildId
@@ -30,6 +38,12 @@ export async function saveConfig(config: unknown): Promise<ExtensionConfig> {
     apiBaseUrl: normalizeBaseUrl(record.apiBaseUrl),
     accessToken: typeof record.accessToken === "string"
       ? record.accessToken
+      : undefined,
+    refreshToken: typeof record.refreshToken === "string"
+      ? record.refreshToken
+      : undefined,
+    sessionId: typeof record.sessionId === "string"
+      ? record.sessionId
       : undefined,
     selectedGuildId: typeof record.selectedGuildId === "string"
       ? record.selectedGuildId
