@@ -163,6 +163,7 @@ export const deliveries = pgTable("deliveries", {
   externalUrl: text("external_url"),
   status: text("status").notNull().default("pending"),
   error: text("error"),
+  retryOfDeliveryId: uuid("retry_of_delivery_id"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [index("deliveries_resource_idx").on(t.resourceId)]);
