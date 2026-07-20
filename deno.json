@@ -1,0 +1,23 @@
+{
+  "workspace": [
+    "./apps/api",
+    "./packages/contracts"
+  ],
+  "tasks": {
+    "check": "deno task fmt:check && deno task lint && deno task typecheck && deno task test",
+    "fmt": "deno fmt",
+    "fmt:check": "deno fmt --check",
+    "lint": "deno lint",
+    "typecheck": "deno check apps/api/src/server.ts packages/contracts/mod.ts && deno task --cwd apps/extension check",
+    "test": "deno test -A",
+    "dev:api": "deno task --cwd apps/api dev",
+    "build:extension": "deno task --cwd apps/extension build"
+  },
+  "fmt": {
+    "exclude": ["apps/extension/dist/"]
+  },
+  "lint": {
+    "exclude": ["apps/extension/dist/"]
+  },
+  "exclude": ["apps/extension/dist/"]
+}
