@@ -9,7 +9,7 @@
     "app": "fuscabot",
     "runtime": {
       "type": "dynamic",
-      "entrypoint": "./apps/api/src/server.ts",
+      "entrypoint": "./apps/api/main.ts",
       "cwd": "."
     }
   },

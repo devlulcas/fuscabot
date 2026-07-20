@@ -5,7 +5,7 @@ import { InMemoryResourceRepository } from "./repositories/resource_repository.t
 import { AuthService } from "./services/auth_service.ts";
 import { ResourceService } from "./services/resource_service.ts";
 
-if (import.meta.main) {
+export function startServer(): void {
   const source = Deno.env.toObject();
   let runtimeEnv: ReturnType<typeof requireRuntimeEnv> | undefined;
   try {
@@ -35,6 +35,8 @@ if (import.meta.main) {
     : 8000;
   Deno.serve({ port }, app.fetch);
 }
+
+if (import.meta.main) startServer();
 
 function safeConfigError(cause: unknown): string {
   if (

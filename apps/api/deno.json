@@ -1,4 +1,11 @@
 {
+  "deploy": {
+    "runtime": {
+      "type": "dynamic",
+      "entrypoint": "./main.ts",
+      "cwd": "."
+    }
+  },
   "imports": {
     "@hono/hono": "jsr:@hono/hono@^4.8.3",
     "@fuscabot/contracts": "../../packages/contracts/mod.ts",
@@ -10,7 +17,7 @@
   "tasks": {
     "dev": "deno run --watch --allow-env --allow-net src/server.ts",
     "start": "deno run --allow-env --allow-net src/server.ts",
-    "check": "deno check src/server.ts src/db/schema.ts",
+    "check": "deno check main.ts src/server.ts src/db/schema.ts",
     "test": "deno test --allow-env"
   },
   "fmt": { "lineWidth": 100 },
