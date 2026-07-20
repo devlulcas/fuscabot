@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Fuscabot Link Library",
+  "version": "0.1.0",
+  "description": "Capture links into a private library and publish them to Discord.",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "sidePanel",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": ["http://localhost:8000/*", "https://api.fuscabot.dev/*"],
+  "background": { "service_worker": "service-worker.js", "type": "module" },
+  "action": { "default_title": "Open link library" },
+  "side_panel": { "default_path": "side-panel/index.html" }
+}

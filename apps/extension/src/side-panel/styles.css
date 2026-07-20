@@ -1,0 +1,124 @@
+:root {
+  color-scheme: light dark;
+  font: 15px/1.45 system-ui, sans-serif;
+  --accent: #7864ff;
+  --surface: color-mix(in srgb, Canvas 92%, var(--accent));
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: Canvas;
+  color: CanvasText;
+}
+header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 1rem;
+  background: color-mix(in srgb, Canvas 88%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+}
+nav {
+  display: flex;
+  gap: .5rem;
+  margin-top: .75rem;
+}
+nav a {
+  color: inherit;
+  text-decoration: none;
+  padding: .4rem .65rem;
+  border-radius: 2rem;
+}
+nav a[aria-current="page"] {
+  background: var(--accent);
+  color: white;
+}
+main {
+  padding: 1rem;
+}
+h1 {
+  font-size: 1.25rem;
+}
+.stack {
+  display: grid;
+  gap: 1rem;
+}
+.card {
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, CanvasText 16%, transparent);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+label {
+  display: grid;
+  gap: .35rem;
+  font-weight: 600;
+}
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  padding: .7rem;
+  border: 1px solid color-mix(in srgb, CanvasText 24%, transparent);
+  border-radius: .6rem;
+  background: Canvas;
+  color: CanvasText;
+}
+textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+button {
+  cursor: pointer;
+}
+button.primary {
+  background: var(--accent);
+  color: white;
+  border-color: transparent;
+}
+button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+}
+.muted {
+  opacity: .7;
+  overflow-wrap: anywhere;
+}
+.notice {
+  padding: 1rem;
+  border-radius: .8rem;
+  background: var(--surface);
+}
+.error {
+  border-inline-start: 4px solid #dc3e55;
+}
+.skeleton {
+  min-height: 4rem;
+  border-radius: .7rem;
+  background: linear-gradient(90deg,transparent,#8883,transparent);
+  background-size: 200%;
+  animation: load 1.2s infinite;
+}
+.resource {
+  display: grid;
+  gap: .3rem;
+}
+@keyframes load {
+  to {
+    background-position: -200%;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  * {
+    animation: none!important;
+  }
+}
