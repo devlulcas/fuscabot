@@ -16,6 +16,7 @@ const resource: Resource = {
   description: null,
   siteName: null,
   author: null,
+  publishedAtSource: null,
   imageUrl: null,
   selectedQuote: "q".repeat(2000),
   summary: "s".repeat(5000),
@@ -24,6 +25,7 @@ const resource: Resource = {
   enrichmentStatus: "ready",
   enrichmentError: null,
   archivedAt: null,
+  tags: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

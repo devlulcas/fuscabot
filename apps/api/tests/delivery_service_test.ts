@@ -9,8 +9,18 @@ const capture: CaptureInput = {
   captureId: "019432f0-7c00-7000-8000-000000000001",
   url: "https://example.com/post",
   title: "Post",
-  sourceLanguage: "en",
+  selectedQuote: null,
+  linkText: null,
   outputLanguage: "pt-BR",
+  metadata: {
+    canonicalUrl: null,
+    description: null,
+    siteName: null,
+    author: null,
+    publishedAt: null,
+    imageUrl: null,
+    sourceLanguage: "en",
+  },
 };
 const target = { channelId: crypto.randomUUID(), discordChannelId: "123", guildId: "456" };
 
