@@ -305,7 +305,7 @@ async function renderLibrary(): Promise<void> {
           escapeHtml(resource.originalUrl)
         }" target="_blank" rel="noopener noreferrer">Open source</a><a href="#/capture/${
           escapeHtml(resource.id)
-        }">Review</a></article>`
+        }" class="review-button">Review</a></article>`
       ).join("")
       : '<p class="notice">No resources found. Capture a page to start your library.</p>';
   };

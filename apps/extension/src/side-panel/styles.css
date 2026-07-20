@@ -349,10 +349,16 @@ form[role="search"] label:first-child {
   grid-column: 1 / -1;
 }
 
+[data-results] {
+  display: grid;
+  gap: 11px;
+}
+
 .resource {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 3px 8px;
+  padding-block: 12px;
 }
 .resource strong,
 .resource .muted {
@@ -361,6 +367,20 @@ form[role="search"] label:first-child {
 .resource a {
   color: var(--accent-2);
   font-size: 11px;
+}
+.resource .review-button {
+  justify-self: end;
+  padding: 5px 9px;
+  border: 1px solid #7669cf80;
+  border-radius: 3px;
+  color: var(--ink);
+  background: linear-gradient(135deg, #7969df35, #57b7a51a);
+  font-weight: 700;
+  text-decoration: none;
+}
+.resource .review-button:hover {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, #7969df55, #57b7a530);
 }
 
 .channel-settings {
