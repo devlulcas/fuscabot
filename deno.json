@@ -23,7 +23,8 @@
     "test": "deno test -A",
     "dev:api": "deno task --cwd apps/api dev",
     "build:extension": "deno task --cwd apps/extension build",
-    "db:migrate": "deno task --cwd apps/api migrate"
+    "db:migrate": "deno task --cwd apps/api migrate",
+    "migrate": "deno task --cwd apps/api migrate"
   },
   "fmt": {
     "exclude": [
