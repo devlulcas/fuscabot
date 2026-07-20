@@ -17,11 +17,14 @@ deno task build
 Then open `chrome://extensions`, enable Developer mode, choose **Load
 unpacked**, and select `apps/extension/dist`.
 
-The manifest allows only the development API (`http://localhost:8000`) and the
-placeholder production origin (`https://api.fuscabot.dev`). Update the latter
-before release. Configure the base URL and authenticated app session in the
-Settings view. Only extension session/UI data is stored locally; Discord and
-Mistral credentials belong on the backend.
+The manifest allows the development API (`http://localhost:8000`) and the
+production API (`https://fuscabot.devlulcas.deno.net`). Production is the
+default; use Settings to select localhost during development. Only extension
+session/UI data is stored locally; Discord and Mistral credentials belong on the
+backend.
+
+The Chrome icon set is generated from `assets/icon-source.png` at 16, 32, 48,
+and 128 pixels and copied into the unpacked build by `scripts/build.ts`.
 
 ## Structure
 

@@ -5,8 +5,12 @@ import { capturePath, cleanOptionalText } from "./types.ts";
 Deno.test("normalizes API origins", () => {
   assertEquals(normalizeBaseUrl("https://example.com/"), "https://example.com");
   assertEquals(
+    normalizeBaseUrl("https://api.fuscabot.dev"),
+    "https://fuscabot.devlulcas.deno.net",
+  );
+  assertEquals(
     normalizeBaseUrl("javascript:alert(1)"),
-    "http://localhost:8000",
+    "https://fuscabot.devlulcas.deno.net",
   );
 });
 Deno.test("cleans optional capture text", () => {

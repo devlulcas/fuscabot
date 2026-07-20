@@ -2,6 +2,7 @@
 import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 const CONFIG_KEY = "extensionConfig";
+const LEGACY_API_BASE_URL = "https://api.fuscabot.dev";
 export type ExtensionConfig = { apiBaseUrl: string; accessToken?: string };
 
 export async function getConfig(): Promise<ExtensionConfig> {
@@ -35,7 +36,10 @@ export function normalizeBaseUrl(value: unknown): string {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return DEFAULT_API_BASE_URL;
     }
-    return url.href.replace(/\/$/, "");
+    const normalized = url.href.replace(/\/$/, "");
+    return normalized === LEGACY_API_BASE_URL
+      ? DEFAULT_API_BASE_URL
+      : normalized;
   } catch {
     return DEFAULT_API_BASE_URL;
   }

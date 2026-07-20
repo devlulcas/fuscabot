@@ -6,6 +6,7 @@ await Deno.remove(output, { recursive: true }).catch((error: unknown) => {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 });
 await Deno.mkdir(new URL("side-panel/", output), { recursive: true });
+await Deno.mkdir(new URL("icons/", output), { recursive: true });
 await Promise.all([
   Deno.copyFile(
     new URL("manifest.json", root),
@@ -18,6 +19,12 @@ await Promise.all([
   Deno.copyFile(
     new URL("side-panel/styles.css", source),
     new URL("side-panel/styles.css", output),
+  ),
+  ...[16, 32, 48, 128].map((size) =>
+    Deno.copyFile(
+      new URL(`public/icons/icon-${size}.png`, root),
+      new URL(`icons/icon-${size}.png`, output),
+    )
   ),
 ]);
 
