@@ -1,5 +1,10 @@
 import { api, type DiscordChannel } from "../shared/api.ts";
-import { getConfig, saveConfig } from "../shared/config.ts";
+import {
+  type ExtensionConfig,
+  getConfig,
+  saveConfig,
+  type UiTheme,
+} from "../shared/config.ts";
 import { getPendingCapture } from "../shared/pending-capture.ts";
 import type { ApiResource, CapturePayload } from "../shared/types.ts";
 import { parseRoute } from "./router.ts";
@@ -16,7 +21,12 @@ chrome.runtime.onMessage.addListener((message) => {
   }
   if (message.type === "capture-updated") void render();
 });
-void render();
+void initialize();
+
+async function initialize(): Promise<void> {
+  applyAppearance(await getConfig());
+  await render();
+}
 
 async function render(): Promise<void> {
   const route = parseRoute(location.hash);
@@ -337,22 +347,71 @@ async function renderLibrary(): Promise<void> {
 }
 
 async function renderSettings(): Promise<void> {
-  const config = await getConfig();
+  let config = await getConfig();
   const connected = config.accessToken
     ? await api.session().then(() => true).catch(() => false)
     : false;
   app.innerHTML =
-    `<section class="stack settings"><h1 tabindex="-1">Settings</h1><form class="card stack settings-card"><h2>API</h2><label>API base URL<input name="apiBaseUrl" type="url" required value="${
+    `<section class="stack settings"><h1 tabindex="-1">Settings</h1><section class="card stack settings-card"><h2>Appearance</h2><form class="appearance-controls" data-appearance><label>Theme<select name="theme"><option value="dark" ${
+      config.theme === "dark" ? "selected" : ""
+    }>Dark</option><option value="light" ${
+      config.theme === "light" ? "selected" : ""
+    }>Light</option><option value="adwaita" ${
+      config.theme === "adwaita" ? "selected" : ""
+    }>Adwaita</option></select></label><label class="accent-picker">Accent color<input name="accentColor" type="color" value="${
+      escapeHtml(effectiveAccent(config))
+    }"></label><div class="appearance-footer"><button type="button" data-variant="ghost" data-size="compact" data-reset-accent>Use theme default</button><span class="field-hint" data-appearance-status>Changes apply immediately.</span></div></form></section><form class="card stack settings-card" data-api-settings><h2>API</h2><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
     }"></label><button data-variant="primary">Save API URL</button></form><section class="card stack settings-card"><h2>Discord account</h2><p class="notice">${
       connected ? "Connected as the configured owner." : "Not connected."
     }</p><button data-variant="secondary" data-connect>${
       connected ? "Reconnect Discord" : "Connect Discord"
     }</button></section></section>`;
-  const form = requiredElement<HTMLFormElement>(app, "form");
+  const appearanceForm = requiredElement<HTMLFormElement>(
+    app,
+    "[data-appearance]",
+  );
+  const themeSelect = requiredElement<HTMLSelectElement>(
+    appearanceForm,
+    '[name="theme"]',
+  );
+  const accentInput = requiredElement<HTMLInputElement>(
+    appearanceForm,
+    '[name="accentColor"]',
+  );
+  const appearanceStatus = requiredElement<HTMLElement>(
+    appearanceForm,
+    "[data-appearance-status]",
+  );
+  themeSelect.addEventListener("change", async () => {
+    const theme = themeSelect.value as UiTheme;
+    config = await saveConfig({ ...config, theme });
+    accentInput.value = effectiveAccent(config);
+    applyAppearance(config);
+    appearanceStatus.textContent = "Theme saved.";
+  });
+  accentInput.addEventListener("input", () => {
+    applyAppearance({ ...config, accentColor: accentInput.value });
+  });
+  accentInput.addEventListener("change", async () => {
+    config = await saveConfig({ ...config, accentColor: accentInput.value });
+    applyAppearance(config);
+    appearanceStatus.textContent = "Accent saved.";
+  });
+  requiredElement<HTMLButtonElement>(appearanceForm, "[data-reset-accent]")
+    .addEventListener("click", async () => {
+      config = await saveConfig({ ...config, accentColor: undefined });
+      accentInput.value = effectiveAccent(config);
+      applyAppearance(config);
+      appearanceStatus.textContent = "Using the theme default.";
+    });
+  const form = requiredElement<HTMLFormElement>(app, "[data-api-settings]");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveConfig({ ...config, apiBaseUrl: formValue(form, "apiBaseUrl") });
+    config = await saveConfig({
+      ...config,
+      apiBaseUrl: formValue(form, "apiBaseUrl"),
+    });
     requiredElement<HTMLButtonElement>(form, "button").textContent = "Saved";
   });
   requiredElement<HTMLButtonElement>(app, "[data-connect]").addEventListener(
@@ -641,8 +700,31 @@ async function connectDiscord(
   if (!accessToken || !refreshToken || !sessionId) {
     throw new Error("Discord connection did not return a session");
   }
-  await saveConfig({ ...config, accessToken, refreshToken, sessionId });
+  await saveConfig({
+    ...await getConfig(),
+    accessToken,
+    refreshToken,
+    sessionId,
+  });
   await renderSettings();
+}
+
+const THEME_ACCENTS: Record<UiTheme, string> = {
+  dark: "#9b8cff",
+  light: "#6d5bd0",
+  adwaita: "#3584e4",
+};
+
+function effectiveAccent(config: ExtensionConfig): string {
+  return config.accentColor ?? THEME_ACCENTS[config.theme];
+}
+
+function applyAppearance(config: ExtensionConfig): void {
+  document.documentElement.dataset.theme = config.theme;
+  document.documentElement.style.setProperty(
+    "--accent",
+    effectiveAccent(config),
+  );
 }
 
 function showSuccess(delivery: { discordUrl?: string }): void {

@@ -5,11 +5,36 @@ form[role="search"] {
   padding: 9px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: #11151dbb;
+  background: var(--search-background);
 
   & label:first-child {
     grid-column: 1 / -1;
   }
+}
+
+.appearance-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+
+  & .accent-picker {
+    justify-items: start;
+  }
+
+  & input[type="color"] {
+    width: 46px;
+    height: 34px;
+    padding: 3px;
+    cursor: pointer;
+  }
+}
+
+.appearance-footer {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .channel-sync-row {

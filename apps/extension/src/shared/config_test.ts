@@ -1,5 +1,9 @@
 import { assertEquals } from "@std/assert";
-import { normalizeBaseUrl } from "./config.ts";
+import {
+  normalizeAccentColor,
+  normalizeBaseUrl,
+  normalizeTheme,
+} from "./config.ts";
 import { capturePath, cleanOptionalText } from "./types.ts";
 
 Deno.test("normalizes API origins", () => {
@@ -31,3 +35,9 @@ Deno.test("cleans optional capture text", () => {
 });
 Deno.test("encodes capture routes", () =>
   assertEquals(capturePath("a/b"), "/capture/a%2Fb"));
+Deno.test("normalizes appearance preferences", () => {
+  assertEquals(normalizeTheme("adwaita"), "adwaita");
+  assertEquals(normalizeTheme("system"), "dark");
+  assertEquals(normalizeAccentColor("#35A4E8"), "#35a4e8");
+  assertEquals(normalizeAccentColor("blue"), undefined);
+});

@@ -23,7 +23,7 @@
   }
 
   &[data-variant="primary"] {
-    border-color: #aa9fff;
+    border-color: color-mix(in srgb, var(--accent) 68%, white);
     color: var(--button-primary-ink);
     background: var(--button-primary-background);
     box-shadow: inset 0 1px #ffffff45;
@@ -42,7 +42,7 @@
   }
 
   &[data-variant="danger"] {
-    border-color: #7c3546;
+    border-color: var(--danger-border);
     color: var(--danger);
     background: var(--button-danger-background);
   }
@@ -63,9 +63,11 @@
 
   @media (hover: hover) {
     &[data-variant="primary"]:hover:not(:disabled) {
-      border-color: #c7c0ff;
+      border-color: color-mix(in srgb, var(--accent) 48%, white);
       background: var(--button-primary-hover);
-      box-shadow: inset 0 1px #ffffff66, 0 0 0 1px #9b8cff20;
+      box-shadow:
+        inset 0 1px #ffffff66,
+        0 0 0 1px color-mix(in srgb, var(--accent) 13%, transparent);
     }
 
     &[data-variant="secondary"]:hover:not(:disabled) {

@@ -3,8 +3,12 @@ import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 const CONFIG_KEY = "extensionConfig";
 const LEGACY_API_BASE_URL = "https://api.fuscabot.dev";
+export const UI_THEMES = ["dark", "light", "adwaita"] as const;
+export type UiTheme = typeof UI_THEMES[number];
 export type ExtensionConfig = {
   apiBaseUrl: string;
+  theme: UiTheme;
+  accentColor?: string;
   accessToken?: string;
   refreshToken?: string;
   sessionId?: string;
@@ -14,9 +18,13 @@ export type ExtensionConfig = {
 export async function getConfig(): Promise<ExtensionConfig> {
   const stored = await chrome.storage.local.get(CONFIG_KEY);
   const config = stored[CONFIG_KEY];
-  if (!isRecord(config)) return { apiBaseUrl: DEFAULT_API_BASE_URL };
+  if (!isRecord(config)) {
+    return { apiBaseUrl: DEFAULT_API_BASE_URL, theme: "dark" };
+  }
   return {
     apiBaseUrl: normalizeBaseUrl(config.apiBaseUrl),
+    theme: normalizeTheme(config.theme),
+    accentColor: normalizeAccentColor(config.accentColor),
     accessToken: typeof config.accessToken === "string"
       ? config.accessToken
       : undefined,
@@ -36,6 +44,8 @@ export async function saveConfig(config: unknown): Promise<ExtensionConfig> {
   const record = isRecord(config) ? config : {};
   const value = {
     apiBaseUrl: normalizeBaseUrl(record.apiBaseUrl),
+    theme: normalizeTheme(record.theme),
+    accentColor: normalizeAccentColor(record.accentColor),
     accessToken: typeof record.accessToken === "string"
       ? record.accessToken
       : undefined,
@@ -51,6 +61,16 @@ export async function saveConfig(config: unknown): Promise<ExtensionConfig> {
   };
   await chrome.storage.local.set({ [CONFIG_KEY]: value });
   return value;
+}
+
+export function normalizeTheme(value: unknown): UiTheme {
+  return UI_THEMES.find((theme) => theme === value) ?? "dark";
+}
+
+export function normalizeAccentColor(value: unknown): string | undefined {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
+    ? value.toLowerCase()
+    : undefined;
 }
 
 export function normalizeBaseUrl(value: unknown): string {

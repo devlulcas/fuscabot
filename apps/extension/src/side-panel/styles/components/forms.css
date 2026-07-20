@@ -1,7 +1,7 @@
 label {
   display: grid;
   gap: 4px;
-  color: #b9c0d0;
+  color: var(--label-ink);
   font-size: 11px;
   font-weight: 650;
 }
@@ -40,11 +40,5 @@ textarea {
   &[name="summary"],
   &[name="whyUseful"] {
     min-height: 66px;
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  label {
-    color: #424652;
   }
 }

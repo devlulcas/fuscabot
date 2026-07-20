@@ -19,7 +19,10 @@ body {
     pointer-events: none;
     content: "";
     opacity: .16;
-    background-image: radial-gradient(#d9d4ff 0.55px, transparent 0.55px);
+    background-image: radial-gradient(
+      color-mix(in srgb, var(--accent) 34%, transparent) 0.55px,
+      transparent 0.55px
+    );
     background-size: 4px 4px;
     mask-image: linear-gradient(to bottom, black, transparent 70%);
   }

@@ -35,13 +35,13 @@ nav {
 
     &:hover {
       color: var(--ink);
-      background: #ffffff08;
+      background: var(--nav-hover);
     }
 
     &[aria-current="page"] {
       color: var(--ink);
-      border-color: #7669cf80;
-      background: linear-gradient(135deg, #7969df35, #57b7a51a);
+      border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+      background: var(--active-route-background);
     }
   }
 }

@@ -33,8 +33,8 @@ details {
 blockquote {
   margin: 5px 0 0;
   padding-left: 8px;
-  border-left: 2px solid #8273da;
-  color: #c8cddd;
+  border-left: 2px solid var(--accent);
+  color: var(--quote-ink);
   font-size: 12px;
 }
 
@@ -44,8 +44,8 @@ blockquote {
   font-size: 12px;
 
   &.error {
-    border-color: #7c3546;
-    background: linear-gradient(145deg, #361923aa, #15131aaa);
+    border-color: var(--danger-border);
+    background: var(--error-background);
   }
 }
 
@@ -65,7 +65,7 @@ blockquote {
 
   &.failed {
     color: var(--danger);
-    border-color: #7c3546;
+    border-color: var(--danger-border);
   }
 }
 
@@ -81,7 +81,7 @@ details {
 }
 
 summary {
-  color: #bcc3d2;
+  color: var(--summary-ink);
   font-weight: 650;
   cursor: pointer;
 }
@@ -94,7 +94,12 @@ summary {
   min-height: 74px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: linear-gradient(100deg, #131722 25%, #222838 42%, #131722 60%);
+  background: linear-gradient(
+    100deg,
+    var(--skeleton-start) 25%,
+    var(--skeleton-middle) 42%,
+    var(--skeleton-start) 60%
+  );
   background-size: 250% 100%;
   animation: load 1.1s infinite linear;
 }
