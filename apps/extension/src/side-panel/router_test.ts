@@ -6,5 +6,7 @@ Deno.test("parses known routes and falls back to library", () => {
     captureId: "abc",
   });
   assertEquals(parseRoute("#/settings"), { name: "settings" });
+  assertEquals(parseRoute("#/channels"), { name: "channels" });
+  assertEquals(parseRoute("#/tags"), { name: "tags" });
   assertEquals(parseRoute("#/wat"), { name: "library" });
 });

@@ -29,6 +29,8 @@ async function render(): Promise<void> {
   try {
     if (route.name === "capture") await renderCapture(route.captureId);
     else if (route.name === "settings") await renderSettings();
+    else if (route.name === "channels") await renderChannels();
+    else if (route.name === "tags") await renderTags();
     else await renderLibrary();
     app.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
   } catch (error) {
@@ -318,49 +320,17 @@ async function renderLibrary(): Promise<void> {
 
 async function renderSettings(): Promise<void> {
   const config = await getConfig();
-  let connected = false;
-  let guilds: Array<{ id: string; name: string }> = [];
-  let storedChannels: DiscordChannel[] = [];
-  let storedTags: Awaited<ReturnType<typeof api.tags>> = [];
-  if (config.accessToken) {
-    try {
-      await api.session();
-      guilds = await api.guilds();
-      storedChannels = await api.channels().catch(() => []);
-      storedTags = await api.tags().catch(() => []);
-      connected = true;
-    } catch {
-      connected = false;
-    }
-  }
+  const connected = config.accessToken
+    ? await api.session().then(() => true).catch(() => false)
+    : false;
   app.innerHTML =
-    `<section class="stack settings"><h1 tabindex="-1">Settings</h1><form class="card stack settings-card"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
+    `<section class="stack settings"><h1 tabindex="-1">Settings</h1><form class="card stack settings-card"><h2>API</h2><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
-    }"></label><button class="primary">Save API URL</button></form><section class="card stack settings-card"><h2>Discord</h2><p class="notice">${
+    }"></label><button class="primary">Save API URL</button></form><section class="card stack settings-card"><h2>Discord account</h2><p class="notice">${
       connected ? "Connected as the configured owner." : "Not connected."
-    }</p>${
-      connected && guilds.length
-        ? `<label>Server<select data-guild>${
-          guilds.map((guild) =>
-            `<option value="${escapeHtml(guild.id)}" ${
-              guild.id === config.selectedGuildId ? "selected" : ""
-            }>${escapeHtml(guild.name)}</option>`
-          ).join("")
-        }</select></label>`
-        : ""
-    }<div class="actions"><button data-connect>${
+    }</p><button data-connect>${
       connected ? "Reconnect Discord" : "Connect Discord"
-    }</button><button data-sync ${
-      connected && guilds.length ? "" : "disabled"
-    }>Sync channels now</button></div><div data-channels>${
-      channelSettings(storedChannels)
-    }</div></section><section class="card stack settings-card"><h2>Tags</h2><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button>Add canonical tag</button></form><p class="muted" data-tags>${
-      storedTags.length
-        ? storedTags.map((tag) => `#${escapeHtml(tag.slug)}`).join(" · ")
-        : "No tags yet."
-    }</p><div data-tag-list>${
-      tagSettings(storedTags)
-    }</div></section></section>`;
+    }</button></section></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -371,6 +341,44 @@ async function renderSettings(): Promise<void> {
     "click",
     () => void connectDiscord(config).catch(showError),
   );
+}
+
+async function renderChannels(): Promise<void> {
+  const config = await getConfig();
+  let connected = false;
+  let guilds: Array<{ id: string; name: string }> = [];
+  let storedChannels: DiscordChannel[] = [];
+  if (config.accessToken) {
+    try {
+      await api.session();
+      guilds = await api.guilds();
+      storedChannels = await api.channels().catch(() => []);
+      connected = true;
+    } catch {
+      connected = false;
+    }
+  }
+  if (!connected) {
+    app.innerHTML =
+      '<section class="stack settings"><h1 tabindex="-1">Channels</h1><p class="notice">Connect Discord in Settings before importing channels.</p><a class="page-action" href="#/settings">Open Settings</a></section>';
+    return;
+  }
+  app.innerHTML =
+    `<section class="stack settings"><h1 tabindex="-1">Channels</h1><section class="card stack settings-card"><div class="section-heading"><div><h2>Discord channels</h2><p class="muted">Choose a server, sync its channels, then configure routing.</p></div></div>${
+      guilds.length
+        ? `<label>Server<select data-guild>${
+          guilds.map((guild) =>
+            `<option value="${escapeHtml(guild.id)}" ${
+              guild.id === config.selectedGuildId ? "selected" : ""
+            }>${escapeHtml(guild.name)}</option>`
+          ).join("")
+        }</select></label>`
+        : ""
+    }<div class="actions"><button class="primary" data-sync ${
+      guilds.length ? "" : "disabled"
+    }>Sync channels now</button></div><div data-channels>${
+      channelSettings(storedChannels)
+    }</div></section></section>`;
   const sync = requiredElement<HTMLButtonElement>(app, "[data-sync]");
   sync.addEventListener("click", async () => {
     sync.disabled = true;
@@ -388,6 +396,27 @@ async function renderSettings(): Promise<void> {
     }
   });
   bindChannelSettings();
+}
+
+async function renderTags(): Promise<void> {
+  const config = await getConfig();
+  const connected = config.accessToken
+    ? await api.session().then(() => true).catch(() => false)
+    : false;
+  if (!connected) {
+    app.innerHTML =
+      '<section class="stack settings"><h1 tabindex="-1">Tags</h1><p class="notice">Connect Discord in Settings before managing tags.</p><a class="page-action" href="#/settings">Open Settings</a></section>';
+    return;
+  }
+  const storedTags = await api.tags().catch(() => []);
+  app.innerHTML =
+    `<section class="stack settings"><h1 tabindex="-1">Tags</h1><section class="card stack settings-card"><div class="section-heading"><div><h2>Canonical tags</h2><p class="muted">Maintain bilingual labels and aliases used by AI suggestions.</p></div></div><form data-tag-form class="stack"><label>Slug<input name="slug" required></label><label>English label<input name="english" required></label><label>Portuguese label<input name="portuguese" required></label><label>Aliases, comma separated<input name="aliases"></label><button class="primary">Add canonical tag</button></form><p class="muted" data-tags>${
+      storedTags.length
+        ? storedTags.map((tag) => `#${escapeHtml(tag.slug)}`).join(" · ")
+        : "No tags yet."
+    }</p><div class="tag-list" data-tag-list>${
+      tagSettings(storedTags)
+    }</div></section></section>`;
   requiredElement<HTMLFormElement>(app, "[data-tag-form]").addEventListener(
     "submit",
     async (event) => {
@@ -430,69 +459,69 @@ async function renderSettings(): Promise<void> {
             ).filter(Boolean),
           });
         }
-        await renderSettings();
+        await renderTags();
       });
     },
   );
+}
 
-  function bindChannelSettings(): void {
-    const readLaterSelect = app.querySelector<HTMLSelectElement>(
-      "[data-read-later-channel]",
-    );
-    readLaterSelect?.addEventListener("change", async () => {
-      const previousId = readLaterSelect.dataset.current ?? "";
-      const nextId = readLaterSelect.value;
-      if (nextId === previousId) return;
-      readLaterSelect.disabled = true;
-      const status = app.querySelector<HTMLElement>("[data-read-later-status]");
-      try {
-        if (nextId) {
-          await api.updateChannel(nextId, {
-            isReadLater: true,
-            isActiveForRouting: true,
-          });
-          const routingToggle = app.querySelector<HTMLInputElement>(
-            `[data-channel-id="${CSS.escape(nextId)}"] [name="active"]`,
-          );
-          if (routingToggle) routingToggle.checked = true;
-        } else if (previousId) {
-          await api.updateChannel(previousId, { isReadLater: false });
-        }
-        readLaterSelect.dataset.current = nextId;
-        if (status) status.textContent = "Read Later destination saved.";
-      } catch (cause) {
-        readLaterSelect.value = previousId;
-        showInlineError(status, cause);
-      } finally {
-        readLaterSelect.disabled = false;
-      }
-    });
-    app.querySelectorAll<HTMLFormElement>("[data-channel-form]").forEach(
-      (channelForm) => {
-        channelForm.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          const button = requiredElement<HTMLButtonElement>(
-            channelForm,
-            "button",
-          );
-          button.disabled = true;
-          try {
-            await api.updateChannel(channelForm.dataset.channelId!, {
-              routingDescription: optionalFormValue(
-                channelForm,
-                "routingDescription",
-              ),
-              isActiveForRouting:
-                new FormData(channelForm).get("active") === "on",
-            });
-            button.textContent = "Saved";
-          } finally {
-            button.disabled = false;
-          }
+function bindChannelSettings(): void {
+  const readLaterSelect = app.querySelector<HTMLSelectElement>(
+    "[data-read-later-channel]",
+  );
+  readLaterSelect?.addEventListener("change", async () => {
+    const previousId = readLaterSelect.dataset.current ?? "";
+    const nextId = readLaterSelect.value;
+    if (nextId === previousId) return;
+    readLaterSelect.disabled = true;
+    const status = app.querySelector<HTMLElement>("[data-read-later-status]");
+    try {
+      if (nextId) {
+        await api.updateChannel(nextId, {
+          isReadLater: true,
+          isActiveForRouting: true,
         });
-      },
-    );
-  }
+        const routingToggle = app.querySelector<HTMLInputElement>(
+          `[data-channel-id="${CSS.escape(nextId)}"] [name="active"]`,
+        );
+        if (routingToggle) routingToggle.checked = true;
+      } else if (previousId) {
+        await api.updateChannel(previousId, { isReadLater: false });
+      }
+      readLaterSelect.dataset.current = nextId;
+      if (status) status.textContent = "Read Later destination saved.";
+    } catch (cause) {
+      readLaterSelect.value = previousId;
+      showInlineError(status, cause);
+    } finally {
+      readLaterSelect.disabled = false;
+    }
+  });
+  app.querySelectorAll<HTMLFormElement>("[data-channel-form]").forEach(
+    (channelForm) => {
+      channelForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = requiredElement<HTMLButtonElement>(
+          channelForm,
+          "button",
+        );
+        button.disabled = true;
+        try {
+          await api.updateChannel(channelForm.dataset.channelId!, {
+            routingDescription: optionalFormValue(
+              channelForm,
+              "routingDescription",
+            ),
+            isActiveForRouting:
+              new FormData(channelForm).get("active") === "on",
+          });
+          button.textContent = "Saved";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    },
+  );
 }
 
 function tagSettings(tags: Awaited<ReturnType<typeof api.tags>>): string {
