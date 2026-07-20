@@ -21,17 +21,17 @@ Tasks are ordered by dependency, not merely by product phase.
 
 ## Wave 2 — owner authentication and Discord delivery
 
-- [ ] **W2.1 Session security** — OAuth state storage, owner allow-list,
+- [x] **W2.1 Session security** — OAuth state storage, owner allow-list,
       short-lived access and rotating/revocable refresh tokens.
 - [x] **W2.2 Discord OAuth setup** — start/callback flow, guild eligibility and
       one-guild selection.
-- [ ] **W2.3 Channel synchronization** — text-channel-only import, preserve user
+- [x] **W2.3 Channel synchronization** — text-channel-only import, preserve user
       routing configuration, unavailable-channel handling.
-- [ ] **W2.4 Channel settings UI** — routing descriptions, active toggle,
+- [x] **W2.4 Channel settings UI** — routing descriptions, active toggle,
       exactly one Read Later channel, sync status.
 - [x] **W2.5 Discord REST client** — injected `fetch`,
       timeouts/errors/rate-limit metadata, no Gateway or SDK.
-- [ ] **W2.6 Delivery vertical slice** — immutable snapshots, mention
+- [x] **W2.6 Delivery vertical slice** — immutable snapshots, mention
       suppression, deduplication, Read Later and regular sends, delivery
       history.
 
@@ -39,28 +39,28 @@ Tasks are ordered by dependency, not merely by product phase.
 
 - [x] **W3.1 Mistral boundary** — structured-output request, strict validation,
       timeout/error classification, injected `fetch`.
-- [ ] **W3.2 Enrichment orchestration** — persist run before external work,
+- [x] **W3.2 Enrichment orchestration** — persist run before external work,
       ready/failed transitions, idempotent explicit retry.
-- [ ] **W3.3 Tag suggestions** — prefer canonical bilingual tags, conservatively
+- [x] **W3.3 Tag suggestions** — prefer canonical bilingual tags, conservatively
       propose new tags, persist suggestion/final-choice split.
-- [ ] **W3.4 Routing suggestions** — bounded channel context, confidence rules,
+- [x] **W3.4 Routing suggestions** — bounded channel context, confidence rules,
       never auto-publish.
-- [ ] **W3.5 Capture preparation UI** — polling/refetch, editable AI copy,
+- [x] **W3.5 Capture preparation UI** — polling/refetch, editable AI copy,
       rationale disclosure, manual failure fallback.
 
 ## Wave 4 — library quality and operations
 
-- [ ] **W4.1 PostgreSQL search** — weighted full-text index/query over metadata,
+- [x] **W4.1 PostgreSQL search** — weighted full-text index/query over metadata,
       notes, quotes, labels, and aliases.
-- [ ] **W4.2 Library filters and tag management** — derived Inbox/Read
+- [x] **W4.2 Library filters and tag management** — derived Inbox/Read
       Later/Shared states, archive/delete, bilingual lookup and merge/rename.
-- [ ] **W4.3 Retry and concurrency hardening** — delivery locks/unique guards,
+- [x] **W4.3 Retry and concurrency hardening** — delivery locks/unique guards,
       retry snapshots, repeated-click tests.
-- [ ] **W4.4 Accessibility and resilience** — keyboard flows, focus management,
+- [x] **W4.4 Accessibility and resilience** — keyboard flows, focus management,
       narrow layout, empty/loading/error states.
-- [ ] **W4.5 Observability and privacy** — structured redacted logs, safe
+- [x] **W4.5 Observability and privacy** — structured redacted logs, safe
       external errors, request correlation.
-- [ ] **W4.6 Deployment** — migration command, Deno Deploy app config after
+- [x] **W4.6 Deployment** — migration command, Deno Deploy app config after
       organization/app selection, environment contexts, smoke test,
       backup/export notes.
 
