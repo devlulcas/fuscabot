@@ -1,5 +1,5 @@
 import type { CaptureInput, Resource, ResourcePatch } from "../domain/resource.ts";
-import { normalizeUrl, trustedCanonical } from "../domain/url.ts";
+import { canonicalizeUrl } from "@fuscabot/contracts";
 import type { ResourceQuery, ResourceRepository } from "../repositories/resource_repository.ts";
 
 export class ResourceService {
@@ -11,9 +11,8 @@ export class ResourceService {
   async capture(input: CaptureInput): Promise<{ resource: Resource; created: boolean }> {
     const byCaptureId = await this.repository.findById(input.captureId);
     if (byCaptureId) return { resource: byCaptureId, created: false };
-    const canonicalUrl = trustedCanonical(input.url, input.canonicalUrl);
-    const normalizedUrl = normalizeUrl(input.url);
-    const canonicalUrlKey = normalizeUrl(canonicalUrl ?? input.url);
+    const urls = canonicalizeUrl(input.url, input.metadata.canonicalUrl);
+    const { canonicalUrl, canonicalUrlKey, normalizedUrl, sourceDomain } = urls;
     const duplicate = await this.repository.findByCanonicalKey(this.workspaceId, canonicalUrlKey);
     if (duplicate) return { resource: duplicate, created: false };
     const now = new Date().toISOString();
@@ -24,14 +23,15 @@ export class ResourceService {
       normalizedUrl,
       canonicalUrl,
       canonicalUrlKey,
-      sourceDomain: new URL(input.url).hostname,
-      sourceLanguage: input.sourceLanguage,
+      sourceDomain,
+      sourceLanguage: input.metadata.sourceLanguage ?? "unknown",
       outputLanguage: input.outputLanguage,
       title: input.title,
-      description: input.description ?? null,
-      siteName: input.siteName ?? null,
-      author: input.author ?? null,
-      imageUrl: input.imageUrl ?? null,
+      description: input.metadata.description,
+      siteName: input.metadata.siteName,
+      author: input.metadata.author,
+      publishedAtSource: input.metadata.publishedAt,
+      imageUrl: input.metadata.imageUrl,
       selectedQuote: input.selectedQuote ?? null,
       summary: null,
       whyUseful: null,
@@ -39,6 +39,7 @@ export class ResourceService {
       enrichmentStatus: "preparing",
       enrichmentError: null,
       archivedAt: null,
+      tags: [],
       createdAt: now,
       updatedAt: now,
     };

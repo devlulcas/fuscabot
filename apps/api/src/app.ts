@@ -12,7 +12,7 @@ export function createApp(
 ) {
   const app = new Hono();
   app.onError((cause, c) => handleError(c, cause));
-  app.notFound((c) => error(c, 404, "not_found", "Route not found"));
+  app.notFound((c) => error(c, 404, "NOT_FOUND", "Route not found"));
   app.get("/health", (c) => c.json({ status: "ok" }));
   app.post("/v1/resources/captures", async (c) => {
     const input = CaptureSchema.parse(await c.req.json());
@@ -36,21 +36,21 @@ export function createApp(
   });
   app.get("/v1/resources/:id", async (c) => {
     const row = await deps.resources.get(c.req.param("id"));
-    return row ? c.json({ data: row }) : error(c, 404, "resource_not_found", "Resource not found");
+    return row ? c.json({ data: row }) : error(c, 404, "NOT_FOUND", "Resource not found");
   });
   app.patch("/v1/resources/:id", async (c) => {
     const row = await deps.resources.patch(
       c.req.param("id"),
       ResourcePatchSchema.parse(await c.req.json()),
     );
-    return row ? c.json({ data: row }) : error(c, 404, "resource_not_found", "Resource not found");
+    return row ? c.json({ data: row }) : error(c, 404, "NOT_FOUND", "Resource not found");
   });
   app.delete(
     "/v1/resources/:id",
     async (c) =>
       (await deps.resources.delete(c.req.param("id")))
         ? c.body(null, 204)
-        : error(c, 404, "resource_not_found", "Resource not found"),
+        : error(c, 404, "NOT_FOUND", "Resource not found"),
   );
   return app;
 }

@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { ApiErrorSchema, ResourceSchema } from "@fuscabot/contracts";
 import { createApp } from "../src/app.ts";
 import { InMemoryResourceRepository } from "../src/repositories/resource_repository.ts";
 import { ResourceService } from "../src/services/resource_service.ts";
@@ -7,6 +8,7 @@ const capture = {
   captureId: "019432f0-7c00-7000-8000-000000000001",
   url: "https://Example.com/post?utm_source=x&id=3",
   title: "Useful post",
+  metadata: {},
 };
 function app() {
   return createApp({ resources: new ResourceService(new InMemoryResourceRepository()) });
@@ -24,6 +26,7 @@ Deno.test("capture is idempotent and strips tracking keys", async () => {
   });
   assertEquals(first.status, 201);
   const created = await first.json();
+  ResourceSchema.parse(created.data);
   assertEquals(created.data.normalizedUrl, "https://example.com/post?id=3");
   const second = await instance.request("/v1/resources/captures", {
     method: "POST",
@@ -56,5 +59,6 @@ Deno.test("CRUD and validation error envelope", async () => {
     headers: { "content-type": "application/json" },
   });
   assertEquals(bad.status, 400);
-  assertEquals((await bad.json()).error.code, "validation_error");
+  const error = ApiErrorSchema.parse(await bad.json());
+  assertEquals(error.error.code, "VALIDATION_ERROR");
 });

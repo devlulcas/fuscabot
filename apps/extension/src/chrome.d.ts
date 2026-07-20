@@ -1,10 +1,12 @@
 declare namespace chrome {
   namespace runtime {
-    const onInstalled: { addListener(callback: () => void): void };
+    const onInstalled: {
+      addListener(callback: () => void | Promise<void>): void;
+    };
     const onMessage: {
       addListener(
         callback: (
-          message: unknown,
+          message: Record<string, unknown>,
           sender: unknown,
           sendResponse: (value: unknown) => void,
         ) => boolean | void,
@@ -19,7 +21,9 @@ declare namespace chrome {
       linkUrl?: string;
     };
     const onClicked: {
-      addListener(callback: (info: OnClickData, tab?: tabs.Tab) => void): void;
+      addListener(
+        callback: (info: OnClickData, tab?: tabs.Tab) => void | Promise<void>,
+      ): void;
     };
     function create(
       options: { id: string; title: string; contexts: string[] },
@@ -33,7 +37,9 @@ declare namespace chrome {
     ): Promise<Tab[]>;
   }
   namespace action {
-    const onClicked: { addListener(callback: (tab: tabs.Tab) => void): void };
+    const onClicked: {
+      addListener(callback: (tab: tabs.Tab) => void | Promise<void>): void;
+    };
   }
   namespace sidePanel {
     function open(options: { windowId: number }): Promise<void>;
@@ -47,7 +53,7 @@ declare namespace chrome {
   namespace scripting {
     function executeScript<T>(
       options: { target: { tabId: number }; func: () => T },
-    ): Promise<Array<{ result: T }>>;
+    ): Promise<Array<{ result: T | undefined }>>;
   }
   namespace storage.local {
     function get(keys?: string | string[]): Promise<Record<string, unknown>>;

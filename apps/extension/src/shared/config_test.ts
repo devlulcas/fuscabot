@@ -11,7 +11,7 @@ Deno.test("normalizes API origins", () => {
 });
 Deno.test("cleans optional capture text", () => {
   assertEquals(cleanOptionalText("  hello\n world "), "hello world");
-  assertEquals(cleanOptionalText("   "), undefined);
+  assertEquals(cleanOptionalText("   "), null);
 });
 Deno.test("encodes capture routes", () =>
   assertEquals(capturePath("a/b"), "/capture/a%2Fb"));

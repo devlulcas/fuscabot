@@ -23,9 +23,10 @@ export type CaptureMetadata = z.infer<typeof CaptureMetadataSchema>;
 export const CaptureSchema = z.object({
   captureId: z.uuid(),
   url: z.url(),
-  title: nonBlank,
-  selectedQuote: nullableText.default(null),
-  linkText: nullableText.default(null),
+  title: nonBlank.max(1_000),
+  selectedQuote: z.string().trim().min(1).max(10_000).nullable().default(null),
+  linkText: z.string().trim().min(1).max(500).nullable().default(null),
+  outputLanguage: LanguageSchema.default("pt-BR"),
   metadata: CaptureMetadataSchema.default({
     canonicalUrl: null,
     description: null,
@@ -37,6 +38,17 @@ export const CaptureSchema = z.object({
   }),
 });
 export type Capture = z.infer<typeof CaptureSchema>;
+
+export const ResourcePatchSchema = z.object({
+  title: nonBlank.max(1_000).optional(),
+  summary: z.string().max(10_000).nullable().optional(),
+  whyUseful: z.string().max(10_000).nullable().optional(),
+  personalNote: z.string().max(10_000).nullable().optional(),
+  selectedQuote: z.string().max(10_000).nullable().optional(),
+  outputLanguage: LanguageSchema.optional(),
+  archived: z.boolean().optional(),
+}).strict();
+export type ResourcePatch = z.infer<typeof ResourcePatchSchema>;
 
 export const ProposedTagSchema = z.object({
   english: nonBlank,

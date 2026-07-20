@@ -6,8 +6,7 @@
     "jsr:@std/assert@^1.0.13": "1.0.19",
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@zod/zod@4": "4.4.3",
-    "npm:drizzle-orm@~0.44.2": "0.44.7",
-    "npm:zod@^3.25.67": "3.25.76"
+    "npm:drizzle-orm@~0.44.2": "0.44.7"
   },
   "jsr": {
     "@hono/hono@4.12.31": {
@@ -29,9 +28,6 @@
   "npm": {
     "drizzle-orm@0.44.7": {
       "integrity": "sha512-quIpnYznjU9lHshEOAYLoZ9s3jweleHlZIAWR/jX9gAWNg/JhQ1wj0KGRf7/Zm+obRrYd9GjPVJg790QY9N5AQ=="
-    },
-    "zod@3.25.76": {
-      "integrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="
     }
   },
   "workspace": {
@@ -40,8 +36,8 @@
         "dependencies": [
           "jsr:@hono/hono@^4.8.3",
           "jsr:@std/assert@^1.0.13",
-          "npm:drizzle-orm@~0.44.2",
-          "npm:zod@^3.25.67"
+          "jsr:@zod/zod@4",
+          "npm:drizzle-orm@~0.44.2"
         ]
       },
       "apps/extension": {

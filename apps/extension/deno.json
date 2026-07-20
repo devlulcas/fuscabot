@@ -1,11 +1,11 @@
 {
   "tasks": {
-    "build": "deno run --allow-read=src,manifest.json --allow-write=dist scripts/build.ts",
+    "build": "deno run --allow-read=src,manifest.json,../../../packages/contracts --allow-write=dist --allow-run scripts/build.ts",
     "check": "deno fmt --check && deno lint && deno check src/*.ts src/**/*.ts scripts/*.ts && deno test"
   },
   "imports": { "@std/assert": "jsr:@std/assert@1" },
   "compilerOptions": {
-    "strict": false,
+    "strict": true,
     "lib": ["dom", "dom.iterable", "esnext", "deno.ns"]
   },
   "fmt": { "exclude": ["dist"] },

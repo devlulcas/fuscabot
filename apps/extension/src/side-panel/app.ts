@@ -1,21 +1,21 @@
-// @ts-nocheck DOM nodes are constrained by the static side-panel document.
 import { api } from "../shared/api.ts";
 import { getConfig, saveConfig } from "../shared/config.ts";
+import type { ApiResource, CapturePayload } from "../shared/types.ts";
 import { parseRoute } from "./router.ts";
 
-const app = document.querySelector("#app");
-globalThis.addEventListener("hashchange", render);
+const app = requiredElement<HTMLElement>(document, "#app");
+globalThis.addEventListener("hashchange", () => void render());
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === "capture-updated") render();
+  if (message.type === "capture-updated") void render();
 });
-render();
+void render();
 
-async function render() {
+async function render(): Promise<void> {
   const route = parseRoute(location.hash);
   document.querySelectorAll("nav a").forEach((link) =>
     link.toggleAttribute(
       "aria-current",
-      link.getAttribute("href")?.includes(route.name),
+      link.getAttribute("href")?.includes(route.name) ?? false,
     )
   );
   app.replaceChildren();
@@ -28,171 +28,182 @@ async function render() {
   }
 }
 
-async function renderCapture(captureId) {
+type CaptureFallback = { url?: string; title?: string; selectedQuote?: string };
+type PendingCapture = {
+  captureId?: string;
+  resourceId?: string;
+  state?: "saving" | "saved" | "failed";
+  error?: string;
+  fallback?: CaptureFallback;
+};
+
+async function renderCapture(captureId?: string): Promise<void> {
   app.innerHTML =
     `<section class="stack"><h1>Capture</h1><div class="skeleton"></div><p>Saving your link before preparing it…</p></section>`;
   const stored = await chrome.storage.local.get("pendingCapture");
-  /** @type {any} */
-  const pendingCapture = stored.pendingCapture;
-  if (!captureId || pendingCapture?.captureId !== captureId) {
-    return renderManual({});
+  const pending = asPendingCapture(stored.pendingCapture);
+  if (!captureId || pending?.captureId !== captureId) return renderManual({});
+  if (pending.state === "failed") {
+    return renderManual(pending.fallback ?? {}, pending.error);
   }
-  if (pendingCapture.state === "failed") {
-    return renderManual(pendingCapture.fallback, pendingCapture.error);
-  }
-  if (!pendingCapture.resourceId) return;
-  const resource = await api.getResource(pendingCapture.resourceId);
-  renderEditor(resource);
+  if (!pending.resourceId) return;
+  renderEditor(await api.getResource(pending.resourceId));
 }
 
-function renderManual(fallback, error = undefined) {
+function renderManual(fallback: CaptureFallback, error?: string): void {
   app.innerHTML = `<section class="stack"><h1>Capture manually</h1>${
     error
       ? `<p class="notice error">${
         escapeHtml(error)
-      }. Your link is still here; retry saving it below.</p>`
+      }. Retry saving it below.</p>`
       : ""
   }<form class="stack"><label>URL<input name="url" type="url" required value="${
-    escapeHtml(fallback?.url ?? "")
-  }"></label><label>Title<input name="title" value="${
-    escapeHtml(fallback?.title ?? "")
-  }"></label><label>Selected quote<textarea name="selectedText">${
-    escapeHtml(fallback?.selectedText ?? "")
+    escapeHtml(fallback.url)
+  }"></label><label>Title<input name="title" required value="${
+    escapeHtml(fallback.title)
+  }"></label><label>Selected quote<textarea name="selectedQuote">${
+    escapeHtml(fallback.selectedQuote)
   }</textarea></label><button class="primary">Save to Inbox</button></form></section>`;
-  app.querySelector("form").addEventListener("submit", async (event) => {
+  const form = requiredElement<HTMLFormElement>(app, "form");
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
-    const result = await api.createCapture({
-      ...data,
-      kind: "page",
-      captureId: crypto.randomUUID(),
-    });
-    const nextCaptureId = result.captureId ?? result.id;
-    await chrome.storage.local.set({
-      pendingCapture: {
-        captureId: nextCaptureId,
-        resourceId: result.id,
-        state: "saved",
+    const captureId = crypto.randomUUID();
+    const payload: CapturePayload = {
+      captureId,
+      url: formValue(form, "url"),
+      title: formValue(form, "title"),
+      selectedQuote: optionalFormValue(form, "selectedQuote"),
+      linkText: null,
+      outputLanguage: "pt-BR",
+      metadata: {
+        canonicalUrl: null,
+        description: null,
+        siteName: null,
+        author: null,
+        publishedAt: null,
+        imageUrl: null,
+        sourceLanguage: null,
       },
+    };
+    const resource = await api.createCapture(payload);
+    await chrome.storage.local.set({
+      pendingCapture: { captureId, resourceId: resource.id, state: "saved" },
     });
-    location.hash = `#/capture/${nextCaptureId}`;
+    location.hash = `#/capture/${captureId}`;
   });
 }
 
-function renderEditor(resource) {
-  const enrichment = resource.enrichment ?? {};
+function renderEditor(resource: ApiResource): void {
   app.innerHTML =
     `<section class="stack"><h1>Capture</h1><article class="card"><strong>${
-      escapeHtml(resource.title ?? "Untitled")
-    }</strong><p class="muted">${escapeHtml(resource.url)}</p>${
-      resource.selectedText
-        ? `<blockquote>“${escapeHtml(resource.selectedText)}”</blockquote>`
+      escapeHtml(resource.title)
+    }</strong><p class="muted">${escapeHtml(resource.originalUrl)}</p>${
+      resource.selectedQuote
+        ? `<blockquote>“${escapeHtml(resource.selectedQuote)}”</blockquote>`
         : ""
     }</article>${
-      enrichment.status === "failed"
-        ? '<p class="notice error">AI preparation failed. You can still edit and publish manually.</p>'
+      resource.enrichmentStatus === "failed"
+        ? '<p class="notice error">AI preparation failed. You can still edit manually.</p>'
         : ""
     }<form class="stack"><label>Summary<textarea name="summary">${
-      escapeHtml(enrichment.summary ?? resource.summary ?? "")
-    }</textarea></label><label>Why it is useful<textarea name="usefulness">${
-      escapeHtml(enrichment.usefulness ?? resource.usefulness ?? "")
-    }</textarea></label><label>Your note (optional)<textarea name="note">${
-      escapeHtml(resource.note ?? "")
+      escapeHtml(resource.summary)
+    }</textarea></label><label>Why it is useful<textarea name="whyUseful">${
+      escapeHtml(resource.whyUseful)
+    }</textarea></label><label>Your note<textarea name="personalNote">${
+      escapeHtml(resource.personalNote)
     }</textarea></label><label>Destination<select name="channelId"><option value="">Choose a channel</option>${
-      (resource.channels ?? []).map((c) =>
-        `<option value="${escapeHtml(c.id)}" ${
-          c.id === enrichment.suggestedChannelId &&
-            enrichment.confidence === "high"
-            ? "selected"
-            : ""
-        }>#${escapeHtml(c.name)}</option>`
+      (resource.channels ?? []).map((channel) =>
+        `<option value="${escapeHtml(channel.id)}">#${
+          escapeHtml(channel.name)
+        }</option>`
       ).join("")
-    }</select></label><small class="muted">${
-      escapeHtml(
-        enrichment.rationale ??
-          "Suggestions are editable and nothing is published automatically.",
-      )
-    }</small><div class="actions"><button type="button" data-read-later>Save to Read Later</button><button class="primary" data-publish disabled>Publish to selected channel</button></div></form></section>`;
-  const form = app.querySelector("form");
-  const select = form.elements.channelId;
-  const publish = form.querySelector("[data-publish]");
-  const sync = () => publish.disabled = !select.value;
-  sync();
+    }</select></label><div class="actions"><button type="button" data-read-later>Save to Read Later</button><button class="primary" data-publish disabled>Publish to selected channel</button></div></form></section>`;
+  const form = requiredElement<HTMLFormElement>(app, "form");
+  const select = requiredElement<HTMLSelectElement>(form, '[name="channelId"]');
+  const publish = requiredElement<HTMLButtonElement>(form, "[data-publish]");
+  const sync = (): void => {
+    publish.disabled = !select.value;
+  };
   select.addEventListener("change", sync);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const fields = Object.fromEntries(new FormData(form));
-    await api.updateResource(resource.id, fields);
-    const delivery = await api.publish(resource.id, fields.channelId);
-    showSuccess(delivery);
+    const channelId = select.value;
+    if (!channelId) return;
+    await api.updateResource(resource.id, {
+      summary: optionalFormValue(form, "summary"),
+      whyUseful: optionalFormValue(form, "whyUseful"),
+      personalNote: optionalFormValue(form, "personalNote"),
+    });
+    showSuccess(await api.publish(resource.id, channelId));
   });
-  form.querySelector("[data-read-later]").addEventListener(
-    "click",
-    async () => showSuccess(await api.readLater(resource.id)),
-  );
+  requiredElement<HTMLButtonElement>(form, "[data-read-later]")
+    .addEventListener(
+      "click",
+      () => void api.readLater(resource.id).then(showSuccess).catch(showError),
+    );
 }
 
-async function renderLibrary() {
+async function renderLibrary(): Promise<void> {
   app.innerHTML =
     `<section class="stack"><h1>Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label></form><div data-results><div class="skeleton"></div></div></section>`;
-  const form = app.querySelector("form");
-  const results = app.querySelector("[data-results]");
-  const load = async () => {
-    const value = form.elements.q.value;
-    const data = await api.listResources(value);
-    const items = data.items ?? data;
+  const form = requiredElement<HTMLFormElement>(app, "form");
+  const results = requiredElement<HTMLElement>(app, "[data-results]");
+  const load = async (): Promise<void> => {
+    const items = await api.listResources(formValue(form, "q"));
     results.innerHTML = items.length
-      ? items.map((r) =>
+      ? items.map((resource) =>
         `<article class="card resource"><strong>${
-          escapeHtml(r.title ?? "Untitled")
+          escapeHtml(resource.title)
         }</strong><span class="muted">${
-          escapeHtml(r.url)
+          escapeHtml(resource.originalUrl)
         }</span><a href="#/capture/${
-          escapeHtml(r.captureId ?? r.id)
+          escapeHtml(resource.id)
         }">Review</a></article>`
       ).join("")
       : '<p class="notice">No resources found. Capture a page to start your library.</p>';
   };
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    load().catch(showError);
+    void load().catch(showError);
   });
   await load();
 }
 
-async function renderSettings() {
+async function renderSettings(): Promise<void> {
   const config = await getConfig();
   app.innerHTML =
     `<section class="stack"><h1>Settings</h1><form class="card stack"><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
     }"></label><label>Session token<input name="accessToken" type="password" value="${
-      escapeHtml(config.accessToken ?? "")
-    }" autocomplete="off"></label><button class="primary">Save connection</button></form><section class="card"><h2>Discord</h2><p class="muted">Connect your account through the configured backend, then sync accessible text channels.</p><div class="actions"><button data-connect>Connect Discord</button><button data-sync>Sync channels now</button></div></section></section>`;
-  app.querySelector("form").addEventListener("submit", async (event) => {
+      escapeHtml(config.accessToken)
+    }" autocomplete="off"></label><button class="primary">Save connection</button></form><section class="card"><h2>Discord</h2><div class="actions"><button data-connect>Connect Discord</button><button data-sync>Sync channels now</button></div></section></section>`;
+  const form = requiredElement<HTMLFormElement>(app, "form");
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveConfig(Object.fromEntries(new FormData(event.currentTarget)));
-    event.currentTarget.querySelector("button").textContent = "Saved";
+    await saveConfig(Object.fromEntries(new FormData(form)));
+    requiredElement<HTMLButtonElement>(form, "button").textContent = "Saved";
   });
-  app.querySelector("[data-connect]").addEventListener(
+  requiredElement<HTMLButtonElement>(app, "[data-connect]").addEventListener(
     "click",
     () => open(`${config.apiBaseUrl}/v1/auth/discord/start`, "_blank"),
   );
-  app.querySelector("[data-sync]").addEventListener("click", async (event) => {
-    event.currentTarget.disabled = true;
+  const sync = requiredElement<HTMLButtonElement>(app, "[data-sync]");
+  sync.addEventListener("click", async () => {
+    sync.disabled = true;
     try {
       await api.syncChannels();
-      event.currentTarget.textContent = "Synced";
+      sync.textContent = "Synced";
     } finally {
-      event.currentTarget.disabled = false;
+      sync.disabled = false;
     }
   });
 }
 
-function showSuccess(delivery) {
+function showSuccess(delivery: { discordUrl?: string }): void {
   app.insertAdjacentHTML(
     "afterbegin",
     `<p class="notice">Published successfully.${
-      delivery?.discordUrl
+      delivery.discordUrl
         ? ` <a href="${
           escapeHtml(delivery.discordUrl)
         }" target="_blank">Open in Discord</a>`
@@ -200,14 +211,40 @@ function showSuccess(delivery) {
     }</p>`,
   );
 }
-function showError(error) {
+
+function showError(error: unknown): void {
   app.innerHTML =
     `<section class="notice error"><h1>Something went wrong</h1><p>${
       escapeHtml(error instanceof Error ? error.message : "Unknown error")
     }</p></section>`;
 }
-function escapeHtml(value = "") {
+
+function escapeHtml(value: unknown = ""): string {
   const span = document.createElement("span");
-  span.textContent = String(value);
+  span.textContent = String(value ?? "");
   return span.innerHTML;
+}
+
+function requiredElement<T extends Element>(
+  parent: ParentNode,
+  selector: string,
+): T {
+  const element = parent.querySelector<T>(selector);
+  if (!element) throw new Error(`Missing UI element: ${selector}`);
+  return element;
+}
+
+function formValue(form: HTMLFormElement, name: string): string {
+  const value = new FormData(form).get(name);
+  return typeof value === "string" ? value : "";
+}
+
+function optionalFormValue(form: HTMLFormElement, name: string): string | null {
+  return formValue(form, name).trim() || null;
+}
+
+function asPendingCapture(value: unknown): PendingCapture | undefined {
+  return typeof value === "object" && value !== null
+    ? value as PendingCapture
+    : undefined;
 }
