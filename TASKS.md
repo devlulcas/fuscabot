@@ -5,18 +5,18 @@ Tasks are ordered by dependency, not merely by product phase.
 
 ## Wave 1 — foundation and durable manual capture
 
-- [ ] **W1.1 Shared contracts and domain rules** — capture/resource schemas,
+- [x] **W1.1 Shared contracts and domain rules** — capture/resource schemas,
       error envelope, URL identity, derived library state, tag normalization,
       tests.
-- [ ] **W1.2 API foundation** — Hono server, environment validation,
+- [x] **W1.2 API foundation** — Hono server, environment validation,
       health/error handling, Drizzle schema/migration, injectable repositories,
       capture CRUD.
-- [ ] **W1.3 Extension foundation** — MV3 manifest, explicit metadata
+- [x] **W1.3 Extension foundation** — MV3 manifest, explicit metadata
       extraction, durable capture request, side-panel router and manual
       Capture/Library/Settings states.
-- [ ] **W1.4 Developer experience** — root tasks, environment examples, local
+- [x] **W1.4 Developer experience** — root tasks, environment examples, local
       setup, extension build/load instructions, CI.
-- [ ] **W1.5 Vertical-slice integration** — consume shared contracts from API
+- [x] **W1.5 Vertical-slice integration** — consume shared contracts from API
       and extension, run capture end-to-end, remove temporary mock boundaries.
 
 ## Wave 2 — owner authentication and Discord delivery
@@ -29,7 +29,7 @@ Tasks are ordered by dependency, not merely by product phase.
       routing configuration, unavailable-channel handling.
 - [ ] **W2.4 Channel settings UI** — routing descriptions, active toggle,
       exactly one Read Later channel, sync status.
-- [ ] **W2.5 Discord REST client** — injected `fetch`,
+- [x] **W2.5 Discord REST client** — injected `fetch`,
       timeouts/errors/rate-limit metadata, no Gateway or SDK.
 - [ ] **W2.6 Delivery vertical slice** — immutable snapshots, mention
       suppression, deduplication, Read Later and regular sends, delivery
@@ -37,7 +37,7 @@ Tasks are ordered by dependency, not merely by product phase.
 
 ## Wave 3 — AI-assisted preparation
 
-- [ ] **W3.1 Mistral boundary** — structured-output request, strict validation,
+- [x] **W3.1 Mistral boundary** — structured-output request, strict validation,
       timeout/error classification, injected `fetch`.
 - [ ] **W3.2 Enrichment orchestration** — persist run before external work,
       ready/failed transitions, idempotent explicit retry.
