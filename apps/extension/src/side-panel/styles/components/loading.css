@@ -1,0 +1,75 @@
+.page-loading {
+  & .page-loader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 58px;
+    padding: 12px;
+
+    & strong {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 12px;
+    }
+
+    & p {
+      font-size: 10px;
+    }
+  }
+
+  & .spinner {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border: 2px solid var(--line);
+    border-top-color: var(--accent-2);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  & .loading-card {
+    display: grid;
+    gap: 10px;
+    padding: 16px 13px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-background);
+
+    & span {
+      height: 9px;
+      border-radius: 2px;
+      background: linear-gradient(
+        100deg,
+        var(--panel-2) 25%,
+        color-mix(in srgb, var(--panel-2) 60%, var(--accent)) 42%,
+        var(--panel-2) 60%
+      );
+      background-size: 250% 100%;
+      animation: loading-line 1.1s linear infinite;
+
+      &:first-child {
+        width: 38%;
+      }
+
+      &:nth-child(2) {
+        width: 100%;
+      }
+
+      &:last-child {
+        width: 72%;
+      }
+    }
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes loading-line {
+  to {
+    background-position: -150% 0;
+  }
+}

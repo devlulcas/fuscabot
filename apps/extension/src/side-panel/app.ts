@@ -26,6 +26,14 @@ async function render(): Promise<void> {
       : link.removeAttribute("aria-current")
   );
   app.replaceChildren();
+  const loadingPage = route.name === "settings" || route.name === "channels" ||
+      route.name === "tags"
+    ? route.name
+    : undefined;
+  if (loadingPage) {
+    app.setAttribute("aria-busy", "true");
+    renderPageLoading(loadingPage);
+  }
   try {
     if (route.name === "capture") await renderCapture(route.captureId);
     else if (route.name === "settings") await renderSettings();
@@ -35,7 +43,17 @@ async function render(): Promise<void> {
     app.querySelector<HTMLElement>("h1")?.focus({ preventScroll: true });
   } catch (error) {
     showError(error);
+  } finally {
+    app.removeAttribute("aria-busy");
   }
+}
+
+function renderPageLoading(page: "settings" | "channels" | "tags"): void {
+  const title = page[0].toUpperCase() + page.slice(1);
+  app.innerHTML =
+    `<section class="stack settings page-loading"><h1 tabindex="-1">${title}</h1><div class="card page-loader" role="status"><span class="spinner" aria-hidden="true"></span><div><strong>Loading ${
+      page === "settings" ? "configuration" : page
+    }…</strong><p class="muted">Fetching the latest workspace data.</p></div></div><div class="loading-card" aria-hidden="true"><span></span><span></span><span></span></div></section>`;
 }
 
 type CaptureFallback = { url?: string; title?: string; selectedQuote?: string };

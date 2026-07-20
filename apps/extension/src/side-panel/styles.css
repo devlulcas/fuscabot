@@ -4,5 +4,6 @@
 @import "./styles/components/buttons.css";
 @import "./styles/components/forms.css";
 @import "./styles/components/surfaces.css";
+@import "./styles/components/loading.css";
 @import "./styles/layouts.css";
 @import "./styles/pages.css";
