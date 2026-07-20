@@ -22,7 +22,8 @@
     "typecheck": "deno check apps/api/src/server.ts packages/contracts/mod.ts && deno task --cwd apps/extension check",
     "test": "deno test -A",
     "dev:api": "deno task --cwd apps/api dev",
-    "build:extension": "deno task --cwd apps/extension build"
+    "build:extension": "deno task --cwd apps/extension build",
+    "db:migrate": "deno task --cwd apps/api migrate"
   },
   "fmt": {
     "exclude": [
