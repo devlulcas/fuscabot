@@ -12,6 +12,7 @@ export type AppDependencies = {
   auth?: AuthService;
   discord?: DiscordClient;
   allowedOrigins?: string[];
+  requireAuth?: boolean;
 };
 
 export function createApp(
@@ -34,14 +35,22 @@ export function createApp(
       for (const [name, value] of corsHeaders(origin)) c.res.headers.set(name, value);
     }
   });
-  app.get("/health", (c) => c.json({ status: "ok" }));
+  app.get("/health", (c) =>
+    c.json({
+      status: "ok",
+      services: { auth: Boolean(deps.auth), discord: Boolean(deps.discord) },
+    }));
   app.get("/v1/auth/discord/start", async (c) => {
-    if (!deps.auth) return error(c, 500, "INTERNAL_ERROR", "Authentication is not configured");
+    if (!deps.auth) {
+      return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
+    }
     const query = z.object({ extension_redirect: z.url() }).parse(c.req.query());
     return c.redirect(await deps.auth.authorizationUrl(query.extension_redirect));
   });
   app.get("/v1/auth/discord/callback", async (c) => {
-    if (!deps.auth) return error(c, 500, "INTERNAL_ERROR", "Authentication is not configured");
+    if (!deps.auth) {
+      return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
+    }
     const query = z.object({ code: z.string().min(1), state: z.string().min(1) }).parse(
       c.req.query(),
     );
@@ -53,8 +62,13 @@ export function createApp(
   app.use("/v1/*", async (c, next) => {
     if (
       c.req.path === "/v1/auth/discord/start" ||
-      c.req.path === "/v1/auth/discord/callback" || !deps.auth
+      c.req.path === "/v1/auth/discord/callback"
     ) return next();
+    if (!deps.auth) {
+      return deps.requireAuth
+        ? error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured")
+        : next();
+    }
     const authorization = c.req.header("authorization");
     if (!authorization?.startsWith("Bearer ")) {
       return error(c, 401, "UNAUTHORIZED", "A valid session is required");
@@ -73,7 +87,7 @@ export function createApp(
     });
   });
   app.get("/v1/setup/discord/guilds", async (c) => {
-    if (!deps.discord) return error(c, 500, "INTERNAL_ERROR", "Discord is not configured");
+    if (!deps.discord) return error(c, 503, "DEPENDENCY_ERROR", "Discord is not configured");
     const guilds = await Promise.allSettled(
       c.get("session").guildIds.map((guildId) => deps.discord!.getGuild(guildId)),
     );
@@ -82,7 +96,7 @@ export function createApp(
     });
   });
   app.post("/v1/discord/channels/sync", async (c) => {
-    if (!deps.discord) return error(c, 500, "INTERNAL_ERROR", "Discord is not configured");
+    if (!deps.discord) return error(c, 503, "DEPENDENCY_ERROR", "Discord is not configured");
     const body = z.object({ guildId: z.string().min(1).optional() }).parse(
       await c.req.json().catch(() => ({})),
     );

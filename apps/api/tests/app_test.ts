@@ -15,7 +15,17 @@ function app() {
 }
 
 Deno.test("health responds without database", async () => {
-  assertEquals(await (await app().request("/health")).json(), { status: "ok" });
+  assertEquals(await (await app().request("/health")).json(), {
+    status: "ok",
+    services: { auth: false, discord: false },
+  });
+});
+Deno.test("production mode fails closed when authentication is unavailable", async () => {
+  const instance = createApp({
+    resources: new ResourceService(new InMemoryResourceRepository()),
+    requireAuth: true,
+  });
+  assertEquals((await instance.request("/v1/resources")).status, 503);
 });
 Deno.test("capture is idempotent and strips tracking keys", async () => {
   const instance = app();

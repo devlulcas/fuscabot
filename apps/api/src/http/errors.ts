@@ -7,7 +7,7 @@ type ApiErrorCode = ApiError["error"]["code"];
 
 export function error(
   c: Context,
-  status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 502,
+  status: 400 | 401 | 403 | 404 | 409 | 429 | 500 | 502 | 503,
   code: ApiErrorCode,
   message: string,
   details?: unknown,
