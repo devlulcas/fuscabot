@@ -5,7 +5,12 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().url().optional(),
   OWNER_DISCORD_USER_ID: z.string().min(1).optional(),
   DISCORD_BOT_TOKEN: z.string().min(1).optional(),
+  DISCORD_CLIENT_ID: z.string().min(1).optional(),
+  DISCORD_CLIENT_SECRET: z.string().min(1).optional(),
+  DISCORD_OAUTH_REDIRECT_URI: z.string().url().optional(),
   MISTRAL_API_KEY: z.string().min(1).optional(),
+  APP_SESSION_SIGNING_SECRET: z.string().min(32).optional(),
+  ALLOWED_EXTENSION_ORIGINS: z.string().default("http://localhost:8000"),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
