@@ -12,6 +12,22 @@ form[role="search"] {
   }
 }
 
+.channel-sync-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+
+  & > button {
+    grid-column: 2;
+    white-space: nowrap;
+  }
+}
+
+.server-picker {
+  min-width: 0;
+}
+
 .resource {
   display: grid;
   grid-template-columns: 1fr auto;

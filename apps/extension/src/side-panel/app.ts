@@ -364,9 +364,9 @@ async function renderChannels(): Promise<void> {
     return;
   }
   app.innerHTML =
-    `<section class="stack settings"><h1 tabindex="-1">Channels</h1><section class="card stack settings-card"><div class="section-heading"><div><h2>Discord channels</h2><p class="muted">Choose a server, sync its channels, then configure routing.</p></div></div>${
+    `<section class="stack settings"><h1 tabindex="-1">Channels</h1><section class="card stack settings-card"><div class="section-heading"><div><h2>Discord channels</h2><p class="muted">Choose a server, sync its channels, then configure routing.</p></div></div><div class="channel-sync-row">${
       guilds.length
-        ? `<label>Server<select data-guild>${
+        ? `<label class="server-picker">Server<select data-guild>${
           guilds.map((guild) =>
             `<option value="${escapeHtml(guild.id)}" ${
               guild.id === config.selectedGuildId ? "selected" : ""
@@ -374,7 +374,7 @@ async function renderChannels(): Promise<void> {
           ).join("")
         }</select></label>`
         : ""
-    }<div class="actions"><button data-variant="primary" data-sync ${
+    }<button data-variant="primary" data-sync ${
       guilds.length ? "" : "disabled"
     }>Sync channels now</button></div><div data-channels>${
       channelSettings(storedChannels)
