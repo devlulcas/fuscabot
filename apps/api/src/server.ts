@@ -44,6 +44,8 @@ async function buildRuntimeApp(source: Record<string, string>) {
   const [
     { createDatabasePool },
     { queryAdapter },
+    { loadMigrations },
+    { runMigrations },
     { bootstrapWorkspace },
     { DiscordClient },
     { MistralClient },
@@ -67,6 +69,8 @@ async function buildRuntimeApp(source: Record<string, string>) {
   ] = await Promise.all([
     import("./db/client.ts"),
     import("./db/query_adapter.ts"),
+    import("./db/migrate.ts"),
+    import("./db/migrations.ts"),
     import("./db/workspace.ts"),
     import("./integrations/discord_client.ts"),
     import("./integrations/mistral_client.ts"),
@@ -84,6 +88,10 @@ async function buildRuntimeApp(source: Record<string, string>) {
     import("./services/runtime_coordinators.ts"),
   ]);
   const database = createDatabasePool(runtimeEnv.DATABASE_URL);
+  await runMigrations(
+    database,
+    await loadMigrations(new URL("../migrations/", import.meta.url)),
+  );
   const workspace = await bootstrapWorkspace(database, runtimeEnv.OWNER_DISCORD_USER_ID).catch(
     async (cause) => {
       await database.end();

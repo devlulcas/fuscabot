@@ -36,7 +36,8 @@ https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback
 Run `deno task migrate` to apply every numbered migration. The runner records checksums and refuses
 changed migrations. Constraints cover canonical identity, one Read Later channel, active enrichment
 claims, and duplicate delivery protection; a weighted GIN full-text index supports library search.
-Deno Deploy runs this task as `deploy.predeploy`.
+Production runs the same advisory-lock/checksum boundary lazily before the first protected API
+request, after the HTTP listener is available.
 
 For local access to the managed development timeline, use `deno task --tunnel migrate` or
 `deno task --tunnel dev`.
