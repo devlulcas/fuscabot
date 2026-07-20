@@ -23,7 +23,7 @@
     "dev": "deno run --watch --allow-env --allow-net src/server.ts",
     "start": "deno run --allow-env --allow-net src/server.ts",
     "check": "deno check main.ts src/server.ts src/db/schema.ts",
-    "migrate": "deno run --allow-env=DATABASE_URL --allow-net --allow-read=migrations src/db/migrate.ts",
+    "migrate": "deno run --allow-env --allow-net --allow-read=migrations src/db/migrate.ts",
     "test": "deno test --allow-env"
   },
   "fmt": { "lineWidth": 100 },
