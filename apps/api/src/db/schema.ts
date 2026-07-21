@@ -186,3 +186,19 @@ export const oauthStates = pgTable("oauth_states", {
   consumedAt: timestamp("consumed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+export const rateLimitBuckets = pgTable(
+  "rate_limit_buckets",
+  {
+    scope: text("scope").notNull(),
+    keyHash: text("key_hash").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(1),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (
+    table,
+  ) => [
+    primaryKey({ columns: [table.scope, table.keyHash, table.windowStart] }),
+    index("rate_limit_buckets_expiry_idx").on(table.expiresAt),
+  ],
+);

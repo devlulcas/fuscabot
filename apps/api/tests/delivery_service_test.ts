@@ -57,5 +57,5 @@ Deno.test("failed Discord call persists a retryable failed record", async () => 
     await repository.findActive(capture.captureId, target.channelId, "read_later"),
     null,
   );
-  assertEquals(error.message, "upstream unavailable");
+  assertEquals(error.message, "Discord delivery failed");
 });

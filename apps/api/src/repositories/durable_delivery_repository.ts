@@ -62,8 +62,13 @@ export class PostgresDurableDeliveryRepository {
       (await this.sql.queryObject<Row>(MARK_FAILED_SQL, [id, error.slice(0, 500)])).rows[0],
     );
   }
-  async get(id: string) {
-    const row = (await this.sql.queryObject<Row>(GET_DELIVERY_SQL, [id])).rows[0];
+  async markUnknown(id: string, error: string) {
+    return map(
+      (await this.sql.queryObject<Row>(MARK_UNKNOWN_SQL, [id, error.slice(0, 500)])).rows[0],
+    );
+  }
+  async get(workspaceId: string, id: string) {
+    const row = (await this.sql.queryObject<Row>(GET_DELIVERY_SQL, [workspaceId, id])).rows[0];
     return row ? map(row) : null;
   }
   async history(workspaceId: string, resourceId: string) {
@@ -80,8 +85,10 @@ export const MARK_SENT_SQL =
   `UPDATE deliveries d SET status='sent',external_message_id=$2,external_url=$3,sent_at=now(),error=NULL,updated_at=now() FROM channels c JOIN discord_connections dc ON dc.id=c.discord_connection_id WHERE d.id=$1::uuid AND d.channel_id=c.id AND d.status='pending' RETURNING ${COLUMNS}`;
 export const MARK_FAILED_SQL =
   `UPDATE deliveries d SET status='failed',error=$2,updated_at=now() FROM channels c JOIN discord_connections dc ON dc.id=c.discord_connection_id WHERE d.id=$1::uuid AND d.channel_id=c.id AND d.status='pending' RETURNING ${COLUMNS}`;
+export const MARK_UNKNOWN_SQL =
+  `UPDATE deliveries d SET status='unknown',error=$2,updated_at=now() FROM channels c JOIN discord_connections dc ON dc.id=c.discord_connection_id WHERE d.id=$1::uuid AND d.channel_id=c.id AND d.status='pending' RETURNING ${COLUMNS}`;
 export const GET_DELIVERY_SQL =
-  `SELECT ${COLUMNS} FROM deliveries d JOIN channels c ON c.id=d.channel_id JOIN discord_connections dc ON dc.id=c.discord_connection_id WHERE d.id=$1::uuid`;
+  `SELECT ${COLUMNS} FROM deliveries d JOIN resources r ON r.id=d.resource_id JOIN channels c ON c.id=d.channel_id JOIN discord_connections dc ON dc.id=c.discord_connection_id WHERE r.workspace_id=$1::uuid AND d.id=$2::uuid`;
 export const HISTORY_SQL =
   `SELECT ${COLUMNS} FROM deliveries d JOIN resources r ON r.id=d.resource_id JOIN channels c ON c.id=d.channel_id JOIN discord_connections dc ON dc.id=c.discord_connection_id WHERE r.workspace_id=$1::uuid AND r.id=$2::uuid ORDER BY d.created_at DESC`;
 function map(row: Row | undefined): DeliveryRecord {

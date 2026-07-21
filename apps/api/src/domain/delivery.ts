@@ -1,7 +1,7 @@
 import type { DeliverySnapshotV2 } from "@fuscabot/contracts";
 
 export type DeliveryKind = "read_later" | "share";
-export type DeliveryStatus = "pending" | "sent" | "failed";
+export type DeliveryStatus = "pending" | "sent" | "failed" | "unknown";
 
 export type MessageSnapshot = DeliverySnapshotV2;
 

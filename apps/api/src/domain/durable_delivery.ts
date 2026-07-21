@@ -8,7 +8,7 @@ export type DeliveryRecord = {
   guildId: string;
   kind: DeliveryKind;
   snapshot: DeliverySnapshot;
-  status: "pending" | "sent" | "failed";
+  status: "pending" | "sent" | "failed" | "unknown";
   externalMessageId: string | null;
   externalUrl: string | null;
   error: string | null;

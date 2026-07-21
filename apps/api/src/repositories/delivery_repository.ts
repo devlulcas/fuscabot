@@ -12,6 +12,7 @@ export interface DeliveryRepository {
   ): Promise<Delivery>;
   markSent(id: string, messageId: string, externalUrl: string): Promise<Delivery>;
   markFailed(id: string, error: string): Promise<Delivery>;
+  markUnknown(id: string, error: string): Promise<Delivery>;
   findActive(resourceId: string, channelId: string, kind: DeliveryKind): Promise<Delivery | null>;
 }
 
@@ -23,7 +24,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     return Promise.resolve(
       [...this.#rows.values()].find((row) =>
         row.resourceId === resourceId && row.channelId === channelId && row.kind === kind &&
-        (row.status === "pending" || row.status === "sent")
+        (row.status === "pending" || row.status === "sent" || row.status === "unknown")
       ) ?? null,
     );
   }
@@ -65,6 +66,9 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   markFailed(id: string, error: string) {
     return this.update(id, { status: "failed", error });
+  }
+  markUnknown(id: string, error: string) {
+    return this.update(id, { status: "unknown", error });
   }
   private update(id: string, patch: Partial<Delivery>) {
     const current = this.#rows.get(id);

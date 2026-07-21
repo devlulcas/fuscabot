@@ -2,7 +2,6 @@
 import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 const CONFIG_KEY = "extensionConfig";
-const LEGACY_API_BASE_URL = "https://api.fuscabot.dev";
 export const UI_THEMES = ["dark", "light", "adwaita", "adwaita-dark"] as const;
 export type UiTheme = typeof UI_THEMES[number];
 export type ExtensionConfig = {
@@ -89,9 +88,9 @@ export function normalizeBaseUrl(value: unknown): string {
       return DEFAULT_API_BASE_URL;
     }
     const normalized = url.href.replace(/\/$/, "");
-    return normalized === LEGACY_API_BASE_URL
-      ? DEFAULT_API_BASE_URL
-      : normalized;
+    return normalized === DEFAULT_API_BASE_URL || localHost
+      ? normalized
+      : DEFAULT_API_BASE_URL;
   } catch {
     return DEFAULT_API_BASE_URL;
   }

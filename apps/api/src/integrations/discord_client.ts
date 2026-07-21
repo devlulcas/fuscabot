@@ -9,12 +9,16 @@ export type DiscordTextChannel = {
 export type DiscordMessage = { id: string; channel_id: string };
 export type DiscordGuild = { id: string; name: string; icon: string | null };
 export type DiscordFetch = typeof fetch;
+import { fetchWithTimeout, readBoundedJson, UpstreamTimeoutError } from "./http_boundary.ts";
+
+export type DiscordFailureOutcome = "rejected" | "not_sent" | "unknown";
 
 export class DiscordApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly retryAfterMs: number | null,
+    readonly outcome: DiscordFailureOutcome = "rejected",
   ) {
     super(message);
     this.name = "DiscordApiError";
@@ -26,6 +30,7 @@ export class DiscordClient {
     private token: string,
     private request: DiscordFetch = fetch,
     private baseUrl = "https://discord.com/api/v10",
+    private timeoutMs = 10_000,
   ) {}
 
   async listGuildTextChannels(guildId: string): Promise<DiscordTextChannel[]> {
@@ -48,34 +53,60 @@ export class DiscordClient {
   }
 
   private async call<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await this.request(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { authorization: `Bot ${this.token}`, ...init.headers },
-    });
-    const body = await parseJson(response);
+    const isMessageCreate = init.method === "POST" && path.includes("/messages");
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(
+        this.request,
+        `${this.baseUrl}${path}`,
+        {
+          ...init,
+          headers: { authorization: `Bot ${this.token}`, ...init.headers },
+        },
+        this.timeoutMs,
+        isMessageCreate,
+      );
+    } catch (cause) {
+      if (cause instanceof UpstreamTimeoutError || isMessageCreate) {
+        throw new DiscordApiError("Discord request outcome is unknown", 0, null, "unknown");
+      }
+      throw new DiscordApiError("Discord request failed before completion", 0, null, "not_sent");
+    }
+    let body: unknown = null;
+    try {
+      body = await readBoundedJson(response);
+    } catch {
+      if (response.ok) {
+        throw new DiscordApiError(
+          "Discord returned an invalid response",
+          response.status,
+          null,
+          isMessageCreate ? "unknown" : "rejected",
+        );
+      }
+    }
     if (!response.ok) {
       const retryHeader = response.headers.get("retry-after");
       const retryBody = typeof body === "object" && body && "retry_after" in body
         ? Number(body.retry_after) * 1000
         : null;
-      const retryAfterMs = retryHeader ? Number(retryHeader) * 1000 : retryBody;
-      const detail = typeof body === "object" && body && "message" in body
-        ? String(body.message)
-        : `HTTP ${response.status}`;
-      throw new DiscordApiError(`Discord request failed: ${detail}`, response.status, retryAfterMs);
+      const candidate = retryHeader ? Number(retryHeader) * 1000 : retryBody;
+      const retryAfterMs = candidate !== null && Number.isFinite(candidate) && candidate >= 0
+        ? candidate
+        : null;
+      const outcome: DiscordFailureOutcome = response.status === 429
+        ? "not_sent"
+        : response.status >= 500 && isMessageCreate
+        ? "unknown"
+        : "rejected";
+      throw new DiscordApiError(
+        "Discord rejected the request",
+        response.status,
+        retryAfterMs,
+        outcome,
+      );
     }
     return body as T;
-  }
-}
-
-async function parseJson(response: Response): Promise<unknown> {
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    if (!response.ok) return null;
-    throw new DiscordApiError("Discord returned invalid JSON", response.status, null);
   }
 }
 

@@ -7,6 +7,9 @@ const config = {
   redirectUri: "https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback",
   ownerDiscordUserId: "owner-1",
   signingSecret: "a-secure-signing-secret-with-more-than-32-characters",
+  extensionRedirectOrigins: [
+    "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org",
+  ],
 };
 
 function discordFetch(ownerId = "owner-1"): typeof fetch {
@@ -103,6 +106,38 @@ Deno.test("OAuth start accepts only controlled Chromium extension redirects", as
     () => service.authorizationUrl("https://evil.example/callback"),
     AuthError,
     "Invalid extension redirect",
+  );
+  await assertRejects(
+    () =>
+      service.authorizationUrl(
+        "https://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.chromiumapp.org/discord",
+      ),
+    AuthError,
+    "Invalid extension redirect",
+  );
+  await assertRejects(
+    () =>
+      service.authorizationUrl(
+        "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/discord?next=evil",
+      ),
+    AuthError,
+    "Invalid extension redirect",
+  );
+});
+
+Deno.test("OAuth completion rejects expired state", async () => {
+  let now = 1_000_000;
+  const service = new AuthService(config, discordFetch(), () => now);
+  const authorization = new URL(
+    await service.authorizationUrl(
+      "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.chromiumapp.org/discord",
+    ),
+  );
+  now += 11 * 60_000;
+  await assertRejects(
+    () => service.complete("code", authorization.searchParams.get("state")!),
+    AuthError,
+    "expired",
   );
 });
 

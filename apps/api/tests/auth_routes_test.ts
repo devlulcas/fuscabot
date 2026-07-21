@@ -61,6 +61,7 @@ Deno.test("OAuth routes hand a session back to Chrome and protect the API", asyn
     `/v1/auth/discord/callback?${new URLSearchParams({ code: "code", state })}`,
   );
   assertEquals(callback.status, 302);
+  assertEquals(callback.headers.get("cache-control"), "no-store");
   const accessToken = new URLSearchParams(
     new URL(callback.headers.get("location")!).hash.slice(1),
   ).get("access_token")!;
@@ -68,6 +69,7 @@ Deno.test("OAuth routes hand a session back to Chrome and protect the API", asyn
 
   const session = await instance.request("/v1/auth/session", { headers });
   assertEquals(session.status, 200);
+  assertEquals(session.headers.get("cache-control"), "no-store");
   assertEquals((await session.json()).data.discordUserId, "owner-1");
 
   const guilds = await instance.request("/v1/setup/discord/guilds", { headers });

@@ -5,6 +5,7 @@ import {
   type DeliveryRecord,
   DeliveryTargetNotAllowedError,
 } from "../domain/durable_delivery.ts";
+import { DiscordApiError } from "../integrations/discord_client.ts";
 
 export interface DurableDeliveryStore {
   authorizeTarget(
@@ -22,7 +23,8 @@ export interface DurableDeliveryStore {
   ): Promise<DeliveryRecord>;
   markSent(id: string, messageId: string, url: string): Promise<DeliveryRecord>;
   markFailed(id: string, error: string): Promise<DeliveryRecord>;
-  get(id: string): Promise<DeliveryRecord | null>;
+  markUnknown(id: string, error: string): Promise<DeliveryRecord>;
+  get(workspaceId: string, id: string): Promise<DeliveryRecord | null>;
   history(workspaceId: string, resourceId: string): Promise<DeliveryRecord[]>;
 }
 export interface DiscordSender {
@@ -57,10 +59,11 @@ export class DurableDeliveryCoordinator {
         pending.snapshot,
       );
     } catch (cause) {
-      await this.store.markFailed(
-        pending.id,
-        cause instanceof Error ? cause.message : "Discord delivery failed",
-      );
+      if (cause instanceof DiscordApiError && cause.outcome === "unknown") {
+        await this.store.markUnknown(pending.id, "Discord delivery outcome is unknown");
+      } else {
+        await this.store.markFailed(pending.id, "Discord delivery failed");
+      }
       throw cause;
     }
     const url =
@@ -68,7 +71,7 @@ export class DurableDeliveryCoordinator {
     return await this.store.markSent(pending.id, message.id, url);
   }
   async retry(workspaceId: string, deliveryId: string) {
-    const failed = await this.store.get(deliveryId);
+    const failed = await this.store.get(workspaceId, deliveryId);
     if (!failed || failed.status !== "failed") throw new DeliveryNotRetryableError();
     return await this.publish(
       workspaceId,

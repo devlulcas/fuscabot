@@ -3,6 +3,7 @@ import type { DiscordClient } from "../integrations/discord_client.ts";
 import type { DeliveryRepository } from "../repositories/delivery_repository.ts";
 import type { ResourceRepository } from "../repositories/resource_repository.ts";
 import { formatDiscordSnapshot } from "./message_formatter.ts";
+import { DiscordApiError } from "../integrations/discord_client.ts";
 
 export type DeliveryTarget = {
   workspaceId: string;
@@ -41,8 +42,10 @@ export class DeliveryService {
         `https://discord.com/channels/${target.guildId}/${target.discordChannelId}/${message.id}`;
       return await this.deliveries.markSent(pending.id, message.id, url);
     } catch (cause) {
-      const safe = cause instanceof Error ? cause.message.slice(0, 500) : "Discord delivery failed";
-      await this.deliveries.markFailed(pending.id, safe);
+      const unknown = cause instanceof DiscordApiError && cause.outcome === "unknown";
+      const safe = unknown ? "Discord delivery outcome is unknown" : "Discord delivery failed";
+      if (unknown) await this.deliveries.markUnknown(pending.id, safe);
+      else await this.deliveries.markFailed(pending.id, safe);
       throw new DeliveryFailedError(pending.id, safe);
     }
   }

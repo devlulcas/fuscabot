@@ -7,6 +7,11 @@ import {
 } from "../shared/config.ts";
 import { getPendingCapture } from "../shared/pending-capture.ts";
 import type { ApiResource, CapturePayload } from "../shared/types.ts";
+import {
+  escapeHtml,
+  safeDiscordMessageUrl,
+  safeWebUrl,
+} from "../shared/ui_security.ts";
 import { parseRoute } from "./router.ts";
 
 const app = requiredElement<HTMLElement>(document, "#app");
@@ -130,7 +135,11 @@ function renderManual(fallback: CaptureFallback, error?: string): void {
         sourceLanguage: null,
       },
     };
-    const resource = await api.createCapture(payload);
+    let resource = await api.createCapture(payload);
+    if (resource.enrichmentStatus === "preparing") {
+      await api.retryEnrichment(resource.id);
+      resource = await api.getResource(resource.id);
+    }
     await chrome.storage.local.set({
       pendingCapture: { captureId, resourceId: resource.id, state: "ready" },
     });
@@ -157,7 +166,7 @@ async function renderEditor(resource: ApiResource): Promise<void> {
     }</span></div><article class="source-card"><strong>${
       escapeHtml(resource.title)
     }</strong><a class="source-url" href="${
-      escapeHtml(resource.originalUrl)
+      escapeHtml(safeWebUrl(resource.originalUrl) ?? "about:blank")
     }" target="_blank" rel="noopener noreferrer">${
       escapeHtml(resource.sourceDomain)
     } ↗</a>${
@@ -376,9 +385,9 @@ async function renderLibrary(): Promise<void> {
         }"><div class="resource-copy"><strong>${
           escapeHtml(resource.title)
         }</strong><span class="muted">${
-          escapeHtml(resource.originalUrl)
+          escapeHtml(safeWebUrl(resource.originalUrl) ?? "about:blank")
         }</span></div><div class="resource-actions"><a href="${
-          escapeHtml(resource.originalUrl)
+          escapeHtml(safeWebUrl(resource.originalUrl) ?? "about:blank")
         }" target="_blank" rel="noopener noreferrer">Open source</a><a href="#/capture/${
           escapeHtml(resource.id)
         }" data-component="button" data-variant="secondary" data-size="compact">${reviewIcon()}Review</a></div></article>`
@@ -840,16 +849,20 @@ function applyAppearance(config: ExtensionConfig): void {
 }
 
 function showSuccess(delivery: { discordUrl?: string }): void {
-  app.insertAdjacentHTML(
-    "afterbegin",
-    `<p class="notice">Published successfully.${
-      delivery.discordUrl
-        ? ` <a href="${
-          escapeHtml(delivery.discordUrl)
-        }" target="_blank" rel="noopener noreferrer">Open in Discord</a>`
-        : ""
-    }</p>`,
-  );
+  const notice = document.createElement("p");
+  notice.className = "notice";
+  notice.textContent = "Published successfully.";
+  const discordUrl = safeDiscordMessageUrl(delivery.discordUrl);
+  if (discordUrl) {
+    notice.append(" ");
+    const link = document.createElement("a");
+    link.href = discordUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Open in Discord";
+    notice.append(link);
+  }
+  app.prepend(notice);
 }
 
 function showError(error: unknown): void {
@@ -857,12 +870,6 @@ function showError(error: unknown): void {
     `<section class="notice error" role="alert"><h1 tabindex="-1">Something went wrong</h1><p>${
       escapeHtml(error instanceof Error ? error.message : "Unknown error")
     }</p></section>`;
-}
-
-function escapeHtml(value: unknown = ""): string {
-  const span = document.createElement("span");
-  span.textContent = String(value ?? "");
-  return span.innerHTML;
 }
 
 function requiredElement<T extends Element>(

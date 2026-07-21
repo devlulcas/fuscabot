@@ -1,4 +1,6 @@
-import type { TransactionalQuery } from "../repositories/discord_setup_repository.ts";
+import { and, asc, eq, ilike, inArray, or } from "drizzle-orm";
+import type { AppDatabase } from "../db/client.ts";
+import { resourceTags, tagAliases, tagLabels, tags } from "../db/schema.ts";
 
 export type TagRecord = {
   id: string;
@@ -7,103 +9,127 @@ export type TagRecord = {
   aliases: string[];
 };
 
-type TagRow = { id: string; slug: string; labels: TagRecord["labels"]; aliases: string[] };
+export class TagNotFoundError extends Error {}
 
 export class PostgresTagCoordinator {
   constructor(
     private readonly ownerId: string,
     private readonly workspaceId: string,
-    private readonly db: TransactionalQuery,
+    private readonly db: AppDatabase,
   ) {}
 
   async list(ownerId: string, search?: string): Promise<TagRecord[]> {
     this.owner(ownerId);
-    const result = await this.db.queryObject<TagRow>(
-      `${SELECT_TAGS}
-      WHERE t.workspace_id=$1::uuid AND ($2::text IS NULL OR t.slug ILIKE '%'||$2||'%' OR EXISTS (SELECT 1 FROM tag_labels sl WHERE sl.tag_id=t.id AND sl.name ILIKE '%'||$2||'%') OR EXISTS (SELECT 1 FROM tag_aliases sa WHERE sa.tag_id=t.id AND sa.alias_normalized ILIKE '%'||$2||'%')) ORDER BY t.slug`,
-      [this.workspaceId, search ?? null],
-    );
-    return result.rows;
+    const term = search?.trim();
+    const matchingIds = term
+      ? await this.db.selectDistinct({ id: tags.id }).from(tags)
+        .leftJoin(tagLabels, eq(tagLabels.tagId, tags.id))
+        .leftJoin(tagAliases, eq(tagAliases.tagId, tags.id))
+        .where(and(
+          eq(tags.workspaceId, this.workspaceId),
+          or(
+            ilike(tags.slug, `%${escapeLike(term)}%`),
+            ilike(tagLabels.name, `%${escapeLike(term)}%`),
+            ilike(tagAliases.aliasNormalized, `%${escapeLike(term)}%`),
+          ),
+        ))
+      : null;
+    if (matchingIds && matchingIds.length === 0) return [];
+    const rows = await this.db.select({ id: tags.id, slug: tags.slug }).from(tags).where(and(
+      eq(tags.workspaceId, this.workspaceId),
+      matchingIds ? inArray(tags.id, matchingIds.map((row) => row.id)) : undefined,
+    )).orderBy(asc(tags.slug));
+    if (rows.length === 0) return [];
+    const ids = rows.map((row) => row.id);
+    const [labels, aliases] = await Promise.all([
+      this.db.select().from(tagLabels).where(inArray(tagLabels.tagId, ids)),
+      this.db.select().from(tagAliases).where(and(
+        eq(tagAliases.workspaceId, this.workspaceId),
+        inArray(tagAliases.tagId, ids),
+      )),
+    ]);
+    return rows.map((row) => ({
+      ...row,
+      labels: labels.filter((label) => label.tagId === row.id).map((label) => ({
+        language: label.language as "en" | "pt-BR",
+        name: label.name,
+      })),
+      aliases: aliases.filter((alias) => alias.tagId === row.id).map((alias) =>
+        alias.aliasNormalized
+      ).sort(),
+    }));
   }
 
-  async create(
-    ownerId: string,
-    input: { slug: string; english: string; portuguese: string; aliases: string[] },
-  ): Promise<TagRecord> {
+  async create(ownerId: string, input: TagInput): Promise<TagRecord> {
     this.owner(ownerId);
-    return await this.db.transaction(async (sql) => {
-      const tag = (await sql.queryObject<{ id: string }>(
-        `INSERT INTO tags(workspace_id,slug) VALUES($1::uuid,$2) RETURNING id`,
-        [this.workspaceId, normalize(input.slug)],
-      )).rows[0];
-      await sql.queryObject(
-        `INSERT INTO tag_labels(tag_id,language,name) VALUES($1::uuid,'en',$2),($1::uuid,'pt-BR',$3)`,
-        [tag.id, input.english.trim(), input.portuguese.trim()],
-      );
-      for (const alias of new Set(input.aliases.map(normalize).filter(Boolean))) {
-        await sql.queryObject(
-          `INSERT INTO tag_aliases(workspace_id,tag_id,alias_normalized) VALUES($1::uuid,$2::uuid,$3) ON CONFLICT DO NOTHING`,
-          [this.workspaceId, tag.id, alias],
-        );
-      }
-      return (await this.list(ownerId)).find((row) => row.id === tag.id)!;
+    const id = await this.db.transaction(async (tx) => {
+      const [tag] = await tx.insert(tags).values({
+        workspaceId: this.workspaceId,
+        slug: normalize(input.slug),
+      }).returning({ id: tags.id });
+      if (!tag) throw new Error("Tag creation returned no row");
+      await tx.insert(tagLabels).values(labelValues(tag.id, input));
+      const aliases = aliasValues(this.workspaceId, tag.id, input.aliases);
+      if (aliases.length) await tx.insert(tagAliases).values(aliases).onConflictDoNothing();
+      return tag.id;
     });
+    return await this.require(ownerId, id);
   }
 
   async merge(ownerId: string, sourceId: string, targetId: string): Promise<TagRecord> {
     this.owner(ownerId);
     if (sourceId === targetId) throw new Error("Choose two different tags");
-    await this.db.transaction(async (sql) => {
-      await sql.queryObject(
-        `INSERT INTO resource_tags(resource_id,tag_id,source) SELECT resource_id,$3::uuid,source FROM resource_tags rt JOIN tags s ON s.id=rt.tag_id JOIN tags t ON t.id=$3::uuid WHERE s.id=$2::uuid AND s.workspace_id=$1::uuid AND t.workspace_id=$1::uuid ON CONFLICT DO NOTHING`,
-        [this.workspaceId, sourceId, targetId],
+    await this.db.transaction(async (tx) => {
+      const owned = await tx.select({ id: tags.id }).from(tags).where(and(
+        eq(tags.workspaceId, this.workspaceId),
+        inArray(tags.id, [sourceId, targetId]),
+      ));
+      if (owned.length !== 2) throw new TagNotFoundError("Tag not found");
+      const links = await tx.select().from(resourceTags).where(eq(resourceTags.tagId, sourceId));
+      if (links.length) {
+        await tx.insert(resourceTags).values(links.map((link) => ({
+          resourceId: link.resourceId,
+          tagId: targetId,
+          source: link.source,
+        }))).onConflictDoNothing();
+      }
+      await tx.delete(tags).where(
+        and(eq(tags.workspaceId, this.workspaceId), eq(tags.id, sourceId)),
       );
-      await sql.queryObject(`DELETE FROM tags WHERE workspace_id=$1::uuid AND id=$2::uuid`, [
-        this.workspaceId,
-        sourceId,
-      ]);
     });
-    const target = (await this.list(ownerId)).find((tag) => tag.id === targetId);
-    if (!target) throw new Error("Tag not found");
-    return target;
+    return await this.require(ownerId, targetId);
   }
 
-  async update(
-    ownerId: string,
-    id: string,
-    input: { slug: string; english: string; portuguese: string; aliases: string[] },
-  ): Promise<TagRecord> {
+  async update(ownerId: string, id: string, input: TagInput): Promise<TagRecord> {
     this.owner(ownerId);
-    await this.db.transaction(async (sql) => {
-      await sql.queryObject(
-        `UPDATE tags SET slug=$3,updated_at=now() WHERE workspace_id=$1::uuid AND id=$2::uuid`,
-        [
-          this.workspaceId,
-          id,
-          normalize(input.slug),
-        ],
-      );
-      await sql.queryObject(
-        `INSERT INTO tag_labels(tag_id,language,name) VALUES($1::uuid,'en',$2),($1::uuid,'pt-BR',$3) ON CONFLICT(tag_id,language) DO UPDATE SET name=excluded.name`,
-        [id, input.english.trim(), input.portuguese.trim()],
-      );
-      await sql.queryObject(
-        `DELETE FROM tag_aliases WHERE workspace_id=$1::uuid AND tag_id=$2::uuid`,
-        [
-          this.workspaceId,
-          id,
-        ],
-      );
-      for (const alias of new Set(input.aliases.map(normalize).filter(Boolean))) {
-        await sql.queryObject(
-          `INSERT INTO tag_aliases(workspace_id,tag_id,alias_normalized) VALUES($1::uuid,$2::uuid,$3)`,
-          [this.workspaceId, id, alias],
-        );
+    await this.db.transaction(async (tx) => {
+      const owned = await tx.update(tags).set({
+        slug: normalize(input.slug),
+        updatedAt: new Date(),
+      })
+        .where(and(eq(tags.workspaceId, this.workspaceId), eq(tags.id, id)))
+        .returning({ id: tags.id });
+      if (!owned[0]) throw new TagNotFoundError("Tag not found");
+      for (const label of labelValues(id, input)) {
+        await tx.insert(tagLabels).values(label).onConflictDoUpdate({
+          target: [tagLabels.tagId, tagLabels.language],
+          set: { name: label.name },
+        });
       }
+      await tx.delete(tagAliases).where(and(
+        eq(tagAliases.workspaceId, this.workspaceId),
+        eq(tagAliases.tagId, id),
+      ));
+      const aliases = aliasValues(this.workspaceId, id, input.aliases);
+      if (aliases.length) await tx.insert(tagAliases).values(aliases);
     });
-    const updated = (await this.list(ownerId)).find((tag) => tag.id === id);
-    if (!updated) throw new Error("Tag not found");
-    return updated;
+    return await this.require(ownerId, id);
+  }
+
+  private async require(ownerId: string, id: string): Promise<TagRecord> {
+    const tag = (await this.list(ownerId)).find((candidate) => candidate.id === id);
+    if (!tag) throw new TagNotFoundError("Tag not found");
+    return tag;
   }
 
   private owner(ownerId: string): void {
@@ -111,12 +137,28 @@ export class PostgresTagCoordinator {
   }
 }
 
-const SELECT_TAGS = `SELECT t.id,t.slug,
-  COALESCE((SELECT jsonb_agg(jsonb_build_object('language',l.language,'name',l.name) ORDER BY l.language) FROM tag_labels l WHERE l.tag_id=t.id),'[]'::jsonb) labels,
-  COALESCE((SELECT jsonb_agg(a.alias_normalized ORDER BY a.alias_normalized) FROM tag_aliases a WHERE a.tag_id=t.id),'[]'::jsonb) aliases
-  FROM tags t`;
+type TagInput = { slug: string; english: string; portuguese: string; aliases: string[] };
+
+function labelValues(tagId: string, input: TagInput) {
+  return [
+    { tagId, language: "en", name: input.english.trim() },
+    { tagId, language: "pt-BR", name: input.portuguese.trim() },
+  ];
+}
+
+function aliasValues(workspaceId: string, tagId: string, aliases: string[]) {
+  return [...new Set(aliases.map(normalize).filter(Boolean))].map((aliasNormalized) => ({
+    workspaceId,
+    tagId,
+    aliasNormalized,
+  }));
+}
 
 function normalize(value: string): string {
   return value.normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase().trim()
     .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+}
+
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
 }

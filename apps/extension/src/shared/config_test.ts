@@ -7,10 +7,17 @@ import {
 import { capturePath, cleanOptionalText } from "./types.ts";
 
 Deno.test("normalizes API origins", () => {
-  assertEquals(normalizeBaseUrl("https://example.com/"), "https://example.com");
+  assertEquals(
+    normalizeBaseUrl("https://example.com/"),
+    "https://fuscabot.devlulcas.deno.net",
+  );
   assertEquals(
     normalizeBaseUrl("https://api.fuscabot.dev"),
     "https://fuscabot.devlulcas.deno.net",
+  );
+  assertEquals(
+    normalizeBaseUrl("http://localhost:8000/"),
+    "http://localhost:8000",
   );
   assertEquals(
     normalizeBaseUrl("javascript:alert(1)"),

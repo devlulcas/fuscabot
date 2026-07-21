@@ -1,18 +1,23 @@
 import { assertEquals } from "@std/assert";
-import type { DatabasePool } from "../src/db/client.ts";
+import type { AppDatabase } from "../src/db/client.ts";
 import { bootstrapWorkspace } from "../src/db/workspace.ts";
 
 Deno.test("workspace bootstrap is an owner-id upsert", async () => {
-  let values: unknown[] = [];
+  let values: unknown;
   const database = {
-    query: (_text: string, parameters: unknown[]) => {
-      values = parameters;
-      return Promise.resolve({
-        rows: [{ id: "workspace", owner_discord_user_id: "owner", name: "Fuscabot" }],
-      });
-    },
-  } as unknown as DatabasePool;
+    insert: () => ({
+      values: (input: unknown) => {
+        values = input;
+        return {
+          onConflictDoUpdate: () => ({
+            returning: () =>
+              Promise.resolve([{ id: "workspace", ownerDiscordUserId: "owner", name: "Fuscabot" }]),
+          }),
+        };
+      },
+    }),
+  } as unknown as AppDatabase;
   const workspace = await bootstrapWorkspace(database, "owner");
-  assertEquals(values, ["Fuscabot", "owner"]);
+  assertEquals(values, { name: "Fuscabot", ownerDiscordUserId: "owner" });
   assertEquals(workspace.id, "workspace");
 });

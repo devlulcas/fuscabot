@@ -149,7 +149,12 @@ export const ResourceSchema = z.object({
 });
 export type Resource = z.infer<typeof ResourceSchema>;
 
-export const DeliveryStatusSchema = z.enum(["pending", "sent", "failed"]);
+export const DeliveryStatusSchema = z.enum([
+  "pending",
+  "sent",
+  "failed",
+  "unknown",
+]);
 export const DeliveryKindSchema = z.enum(["read_later", "share"]);
 
 const DiscordEmbedFieldSchema = z.object({
@@ -253,6 +258,7 @@ export const ErrorCodeSchema = z.enum([
   "NOT_FOUND",
   "CONFLICT",
   "VALIDATION_ERROR",
+  "PAYLOAD_TOO_LARGE",
   "DEPENDENCY_ERROR",
   "RATE_LIMITED",
   "INTERNAL_ERROR",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fetchWithTimeout, readBoundedJson } from "../integrations/http_boundary.ts";
 
 const DISCORD_API = "https://discord.com/api/v10";
 const BOT_PERMISSIONS = "19456";
@@ -39,6 +40,7 @@ export type AuthConfig = {
   redirectUri: string;
   ownerDiscordUserId: string;
   signingSecret: string;
+  extensionRedirectOrigins?: string[];
 };
 
 export interface AuthPersistence {
@@ -86,7 +88,7 @@ export class AuthService {
   }
 
   async authorizationUrl(extensionRedirect: string): Promise<string> {
-    validateExtensionRedirect(extensionRedirect);
+    validateExtensionRedirect(extensionRedirect, this.config.extensionRedirectOrigins);
     const nonce = crypto.randomUUID();
     const expiresAt = this.now() + 10 * 60_000;
     await this.persistence.saveState(await sha256(nonce), new Date(expiresAt));
@@ -127,7 +129,7 @@ export class AuthService {
     if (!await this.persistence.consumeState(await sha256(state.nonce), new Date(this.now()))) {
       throw new AuthError("OAuth state was already used or expired", 400, "BAD_REQUEST");
     }
-    validateExtensionRedirect(state.extensionRedirect);
+    validateExtensionRedirect(state.extensionRedirect, this.config.extensionRedirectOrigins);
 
     const token = await this.#exchangeCode(code);
     let user: z.infer<typeof UserSchema>;
@@ -207,18 +209,24 @@ export class AuthService {
   }
 
   async #exchangeCode(code: string): Promise<z.infer<typeof TokenResponseSchema>> {
-    const response = await this.request(`${DISCORD_API}/oauth2/token`, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: this.config.clientId,
-        client_secret: this.config.clientSecret,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: this.config.redirectUri,
-      }),
-    });
-    const body = await response.json().catch(() => null);
+    let response: Response;
+    let body: unknown;
+    try {
+      response = await fetchWithTimeout(this.request, `${DISCORD_API}/oauth2/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: this.config.clientId,
+          client_secret: this.config.clientSecret,
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: this.config.redirectUri,
+        }),
+      }, 10_000);
+      body = await readBoundedJson(response);
+    } catch {
+      throw new AuthError("Discord OAuth is temporarily unavailable", 502, "DEPENDENCY_ERROR");
+    }
     if (!response.ok) {
       throw new AuthError("Discord rejected the OAuth code", 502, "DEPENDENCY_ERROR");
     }
@@ -230,10 +238,16 @@ export class AuthService {
   }
 
   async #discordGet(path: string, accessToken: string): Promise<unknown> {
-    const response = await this.request(`${DISCORD_API}${path}`, {
-      headers: { authorization: `Bearer ${accessToken}` },
-    });
-    const body = await response.json().catch(() => null);
+    let response: Response;
+    let body: unknown;
+    try {
+      response = await fetchWithTimeout(this.request, `${DISCORD_API}${path}`, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      }, 10_000);
+      body = await readBoundedJson(response);
+    } catch {
+      throw new AuthError("Discord identity is temporarily unavailable", 502, "DEPENDENCY_ERROR");
+    }
     if (!response.ok) {
       throw new AuthError("Discord identity request failed", 502, "DEPENDENCY_ERROR");
     }
@@ -313,11 +327,13 @@ function canManageGuild(guild: z.infer<typeof UserGuildSchema>): boolean {
   return (permissions & 0x8n) !== 0n || (permissions & 0x20n) !== 0n;
 }
 
-function validateExtensionRedirect(value: string): void {
+function validateExtensionRedirect(value: string, allowedOrigins?: string[]): void {
   const url = new URL(value);
   if (
     url.protocol !== "https:" || url.username || url.password ||
-    !/^[a-p]{32}\.chromiumapp\.org$/.test(url.hostname)
+    !/^[a-p]{32}\.chromiumapp\.org$/.test(url.hostname) || url.pathname !== "/discord" ||
+    url.search !== "" || url.hash !== "" ||
+    (allowedOrigins !== undefined && !allowedOrigins.includes(url.origin))
   ) {
     throw new AuthError("Invalid extension redirect", 400, "BAD_REQUEST");
   }

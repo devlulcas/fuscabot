@@ -68,7 +68,7 @@ async function captureFromContextMenu(
     if (metadata === undefined) throw new Error("Could not read page metadata");
     await savePendingCapture({ captureId, state: "preparing" });
     await notifyCapture(captureId);
-    const resource = await api.createCapture(createCapturePayload({
+    let resource = await api.createCapture(createCapturePayload({
       captureId,
       kind,
       metadata,
@@ -77,6 +77,10 @@ async function captureFromContextMenu(
       linkUrl: info.linkUrl,
       selectionText: info.selectionText,
     }));
+    if (resource.enrichmentStatus === "preparing") {
+      await api.retryEnrichment(resource.id);
+      resource = await api.getResource(resource.id);
+    }
     await savePendingCapture({
       captureId,
       resourceId: resource.id,

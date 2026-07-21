@@ -9,6 +9,7 @@ import {
   DurableDeliveryCoordinator,
   type DurableDeliveryStore,
 } from "../src/services/durable_delivery_coordinator.ts";
+import { DiscordApiError } from "../src/integrations/discord_client.ts";
 const snapshot: DeliverySnapshot = {
   version: 2,
   title: "Title",
@@ -70,6 +71,10 @@ function memory(initial: DeliveryRecord | null = null) {
       current = { ...current!, status: "failed", error };
       return Promise.resolve(current);
     },
+    markUnknown: (_id, error) => {
+      current = { ...current!, status: "unknown", error };
+      return Promise.resolve(current);
+    },
     get: () => Promise.resolve(current),
     history: () => Promise.resolve(current ? [current] : []),
   };
@@ -99,6 +104,23 @@ Deno.test("delivery persists immutable pending snapshot before Discord and marks
   assertEquals(
     "version" in sent.snapshot && sent.snapshot.payload.embeds[0].title,
     "Title",
+  );
+});
+Deno.test("unknown Discord outcome blocks blind retry and stores no upstream detail", async () => {
+  const state = memory();
+  const coordinator = new DurableDeliveryCoordinator(state.store, {
+    createChannelMessage: () =>
+      Promise.reject(new DiscordApiError("secret upstream body", 0, null, "unknown")),
+  });
+  await assertRejects(
+    () => coordinator.publish("workspace", "resource", "channel", "share", snapshot),
+    DiscordApiError,
+  );
+  assertEquals(state.get()?.status, "unknown");
+  assertEquals(state.get()?.error, "Discord delivery outcome is unknown");
+  await assertRejects(
+    () => coordinator.retry("workspace", "delivery"),
+    DeliveryNotRetryableError,
   );
 });
 Deno.test("failed retry reuses snapshot and links attempts", async () => {

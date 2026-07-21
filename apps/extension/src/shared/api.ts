@@ -38,6 +38,8 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+let refreshInFlight: Promise<{ accessToken: string } | null> | undefined;
+
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
@@ -58,31 +60,9 @@ export async function apiRequest<T>(
     signal: options.signal,
   });
   if (response.status === 401 && config.refreshToken && config.sessionId) {
-    const refresh = await fetch(`${config.apiBaseUrl}/v1/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({
-        sessionId: config.sessionId,
-        refreshToken: config.refreshToken,
-      }),
-    });
-    const refreshed = await refresh.json().catch(() => undefined);
-    const data = isRecord(refreshed) && isRecord(refreshed.data)
-      ? refreshed.data
-      : undefined;
-    if (
-      refresh.ok && data && typeof data.accessToken === "string" &&
-      typeof data.refreshToken === "string"
-    ) {
-      await saveConfig({
-        ...config,
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-      });
-      headers.set("authorization", `Bearer ${data.accessToken}`);
+    const refreshed = await refreshSession(config);
+    if (refreshed) {
+      headers.set("authorization", `Bearer ${refreshed.accessToken}`);
       response = await fetch(`${config.apiBaseUrl}${path}`, {
         method: options.method ?? "GET",
         headers,
@@ -104,6 +84,55 @@ export async function apiRequest<T>(
     );
   }
   return body as T;
+}
+
+async function refreshSession(
+  config: Awaited<ReturnType<typeof getConfig>>,
+): Promise<{ accessToken: string } | null> {
+  if (refreshInFlight) return await refreshInFlight;
+  const operation = (async (): Promise<{ accessToken: string } | null> => {
+    try {
+      const refresh = await fetch(`${config.apiBaseUrl}/v1/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json",
+        },
+        body: JSON.stringify({
+          sessionId: config.sessionId,
+          refreshToken: config.refreshToken,
+        }),
+      });
+      const refreshed = await refresh.json().catch(() => undefined);
+      const data = isRecord(refreshed) && isRecord(refreshed.data)
+        ? refreshed.data
+        : undefined;
+      if (
+        !refresh.ok || !data || typeof data.accessToken !== "string" ||
+        typeof data.refreshToken !== "string"
+      ) throw new Error("Session refresh failed");
+      await saveConfig({
+        ...config,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
+      return { accessToken: data.accessToken };
+    } catch {
+      await saveConfig({
+        ...config,
+        accessToken: undefined,
+        refreshToken: undefined,
+        sessionId: undefined,
+      });
+      return null;
+    }
+  })();
+  refreshInFlight = operation;
+  try {
+    return await operation;
+  } finally {
+    if (refreshInFlight === operation) refreshInFlight = undefined;
+  }
 }
 
 type DeliveryResult = { discordUrl?: string };

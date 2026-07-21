@@ -17,7 +17,6 @@ function app() {
 Deno.test("health responds without database", async () => {
   assertEquals(await (await app().request("/health")).json(), {
     status: "ok",
-    services: { auth: false, discord: false },
   });
 });
 Deno.test("production mode fails closed when authentication is unavailable", async () => {
@@ -46,7 +45,7 @@ Deno.test("capture is idempotent and strips tracking keys", async () => {
   assertEquals(second.status, 200);
   assertEquals((await second.json()).meta.created, false);
 });
-Deno.test("capture waits for enrichment and returns the prepared resource", async () => {
+Deno.test("capture persists and responds without waiting for enrichment", async () => {
   const resources = new ResourceService(new InMemoryResourceRepository());
   let prepared = false;
   const instance = createApp({
@@ -66,8 +65,8 @@ Deno.test("capture waits for enrichment and returns the prepared resource", asyn
     headers: { "content-type": "application/json" },
   });
   const body = await response.json();
-  assertEquals(prepared, true);
-  assertEquals(body.data.summary, "Prepared by AI");
+  assertEquals(prepared, false);
+  assertEquals(body.data.enrichmentStatus, "preparing");
 });
 Deno.test("CRUD and validation error envelope", async () => {
   const instance = app();
@@ -133,4 +132,63 @@ Deno.test("bulk resource actions archive, restore, and delete atomically", async
   assertEquals((await bulk([capture.captureId], "restore")).status, 200);
   assertEquals((await bulk([capture.captureId, second.captureId], "delete")).status, 200);
   assertEquals((await instance.request(`/v1/resources/${capture.captureId}`)).status, 404);
+});
+
+Deno.test("JSON boundaries reject declared, streamed, and malformed bodies safely", async () => {
+  const instance = createApp({
+    resources: new ResourceService(new InMemoryResourceRepository()),
+    maxJsonBytes: 64,
+  });
+  const declared = await instance.request("/v1/resources/captures", {
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": "65" },
+    body: "{}",
+  });
+  assertEquals(declared.status, 413);
+  assertEquals((await declared.json()).error.code, "PAYLOAD_TOO_LARGE");
+  assertEquals(Boolean(declared.headers.get("x-request-id")), true);
+
+  const streamed = await instance.request("/v1/resources/captures", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ padding: "x".repeat(100) }),
+  });
+  assertEquals(streamed.status, 413);
+
+  const malformed = await createApp({
+    resources: new ResourceService(new InMemoryResourceRepository()),
+  }).request("/v1/resources/captures", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{broken",
+  });
+  assertEquals(malformed.status, 400);
+  assertEquals((await malformed.json()).error.code, "VALIDATION_ERROR");
+  assertEquals(malformed.headers.get("x-content-type-options"), "nosniff");
+});
+
+Deno.test("CORS reflects only configured extension origins and preserves cache variance", async () => {
+  const allowedOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+  const instance = createApp({
+    resources: new ResourceService(new InMemoryResourceRepository()),
+    allowedOrigins: [allowedOrigin],
+  });
+  const allowed = await instance.request("/v1/resources", {
+    headers: { origin: allowedOrigin },
+  });
+  assertEquals(allowed.headers.get("access-control-allow-origin"), allowedOrigin);
+  assertEquals(allowed.headers.get("vary"), "Origin");
+
+  const untrusted = await instance.request("/v1/resources", {
+    headers: { origin: "https://evil.example" },
+  });
+  assertEquals(untrusted.headers.get("access-control-allow-origin"), null);
+
+  const preflight = await instance.request("/v1/resources", {
+    method: "OPTIONS",
+    headers: { origin: allowedOrigin },
+  });
+  assertEquals(preflight.status, 204);
+  assertEquals(preflight.headers.get("access-control-allow-origin"), allowedOrigin);
+  assertEquals(Boolean(preflight.headers.get("x-request-id")), true);
 });

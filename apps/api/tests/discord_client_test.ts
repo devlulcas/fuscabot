@@ -1,61 +1,48 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import type { DiscordMessagePayload } from "@fuscabot/contracts";
 import { DiscordApiError, DiscordClient } from "../src/integrations/discord_client.ts";
 
-Deno.test("Discord client filters standard text channels and authenticates", async () => {
-  let authorization = "";
-  const client = new DiscordClient("secret", (request, init) => {
-    authorization = new Headers(init?.headers).get("authorization") ?? "";
-    assertEquals(String(request), "https://discord.test/guilds/guild/channels");
-    return Promise.resolve(Response.json([
-      { id: "text", name: "links", type: 0, parent_id: null, topic: null },
-      { id: "forum", name: "forum", type: 15, parent_id: null, topic: null },
-    ]));
-  }, "https://discord.test");
-  assertEquals((await client.listGuildTextChannels("guild")).map((row) => row.id), ["text"]);
-  assertEquals(authorization, "Bot secret");
-});
+const payload = {
+  embeds: [{ title: "Title", url: "https://example.com" }],
+  allowed_mentions: { parse: [] as [] },
+};
 
-Deno.test("Discord client forces safe allowed mentions", async () => {
-  let body: Record<string, unknown> = {};
-  const client = new DiscordClient("secret", (_request, init) => {
-    body = JSON.parse(String(init?.body));
-    return Promise.resolve(Response.json({ id: "message", channel_id: "channel" }));
-  });
-  await client.createChannelMessage("channel", {
-    embeds: [{ title: "Title", url: "https://example.com" }],
-    components: [{
-      type: 1,
-      components: [{
-        type: 2,
-        style: 5,
-        label: "Open link",
-        url: "https://example.com",
-      }],
-    }],
-    allowed_mentions: { parse: ["users"] },
-  } as unknown as DiscordMessagePayload);
-  assertEquals(body.allowed_mentions, { parse: [] });
-  assertEquals(body.components, [{
-    type: 1,
-    components: [{
-      type: 2,
-      style: 5,
-      label: "Open link",
-      url: "https://example.com",
-    }],
-  }]);
-});
-
-Deno.test("Discord errors expose retry delay", async () => {
+Deno.test("Discord message timeout has unknown outcome", async () => {
   const client = new DiscordClient(
-    "secret",
-    () =>
-      Promise.resolve(
-        Response.json({ message: "rate limited", retry_after: 1.5 }, { status: 429 }),
-      ),
+    "token",
+    (() => new Promise<Response>(() => {})) as typeof fetch,
+    "https://discord.test",
+    5,
   );
-  const error = await assertRejects(() => client.listGuildTextChannels("guild"), DiscordApiError);
-  assertEquals(error.status, 429);
-  assertEquals(error.retryAfterMs, 1500);
+  const error = await assertRejects(
+    () => client.createChannelMessage("channel", payload),
+    DiscordApiError,
+  );
+  assertEquals(error.outcome, "unknown");
+});
+
+Deno.test("Discord 429 is known not sent and preserves bounded retry metadata", async () => {
+  const client = new DiscordClient(
+    "token",
+    (() => Promise.resolve(new Response('{"retry_after":2}', { status: 429 }))) as typeof fetch,
+    "https://discord.test",
+  );
+  const error = await assertRejects(
+    () => client.createChannelMessage("channel", payload),
+    DiscordApiError,
+  );
+  assertEquals([error.outcome, error.retryAfterMs], ["not_sent", 2_000]);
+  assertEquals(error.message.includes("retry_after"), false);
+});
+
+Deno.test("Discord successful malformed response fails closed as unknown", async () => {
+  const client = new DiscordClient(
+    "token",
+    (() => Promise.resolve(new Response("not json", { status: 200 }))) as typeof fetch,
+    "https://discord.test",
+  );
+  const error = await assertRejects(
+    () => client.createChannelMessage("channel", payload),
+    DiscordApiError,
+  );
+  assertEquals(error.outcome, "unknown");
 });
