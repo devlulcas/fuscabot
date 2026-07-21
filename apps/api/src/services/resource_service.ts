@@ -1,4 +1,5 @@
 import type { CaptureInput, Resource, ResourcePatch } from "../domain/resource.ts";
+import type { BulkResourceAction } from "@fuscabot/contracts";
 import { canonicalizeUrl } from "@fuscabot/contracts";
 import type { ResourceQuery, ResourceRepository } from "../repositories/resource_repository.ts";
 
@@ -56,5 +57,17 @@ export class ResourceService {
   }
   delete(id: string) {
     return this.repository.delete(this.workspaceId, id);
+  }
+  async bulkAction(ids: string[], action: BulkResourceAction["action"]): Promise<string[]> {
+    const affectedIds = await this.repository.bulkAction(this.workspaceId, ids, action);
+    if (!affectedIds) throw new BulkResourceNotFoundError();
+    return affectedIds;
+  }
+}
+
+export class BulkResourceNotFoundError extends Error {
+  constructor() {
+    super("One or more resources could not be found");
+    this.name = "BulkResourceNotFoundError";
   }
 }

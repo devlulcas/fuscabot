@@ -1,19 +1,9 @@
-import type { DiscordMessagePayload } from "../integrations/discord_client.ts";
+import type { DeliverySnapshotV2 } from "@fuscabot/contracts";
 
 export type DeliveryKind = "read_later" | "share";
 export type DeliveryStatus = "pending" | "sent" | "failed";
 
-export type MessageSnapshot = {
-  kind: DeliveryKind;
-  title: string;
-  url: string;
-  summary: string | null;
-  whyUseful: string | null;
-  personalNote: string | null;
-  selectedQuote: string | null;
-  tags: string[];
-  payload: DiscordMessagePayload;
-};
+export type MessageSnapshot = DeliverySnapshotV2;
 
 export type Delivery = {
   id: string;

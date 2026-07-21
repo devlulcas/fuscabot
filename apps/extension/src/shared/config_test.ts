@@ -37,6 +37,7 @@ Deno.test("encodes capture routes", () =>
   assertEquals(capturePath("a/b"), "/capture/a%2Fb"));
 Deno.test("normalizes appearance preferences", () => {
   assertEquals(normalizeTheme("adwaita"), "adwaita");
+  assertEquals(normalizeTheme("adwaita-dark"), "adwaita-dark");
   assertEquals(normalizeTheme("system"), "dark");
   assertEquals(normalizeAccentColor("#35A4E8"), "#35a4e8");
   assertEquals(normalizeAccentColor("blue"), undefined);

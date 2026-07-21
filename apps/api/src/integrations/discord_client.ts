@@ -79,12 +79,5 @@ async function parseJson(response: Response): Promise<unknown> {
   }
 }
 
-export type DiscordMessagePayload = {
-  embeds: Array<{
-    title: string;
-    url: string;
-    description?: string;
-    fields?: Array<{ name: string; value: string; inline?: boolean }>;
-  }>;
-  allowed_mentions: { parse: string[] };
-};
+export type DiscordMessagePayload = ContractDiscordMessagePayload;
+import type { DiscordMessagePayload as ContractDiscordMessagePayload } from "@fuscabot/contracts";

@@ -1,4 +1,5 @@
 import type { Resource, ResourcePatch } from "../domain/resource.ts";
+import type { BulkResourceAction } from "@fuscabot/contracts";
 import type { DatabasePool } from "../db/client.ts";
 import type { ResourceQuery, ResourceRepository } from "./resource_repository.ts";
 
@@ -206,6 +207,45 @@ export class PostgresResourceRepository implements ResourceRepository {
       [workspaceId, id],
     );
     return Boolean(result.rowCount);
+  }
+
+  async bulkAction(
+    workspaceId: string,
+    ids: string[],
+    action: BulkResourceAction["action"],
+  ): Promise<string[] | null> {
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      const owned = await client.query<{ id: string }>(
+        "SELECT id FROM resources WHERE workspace_id = $1 AND id = ANY($2::uuid[]) FOR UPDATE",
+        [workspaceId, ids],
+      );
+      if (owned.rows.length !== ids.length) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+      if (action === "delete") {
+        await client.query(
+          "DELETE FROM resources WHERE workspace_id = $1 AND id = ANY($2::uuid[])",
+          [workspaceId, ids],
+        );
+      } else {
+        await client.query(
+          `UPDATE resources SET archived_at = ${
+            action === "archive" ? "now()" : "NULL"
+          }, updated_at = now() WHERE workspace_id = $1 AND id = ANY($2::uuid[])`,
+          [workspaceId, ids],
+        );
+      }
+      await client.query("COMMIT");
+      return [...ids];
+    } catch (cause) {
+      await client.query("ROLLBACK");
+      throw cause;
+    } finally {
+      client.release();
+    }
   }
 }
 

@@ -7,11 +7,12 @@ import type {
 } from "../app.ts";
 import { compactEnrichmentInput } from "../domain/enrichment.ts";
 import type { StoredChannel } from "../domain/discord_setup.ts";
-import type { DiscordClient, DiscordMessagePayload } from "../integrations/discord_client.ts";
+import type { DiscordClient } from "../integrations/discord_client.ts";
 import type { ResourceRepository } from "../repositories/resource_repository.ts";
 import type { DiscordSetupCoordinator } from "./discord_setup_coordinator.ts";
 import type { DurableDeliveryCoordinator } from "./durable_delivery_coordinator.ts";
 import type { EnrichmentService } from "./enrichment_service.ts";
+import { formatDiscordSnapshot, snapshotPayload } from "./message_formatter.ts";
 
 function assertOwner(actual: string, expected: string): void {
   if (actual !== expected) throw new Error("Workspace access denied");
@@ -152,17 +153,21 @@ export class RuntimeDeliveryCoordinator implements DeliveryCoordinator {
     assertOwner(ownerId, this.ownerId);
     const resource = await this.resources.findById(this.workspaceId, resourceId);
     if (!resource) throw new Error("Resource not found");
-    const channelId = input.channelId ??
-      (await this.setup.list(this.workspaceId)).find((channel) =>
-        channel.isReadLater && channel.isActiveForRouting && channel.availability === "available"
-      )?.id;
+    const channels = await this.setup.list(this.workspaceId);
+    const channel = input.channelId
+      ? channels.find((candidate) => candidate.id === input.channelId)
+      : channels.find((candidate) =>
+        candidate.isReadLater && candidate.isActiveForRouting &&
+        candidate.availability === "available"
+      );
+    const channelId = input.channelId ?? channel?.id;
     if (!channelId) throw new Error("Configure an active Read Later channel first");
     return this.delivery.publish(
       this.workspaceId,
       resourceId,
       channelId,
       input.kind,
-      snapshot(resource, input.kind),
+      formatDiscordSnapshot(resource, input.kind, channel ? `#${channel.name}` : null),
     );
   }
 
@@ -182,42 +187,6 @@ export function discordSnapshotSender(discord: DiscordClient) {
     createChannelMessage(channelId: string, value: DeliverySnapshot) {
       return discord.createChannelMessage(channelId, snapshotPayload(value));
     },
-  };
-}
-
-function snapshot(resource: Resource, kind: "share" | "read_later"): DeliverySnapshot {
-  return {
-    title: resource.title.slice(0, 256),
-    url: resource.originalUrl,
-    summary: resource.summary,
-    whyUseful: resource.whyUseful,
-    personalNote: resource.personalNote,
-    selectedQuote: resource.selectedQuote,
-    includeQuote: Boolean(resource.selectedQuote),
-    tags: resource.tags.map((tag) => tag.slug).slice(0, 8),
-    outputLanguage: resource.outputLanguage,
-    ...(kind === "read_later" ? { whyUseful: null, tags: [] } : {}),
-  };
-}
-
-function snapshotPayload(value: DeliverySnapshot): DiscordMessagePayload {
-  const fields: Array<{ name: string; value: string }> = [];
-  const useful = value.personalNote ?? value.whyUseful;
-  if (useful) fields.push({ name: "Por que é útil", value: useful.slice(0, 1_024) });
-  if (value.includeQuote && value.selectedQuote) {
-    fields.push({ name: "Contexto", value: `“${value.selectedQuote}”`.slice(0, 1_024) });
-  }
-  if (value.tags.length) {
-    fields.push({ name: "Tags", value: value.tags.join(" · ").slice(0, 1_024) });
-  }
-  return {
-    embeds: [{
-      title: value.title,
-      url: value.url,
-      ...(value.summary ? { description: value.summary.slice(0, 4_096) } : {}),
-      ...(fields.length ? { fields } : {}),
-    }],
-    allowed_mentions: { parse: [] },
   };
 }
 

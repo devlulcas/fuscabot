@@ -31,19 +31,22 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (tab?.id === undefined || tab.windowId === undefined) return;
+  if (tab?.windowId === undefined) return;
+
+  // This must remain the first API call in the click handler. Chromium only
+  // allows sidePanel.open() while the context-menu user gesture is active.
+  const openingPanel = chrome.sidePanel.open({ windowId: tab.windowId });
+  void openingPanel.catch((cause) =>
+    console.error("Could not open the capture panel", cause)
+  );
+
+  if (tab.id === undefined) return;
   const kind: CaptureKind = info.menuItemId === MENU.link
     ? "link"
     : info.menuItemId === MENU.selection
     ? "selection"
     : "page";
   const captureId = crypto.randomUUID();
-
-  // Chrome only permits this call while the context-menu gesture is active.
-  // Do not place any awaited work before it.
-  void chrome.sidePanel.open({ windowId: tab.windowId }).catch((cause) =>
-    console.error("Could not open the capture panel", cause)
-  );
   void captureFromContextMenu(info, tab, kind, captureId);
 });
 

@@ -1,6 +1,7 @@
 import { type Context, Hono } from "@hono/hono";
 import { z } from "zod";
 import type { DiscordClient } from "./integrations/discord_client.ts";
+import { BulkResourceActionSchema } from "@fuscabot/contracts";
 import { CaptureSchema, ResourcePatchSchema } from "./domain/resource.ts";
 import { error, handleError } from "./http/errors.ts";
 import { InMemoryResourceRepository } from "./repositories/resource_repository.ts";
@@ -259,6 +260,15 @@ export function createApp(
     return c.json({
       data: await deps.resources.list(query),
       meta: { limit: query.limit, offset: query.offset },
+    });
+  });
+  app.post("/v1/resources/bulk-actions", async (c) => {
+    const input = BulkResourceActionSchema.parse(await c.req.json());
+    return c.json({
+      data: {
+        action: input.action,
+        affectedIds: await deps.resources.bulkAction(input.ids, input.action),
+      },
     });
   });
   app.get("/v1/resources/:id", async (c) => {

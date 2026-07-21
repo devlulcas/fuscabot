@@ -95,3 +95,42 @@ Deno.test("CRUD and validation error envelope", async () => {
   const error = ApiErrorSchema.parse(await bad.json());
   assertEquals(error.error.code, "VALIDATION_ERROR");
 });
+
+Deno.test("bulk resource actions archive, restore, and delete atomically", async () => {
+  const instance = app();
+  const second = {
+    ...capture,
+    captureId: "019432f0-7c00-7000-8000-000000000002",
+    url: "https://example.com/second",
+  };
+  for (const input of [capture, second]) {
+    assertEquals(
+      (await instance.request("/v1/resources/captures", {
+        method: "POST",
+        body: JSON.stringify(input),
+        headers: { "content-type": "application/json" },
+      })).status,
+      201,
+    );
+  }
+  const bulk = (ids: string[], action: "archive" | "restore" | "delete") =>
+    instance.request("/v1/resources/bulk-actions", {
+      method: "POST",
+      body: JSON.stringify({ ids, action }),
+      headers: { "content-type": "application/json" },
+    });
+  const archived = await bulk([capture.captureId, second.captureId], "archive");
+  assertEquals(archived.status, 200);
+  assertEquals((await archived.json()).data.affectedIds, [capture.captureId, second.captureId]);
+
+  const missing = await bulk(
+    [capture.captureId, "019432f0-7c00-7000-8000-000000000099"],
+    "delete",
+  );
+  assertEquals(missing.status, 404);
+  assertEquals((await instance.request(`/v1/resources/${capture.captureId}`)).status, 200);
+
+  assertEquals((await bulk([capture.captureId], "restore")).status, 200);
+  assertEquals((await bulk([capture.captureId, second.captureId], "delete")).status, 200);
+  assertEquals((await instance.request(`/v1/resources/${capture.captureId}`)).status, 404);
+});

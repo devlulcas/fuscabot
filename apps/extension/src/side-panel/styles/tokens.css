@@ -119,3 +119,44 @@
   --skeleton-start: #ebebeb;
   --skeleton-middle: #d9e7f8;
 }
+
+:root[data-theme="adwaita-dark"] {
+  color-scheme: dark;
+  font-family: Cantarell, Inter, ui-sans-serif, system-ui, sans-serif;
+  --bg: #1e1e1e;
+  --panel: #242424;
+  --panel-2: #303030;
+  --ink: #f6f5f4;
+  --muted: #c0bfbc;
+  --label-ink: #deddda;
+  --line: #3d3846;
+  --danger: #ff7b63;
+  --danger-border: #8c3b3b;
+  --notice-ink: #deddda;
+  --quote-ink: #c0bfbc;
+  --summary-ink: #deddda;
+  --radius: 9px;
+  --body-background: linear-gradient(180deg, #242424, #1e1e1e);
+  --header-background: #242424ed;
+  --surface-background: linear-gradient(180deg, #2b2b2b, #242424);
+  --control-background: #303030;
+  --subtle-background: #303030cc;
+  --search-background: #242424;
+  --nav-hover: color-mix(in srgb, var(--accent) 16%, transparent);
+  --active-route-background: color-mix(in srgb, var(--accent) 24%, #242424);
+  --button-primary-background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 86%, white),
+    var(--accent)
+  );
+  --button-primary-hover: color-mix(in srgb, var(--accent) 82%, white);
+  --button-primary-ink: #fff;
+  --button-secondary-background: linear-gradient(180deg, #3a3a3a, #303030);
+  --button-secondary-hover: #454545;
+  --button-ghost-hover: #ffffff10;
+  --button-danger-background: #3a2020;
+  --button-danger-hover: #4b2929;
+  --error-background: linear-gradient(180deg, #3a2020, #2b2424);
+  --skeleton-start: #2b2b2b;
+  --skeleton-middle: #38485c;
+}

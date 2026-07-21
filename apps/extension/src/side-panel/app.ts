@@ -300,9 +300,47 @@ async function renderEditor(resource: ApiResource): Promise<void> {
 
 async function renderLibrary(): Promise<void> {
   app.innerHTML =
-    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label><label>State<select name="state"><option value="">All active</option><option value="inbox">Inbox</option><option value="read_later">Read Later</option><option value="shared">Shared</option><option value="archived">Archived</option></select></label><label>Domain<input name="domain" placeholder="example.com"></label><label>AI status<select name="enrichmentStatus"><option value="">Any</option><option value="failed">Failed</option><option value="preparing">Preparing</option><option value="ready">Ready</option></select></label><label>Sort<select name="sort"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="updated">Recently updated</option></select></label><button data-variant="secondary">Apply</button></form><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
+    `<section class="stack"><h1 tabindex="-1">Library</h1><form role="search"><label>Search<input name="q" type="search" placeholder="Title, URL, note, tag…"></label><label>State<select name="state"><option value="">All active</option><option value="inbox">Inbox</option><option value="read_later">Read Later</option><option value="shared">Shared</option><option value="archived">Archived</option></select></label><label>Domain<input name="domain" placeholder="example.com"></label><label>AI status<select name="enrichmentStatus"><option value="">Any</option><option value="failed">Failed</option><option value="preparing">Preparing</option><option value="ready">Ready</option></select></label><label>Sort<select name="sort"><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="updated">Recently updated</option></select></label><button class="filter-apply" data-variant="secondary">Apply</button></form><div class="bulk-toolbar" data-bulk-toolbar><label class="bulk-select-all"><input type="checkbox" data-select-all disabled><span>Select all</span></label><span class="bulk-count" data-selection-count>0 selected</span><div class="bulk-actions"><button type="button" data-size="compact" data-variant="secondary" data-bulk-archive disabled>Archive selected</button><button type="button" data-size="compact" data-variant="danger" data-bulk-delete disabled>Delete selected</button></div><span class="field-hint bulk-status" data-bulk-status aria-live="polite"></span></div><div data-results><div class="skeleton" role="status" aria-label="Loading resources"></div></div></section>`;
   const form = requiredElement<HTMLFormElement>(app, "form");
   const results = requiredElement<HTMLElement>(app, "[data-results]");
+  const selectAll = requiredElement<HTMLInputElement>(app, "[data-select-all]");
+  const selectionCount = requiredElement<HTMLElement>(
+    app,
+    "[data-selection-count]",
+  );
+  const archiveButton = requiredElement<HTMLButtonElement>(
+    app,
+    "[data-bulk-archive]",
+  );
+  const deleteButton = requiredElement<HTMLButtonElement>(
+    app,
+    "[data-bulk-delete]",
+  );
+  const bulkStatus = requiredElement<HTMLElement>(app, "[data-bulk-status]");
+  const selected = new Set<string>();
+  let currentItems: ApiResource[] = [];
+  let busy = false;
+
+  const syncSelection = (): void => {
+    const allSelected = currentItems.length > 0 &&
+      currentItems.every((resource) => selected.has(resource.id));
+    selectAll.checked = allSelected;
+    selectAll.indeterminate = selected.size > 0 && !allSelected;
+    selectAll.disabled = busy || currentItems.length === 0;
+    selectionCount.textContent = `${selected.size} selected`;
+    const state = formValue(form, "state");
+    archiveButton.textContent = state === "archived"
+      ? "Restore selected"
+      : "Archive selected";
+    archiveButton.disabled = busy || selected.size === 0;
+    deleteButton.disabled = busy || selected.size === 0;
+    results.querySelectorAll<HTMLInputElement>("[data-resource-select]")
+      .forEach((checkbox) => {
+        checkbox.checked = selected.has(checkbox.value);
+        checkbox.disabled = busy;
+      });
+  };
+
   const load = async (): Promise<void> => {
     const state = formValue(form, "state") as
       | ""
@@ -325,25 +363,96 @@ async function renderLibrary(): Promise<void> {
         sort: formValue(form, "sort") as "newest" | "oldest" | "updated",
       },
     );
+    currentItems = items;
+    selected.clear();
+    bulkStatus.textContent = "";
+    bulkStatus.classList.remove("inline-error");
     results.innerHTML = items.length
       ? items.map((resource) =>
-        `<article class="card resource"><strong>${
+        `<article class="card resource"><input class="resource-checkbox" type="checkbox" data-resource-select value="${
+          escapeHtml(resource.id)
+        }" aria-label="Select ${
+          escapeHtml(resource.title)
+        }"><div class="resource-copy"><strong>${
           escapeHtml(resource.title)
         }</strong><span class="muted">${
           escapeHtml(resource.originalUrl)
-        }</span><a href="${
+        }</span></div><div class="resource-actions"><a href="${
           escapeHtml(resource.originalUrl)
         }" target="_blank" rel="noopener noreferrer">Open source</a><a href="#/capture/${
           escapeHtml(resource.id)
-        }" data-component="button" data-variant="secondary" data-size="compact">Review</a></article>`
+        }" data-component="button" data-variant="secondary" data-size="compact">${reviewIcon()}Review</a></div></article>`
       ).join("")
       : '<p class="notice">No resources found. Capture a page to start your library.</p>';
+    results.querySelectorAll<HTMLInputElement>("[data-resource-select]")
+      .forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          if (checkbox.checked) selected.add(checkbox.value);
+          else selected.delete(checkbox.value);
+          syncSelection();
+        });
+      });
+    syncSelection();
   };
+
+  selectAll.addEventListener("change", () => {
+    selected.clear();
+    if (selectAll.checked) {
+      for (const resource of currentItems) selected.add(resource.id);
+    }
+    syncSelection();
+  });
+
+  const runBulkAction = async (
+    action: "archive" | "restore" | "delete",
+  ): Promise<void> => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    if (
+      action === "delete" &&
+      !confirm(
+        `Permanently delete ${ids.length} selected resource${
+          ids.length === 1 ? "" : "s"
+        }? This cannot be undone.`,
+      )
+    ) return;
+    busy = true;
+    bulkStatus.classList.remove("inline-error");
+    bulkStatus.textContent = action === "delete" ? "Deleting…" : "Updating…";
+    syncSelection();
+    try {
+      await api.bulkResources(ids, action);
+      await load();
+      bulkStatus.textContent = `${ids.length} resource${
+        ids.length === 1 ? "" : "s"
+      } updated.`;
+    } catch (cause) {
+      bulkStatus.textContent = cause instanceof Error
+        ? cause.message
+        : "Bulk action failed.";
+      bulkStatus.classList.add("inline-error");
+    } finally {
+      busy = false;
+      syncSelection();
+    }
+  };
+  archiveButton.addEventListener(
+    "click",
+    () =>
+      void runBulkAction(
+        formValue(form, "state") === "archived" ? "restore" : "archive",
+      ),
+  );
+  deleteButton.addEventListener("click", () => void runBulkAction("delete"));
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void load().catch(showError);
   });
   await load();
+}
+
+function reviewIcon(): string {
+  return '<svg class="button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.9 1.6a1.7 1.7 0 0 1 2.5 2.5L6 12.5 2.5 13.5 3.5 10l8.4-8.4Zm-7.2 8.9-.5 1.3 1.3-.5 6.9-6.9-0.8-.8-6.9 6.9Z" fill="currentColor"/></svg>';
 }
 
 async function renderSettings(): Promise<void> {
@@ -358,7 +467,9 @@ async function renderSettings(): Promise<void> {
       config.theme === "light" ? "selected" : ""
     }>Light</option><option value="adwaita" ${
       config.theme === "adwaita" ? "selected" : ""
-    }>Adwaita</option></select></label><label class="accent-picker">Accent color<input name="accentColor" type="color" value="${
+    }>Adwaita</option><option value="adwaita-dark" ${
+      config.theme === "adwaita-dark" ? "selected" : ""
+    }>Adwaita Dark</option></select></label><label class="accent-picker">Accent color<input name="accentColor" type="color" value="${
       escapeHtml(effectiveAccent(config))
     }"></label><div class="appearance-footer"><button type="button" data-variant="ghost" data-size="compact" data-reset-accent>Use theme default</button><span class="field-hint" data-appearance-status>Changes apply immediately.</span></div></form></section><form class="card stack settings-card" data-api-settings><h2>API</h2><label>API base URL<input name="apiBaseUrl" type="url" required value="${
       escapeHtml(config.apiBaseUrl)
@@ -713,6 +824,7 @@ const THEME_ACCENTS: Record<UiTheme, string> = {
   dark: "#9b8cff",
   light: "#6d5bd0",
   adwaita: "#3584e4",
+  "adwaita-dark": "#3584e4",
 };
 
 function effectiveAccent(config: ExtensionConfig): string {

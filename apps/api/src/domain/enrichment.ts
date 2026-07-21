@@ -1,7 +1,7 @@
 import type { EnrichmentDraft } from "../../../../packages/contracts/mod.ts";
 
 export const ENRICHMENT_INPUT_VERSION = "resource-enrichment-input/v1" as const;
-export const ENRICHMENT_PROMPT_VERSION = "resource-enrichment-prompt/v1" as const;
+export const ENRICHMENT_PROMPT_VERSION = "resource-enrichment-prompt/v2" as const;
 
 export type EnrichmentInput = {
   version: typeof ENRICHMENT_INPUT_VERSION;

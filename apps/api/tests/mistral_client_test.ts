@@ -1,5 +1,5 @@
 import { assertEquals, assertInstanceOf } from "@std/assert";
-import type { EnrichmentDraft } from "../../../packages/contracts/mod.ts";
+import type { EnrichmentDraft } from "@fuscabot/contracts";
 import { compactEnrichmentInput } from "../src/domain/enrichment.ts";
 import { MistralClient, MistralClientError } from "../src/integrations/mistral_client.ts";
 
@@ -23,50 +23,80 @@ const draft: EnrichmentDraft = {
   includeQuoteInDelivery: false,
 };
 
-Deno.test("Mistral client parses a strict enrichment draft", async () => {
-  let request: RequestInit | undefined;
-  const client = new MistralClient({
-    apiKey: "secret",
-    fetch: (_url, init) => {
-      request = init;
-      return Promise.resolve(
-        Response.json({ choices: [{ message: { content: JSON.stringify(draft) } }] }),
-      );
-    },
-  });
+Deno.test("Mistral client accepts a strict enrichment draft", async () => {
+  const client = new MistralClient({ apiKey: "secret", generate: () => Promise.resolve(draft) });
   assertEquals(await client.enrich(input), draft);
-  assertEquals(JSON.parse(String(request?.body)).messages[1].content.includes(input.version), true);
 });
 
-Deno.test("malformed structured output is non-retryable", async () => {
+Deno.test("schema failures retry once and can recover", async () => {
+  let calls = 0;
   const client = new MistralClient({
     apiKey: "secret",
-    fetch: () =>
-      Promise.resolve(Response.json({ choices: [{ message: { content: '{"summary":1}' } }] })),
+    generate: () => Promise.resolve(++calls === 1 ? { ...draft, summary: "" } : draft),
+    sleep: () => Promise.resolve(),
+  });
+  assertEquals(await client.enrich(input), draft);
+  assertEquals(calls, 2);
+});
+
+Deno.test("exhausted malformed structured output is retryable", async () => {
+  let calls = 0;
+  const client = new MistralClient({
+    apiKey: "secret",
+    generate: () => {
+      calls++;
+      return Promise.resolve({ ...draft, summary: "" });
+    },
+    sleep: () => Promise.resolve(),
   });
   const error = await client.enrich(input).catch((error) => error);
   assertInstanceOf(error, MistralClientError);
-  assertEquals([error.code, error.retryable], ["malformed", false]);
+  assertEquals([error.code, error.retryable, calls], ["malformed", true, 2]);
 });
 
-Deno.test("rate limits are retryable", async () => {
+Deno.test("rate limits retry once", async () => {
+  let calls = 0;
   const client = new MistralClient({
     apiKey: "secret",
-    fetch: () => Promise.resolve(new Response(null, { status: 429 })),
+    generate: () => {
+      calls++;
+      return Promise.reject(new MistralClientError("Rate limited", "rate_limited", true, 429));
+    },
+    sleep: () => Promise.resolve(),
   });
   const error = await client.enrich(input).catch((error) => error);
-  assertEquals([error.code, error.retryable, error.status], ["rate_limited", true, 429]);
+  assertEquals([error.code, error.retryable, error.status, calls], ["rate_limited", true, 429, 2]);
 });
 
-Deno.test("request timeout aborts injected fetch", async () => {
+Deno.test("authentication failures are not retried", async () => {
+  let calls = 0;
   const client = new MistralClient({
     apiKey: "secret",
-    timeoutMs: 5,
-    fetch: (_url, init) =>
-      new Promise((_resolve, reject) =>
-        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason))
-      ),
+    generate: () => {
+      calls++;
+      return Promise.reject(new MistralClientError("No", "authentication", false, 401));
+    },
+    sleep: () => Promise.resolve(),
   });
   const error = await client.enrich(input).catch((error) => error);
-  assertEquals([error.code, error.retryable], ["timeout", true]);
+  assertEquals([error.code, error.retryable, error.status, calls], [
+    "authentication",
+    false,
+    401,
+    1,
+  ]);
+});
+
+Deno.test("timeout failures retry once", async () => {
+  let calls = 0;
+  const client = new MistralClient({
+    apiKey: "secret",
+    generate: () => {
+      calls++;
+      return Promise.reject(new DOMException("Timed out", "TimeoutError"));
+    },
+    sleep: () => Promise.resolve(),
+  });
+  const error = await client.enrich(input).catch((error) => error);
+  assertEquals([error.code, error.retryable, calls], ["timeout", true, 2]);
 });

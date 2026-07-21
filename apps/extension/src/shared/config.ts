@@ -3,7 +3,7 @@ import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 const CONFIG_KEY = "extensionConfig";
 const LEGACY_API_BASE_URL = "https://api.fuscabot.dev";
-export const UI_THEMES = ["dark", "light", "adwaita"] as const;
+export const UI_THEMES = ["dark", "light", "adwaita", "adwaita-dark"] as const;
 export type UiTheme = typeof UI_THEMES[number];
 export type ExtensionConfig = {
   apiBaseUrl: string;

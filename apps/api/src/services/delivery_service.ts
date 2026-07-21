@@ -21,11 +21,10 @@ export class DeliveryService {
     resourceId: string,
     target: DeliveryTarget,
     kind: DeliveryKind,
-    tags: string[] = [],
   ) {
     const resource = await this.resources.findById(target.workspaceId, resourceId);
     if (!resource) throw new ResourceForDeliveryNotFoundError();
-    const snapshot = formatDiscordSnapshot(resource, kind, tags);
+    const snapshot = formatDiscordSnapshot(resource, kind, null);
     const pending = await this.deliveries.createPending({
       resourceId,
       channelId: target.channelId,

@@ -1,4 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
+import type { DiscordMessagePayload } from "@fuscabot/contracts";
 import { DiscordApiError, DiscordClient } from "../src/integrations/discord_client.ts";
 
 Deno.test("Discord client filters standard text channels and authenticates", async () => {
@@ -23,9 +24,27 @@ Deno.test("Discord client forces safe allowed mentions", async () => {
   });
   await client.createChannelMessage("channel", {
     embeds: [{ title: "Title", url: "https://example.com" }],
+    components: [{
+      type: 1,
+      components: [{
+        type: 2,
+        style: 5,
+        label: "Open link",
+        url: "https://example.com",
+      }],
+    }],
     allowed_mentions: { parse: ["users"] },
-  });
+  } as unknown as DiscordMessagePayload);
   assertEquals(body.allowed_mentions, { parse: [] });
+  assertEquals(body.components, [{
+    type: 1,
+    components: [{
+      type: 2,
+      style: 5,
+      label: "Open link",
+      url: "https://example.com",
+    }],
+  }]);
 });
 
 Deno.test("Discord errors expose retry delay", async () => {

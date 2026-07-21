@@ -1,5 +1,7 @@
 import {
   ApiErrorSchema,
+  type BulkResourceAction,
+  BulkResourceActionResultSchema,
   DeliverySchema,
   ResourceSchema,
 } from "../../../../packages/contracts/mod.ts";
@@ -181,6 +183,18 @@ export const api = {
   },
   deleteResource: (id: string): Promise<void> =>
     apiRequest(`/v1/resources/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  bulkResources: async (
+    ids: string[],
+    action: BulkResourceAction["action"],
+  ): Promise<
+    { action: BulkResourceAction["action"]; affectedIds: string[] }
+  > =>
+    parseBulkResourceResult(
+      await apiRequest<unknown>("/v1/resources/bulk-actions", {
+        method: "POST",
+        body: { ids, action },
+      }),
+    ),
   publish: async (id: string, channelId: string): Promise<DeliveryResult> =>
     parseDeliveryResult(
       await apiRequest(`/v1/resources/${encodeURIComponent(id)}/deliveries`, {
@@ -301,6 +315,15 @@ export function parseResourceListEnvelope(value: unknown): ApiResource[] {
   const data = envelopeData(value);
   if (!Array.isArray(data)) throw new ContractResponseError();
   return data.map((resource) => parseResourceEnvelope({ data: resource }));
+}
+
+export function parseBulkResourceResult(value: unknown): {
+  action: BulkResourceAction["action"];
+  affectedIds: string[];
+} {
+  const parsed = BulkResourceActionResultSchema.safeParse(envelopeData(value));
+  if (!parsed.success) throw new ContractResponseError();
+  return parsed.data;
 }
 
 export function parseDeliveryResult(value: unknown): DeliveryResult {

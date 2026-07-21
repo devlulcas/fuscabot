@@ -34,3 +34,35 @@ Deno.test("Postgres resource search includes bilingual tag labels and aliases", 
   assertEquals(statement.includes("tag_labels"), true);
   assertEquals(statement.includes("tag_aliases"), true);
 });
+
+Deno.test("Postgres bulk actions lock ownership and commit one workspace-scoped update", async () => {
+  const calls: Array<{ text: string; values: unknown[] }> = [];
+  const ids = [
+    "019432f0-7c00-7000-8000-000000000001",
+    "019432f0-7c00-7000-8000-000000000002",
+  ];
+  const client = {
+    query: (text: string, values: unknown[] = []) => {
+      calls.push({ text, values });
+      return Promise.resolve({
+        rows: text.startsWith("SELECT id") ? ids.map((id) => ({ id })) : [],
+        rowCount: text.startsWith("UPDATE") ? ids.length : 0,
+      });
+    },
+    release: () => undefined,
+  };
+  const database = {
+    connect: () => Promise.resolve(client),
+  } as unknown as DatabasePool;
+  assertEquals(
+    await new PostgresResourceRepository(database).bulkAction("workspace-a", ids, "archive"),
+    ids,
+  );
+  assertEquals(calls.some((call) => call.text.includes("FOR UPDATE")), true);
+  assertEquals(calls.some((call) => call.text.startsWith("UPDATE resources")), true);
+  assertEquals(calls.at(-1)?.text, "COMMIT");
+  assertEquals(
+    calls.filter((call) => call.values.length).every((call) => call.values[0] === "workspace-a"),
+    true,
+  );
+});

@@ -10,6 +10,7 @@ import {
   type DurableDeliveryStore,
 } from "../src/services/durable_delivery_coordinator.ts";
 const snapshot: DeliverySnapshot = {
+  version: 2,
   title: "Title",
   url: "https://example.com",
   summary: "Original",
@@ -19,6 +20,17 @@ const snapshot: DeliverySnapshot = {
   includeQuote: false,
   tags: [],
   outputLanguage: "pt-BR",
+  sourceDomain: "example.com",
+  capturedAt: "2026-07-21T12:00:00Z",
+  destinationLabel: "#links",
+  payload: {
+    embeds: [{ title: "Title", url: "https://example.com" }],
+    components: [{
+      type: 1,
+      components: [{ type: 2, style: 5, label: "Abrir link", url: "https://example.com" }],
+    }],
+    allowed_mentions: { parse: [] },
+  },
 };
 function record(
   status: DeliveryRecord["status"],
@@ -65,30 +77,44 @@ function memory(initial: DeliveryRecord | null = null) {
 }
 Deno.test("delivery persists immutable pending snapshot before Discord and marks sent", async () => {
   const state = memory();
+  const input = structuredClone(snapshot);
   let pendingSeen = false;
   const coordinator = new DurableDeliveryCoordinator(state.store, {
     createChannelMessage: (_channel, sent) => {
       pendingSeen = state.get()?.status === "pending";
       assertEquals(sent.summary, "Original");
-      snapshot.summary = "Changed later";
+      assertEquals("version" in sent && sent.payload, snapshot.payload);
+      input.summary = "Changed later";
+      if ("version" in input) input.payload.embeds[0].title = "Changed later";
       return Promise.resolve({ id: "message" });
     },
   });
-  const sent = await coordinator.publish("workspace", "resource", "channel", "share", snapshot);
+  const sent = await coordinator.publish("workspace", "resource", "channel", "share", input);
   assertEquals(pendingSeen, true);
   assertEquals([sent.status, sent.snapshot.summary, sent.externalUrl], [
     "sent",
     "Original",
     "https://discord.com/channels/guild/discord-channel/message",
   ]);
+  assertEquals(
+    "version" in sent.snapshot && sent.snapshot.payload.embeds[0].title,
+    "Title",
+  );
 });
 Deno.test("failed retry reuses snapshot and links attempts", async () => {
-  const state = memory(record("failed"));
+  const failed = record("failed");
+  const expected = structuredClone(failed.snapshot);
+  const state = memory(failed);
+  let retried: DeliverySnapshot | undefined;
   const coordinator = new DurableDeliveryCoordinator(state.store, {
-    createChannelMessage: () => Promise.resolve({ id: "retry-message" }),
+    createChannelMessage: (_channel, sent) => {
+      retried = structuredClone(sent);
+      return Promise.resolve({ id: "retry-message" });
+    },
   });
   const sent = await coordinator.retry("workspace", "delivery");
   assertEquals([sent.status, state.retries], ["sent", ["delivery"]]);
+  assertEquals(retried, expected);
   await assertRejects(() => coordinator.retry("workspace", "delivery"), DeliveryNotRetryableError);
 });
 Deno.test("unauthorized destination is rejected before pending creation", async () => {

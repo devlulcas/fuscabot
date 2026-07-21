@@ -8,6 +8,7 @@ import {
   DeliveryNotRetryableError,
   DeliveryTargetNotAllowedError,
 } from "../domain/durable_delivery.ts";
+import { BulkResourceNotFoundError } from "../services/resource_service.ts";
 
 type ApiErrorCode = ApiError["error"]["code"];
 
@@ -49,6 +50,9 @@ export function handleError(c: Context, cause: unknown) {
   }
   if (cause instanceof DeliveryTargetNotAllowedError) {
     return error(c, 403, "FORBIDDEN", "Discord destination is not available");
+  }
+  if (cause instanceof BulkResourceNotFoundError) {
+    return error(c, 404, "NOT_FOUND", cause.message);
   }
   console.error(JSON.stringify({
     event: "request_error",

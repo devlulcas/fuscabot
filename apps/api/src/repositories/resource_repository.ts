@@ -1,3 +1,4 @@
+import type { BulkResourceAction } from "@fuscabot/contracts";
 import type { Resource, ResourcePatch } from "../domain/resource.ts";
 
 export type ResourceQuery = {
@@ -19,6 +20,11 @@ export interface ResourceRepository {
   list(workspaceId: string, query: ResourceQuery): Promise<Resource[]>;
   update(workspaceId: string, id: string, patch: ResourcePatch): Promise<Resource | null>;
   delete(workspaceId: string, id: string): Promise<boolean>;
+  bulkAction(
+    workspaceId: string,
+    ids: string[],
+    action: BulkResourceAction["action"],
+  ): Promise<string[] | null>;
 }
 
 export class InMemoryResourceRepository implements ResourceRepository {
@@ -82,5 +88,24 @@ export class InMemoryResourceRepository implements ResourceRepository {
     return Promise.resolve(
       current?.workspaceId === workspaceId ? this.#resources.delete(id) : false,
     );
+  }
+  bulkAction(workspaceId: string, ids: string[], action: BulkResourceAction["action"]) {
+    const resources = ids.map((id) => this.#resources.get(id));
+    if (resources.some((resource) => !resource || resource.workspaceId !== workspaceId)) {
+      return Promise.resolve(null);
+    }
+    const now = new Date().toISOString();
+    for (const resource of resources as Resource[]) {
+      if (action === "delete") {
+        this.#resources.delete(resource.id);
+      } else {
+        this.#resources.set(resource.id, {
+          ...resource,
+          archivedAt: action === "archive" ? now : null,
+          updatedAt: now,
+        });
+      }
+    }
+    return Promise.resolve([...ids]);
   }
 }

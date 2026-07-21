@@ -1,6 +1,7 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   ContractResponseError,
+  parseBulkResourceResult,
   parseDeliveryResult,
   parseResourceEnvelope,
   parseResourceListEnvelope,
@@ -79,5 +80,21 @@ Deno.test("delivery parsing accepts the contract and maps external URL", () => {
       },
     }),
     { discordUrl: "https://discord.com/channels/1/2/3" },
+  );
+});
+
+Deno.test("bulk resource result parsing validates action and ids", () => {
+  assertEquals(
+    parseBulkResourceResult({
+      data: { action: "archive", affectedIds: [resource.id] },
+    }),
+    { action: "archive", affectedIds: [resource.id] },
+  );
+  assertThrows(
+    () =>
+      parseBulkResourceResult({
+        data: { action: "move", affectedIds: [resource.id] },
+      }),
+    ContractResponseError,
   );
 });

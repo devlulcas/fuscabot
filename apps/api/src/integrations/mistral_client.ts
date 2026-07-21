@@ -1,16 +1,16 @@
-import { type EnrichmentDraft, EnrichmentDraftSchema } from "../../../../packages/contracts/mod.ts";
+import { chat, StandardSchemaValidationError } from "@tanstack/ai";
+import { createMistralText, type MistralChatModels } from "@tanstack/ai-mistral";
+import { type EnrichmentDraft, EnrichmentDraftSchema } from "@fuscabot/contracts";
 import { ENRICHMENT_PROMPT_VERSION, type EnrichmentInput } from "../domain/enrichment.ts";
 
-const ENDPOINT = "https://api.mistral.ai/v1/chat/completions";
-
-export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+type EnrichmentGenerator = (input: EnrichmentInput) => Promise<EnrichmentDraft>;
 
 export type MistralClientOptions = {
   apiKey: string;
-  model?: string;
+  model?: MistralChatModels;
   timeoutMs?: number;
-  fetch?: FetchLike;
-  endpoint?: string;
+  generate?: EnrichmentGenerator;
+  sleep?: (milliseconds: number) => Promise<void>;
 };
 
 export class MistralClientError extends Error {
@@ -26,98 +26,91 @@ export class MistralClientError extends Error {
 }
 
 export class MistralClient {
-  readonly #fetch: FetchLike;
-  readonly #endpoint: string;
-  readonly #model: string;
-  readonly #timeoutMs: number;
-  readonly #apiKey: string;
+  readonly #generate: EnrichmentGenerator;
+  readonly #sleep: (milliseconds: number) => Promise<void>;
 
   constructor(options: MistralClientOptions) {
-    this.#fetch = options.fetch ?? fetch;
-    this.#endpoint = options.endpoint ?? ENDPOINT;
-    this.#model = options.model ?? "mistral-small-latest";
-    this.#timeoutMs = options.timeoutMs ?? 12_000;
-    this.#apiKey = options.apiKey;
+    this.#sleep = options.sleep ??
+      ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    if (options.generate) {
+      this.#generate = options.generate;
+      return;
+    }
+    const model = options.model ?? "mistral-small-latest";
+    const adapter = createMistralText(model, options.apiKey, {
+      timeoutMs: options.timeoutMs ?? 12_000,
+    });
+    this.#generate = (input) =>
+      chat({
+        adapter,
+        systemPrompts: [systemPrompt()],
+        messages: [{ role: "user", content: JSON.stringify(input) }],
+        outputSchema: EnrichmentDraftSchema,
+        modelOptions: { temperature: 0.2 },
+      });
   }
 
   async enrich(input: EnrichmentInput): Promise<EnrichmentDraft> {
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(new DOMException("Timed out", "TimeoutError")),
-      this.#timeoutMs,
-    );
-    try {
-      const response = await this.#fetch(this.#endpoint, {
-        method: "POST",
-        headers: { authorization: `Bearer ${this.#apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: this.#model,
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt() },
-            { role: "user", content: JSON.stringify(input) },
-          ],
-        }),
-        signal: controller.signal,
-      });
-      if (!response.ok) throw classifyStatus(response.status);
-      return await parseResponse(response);
-    } catch (error) {
-      if (error instanceof MistralClientError) throw error;
-      if (controller.signal.aborted || isAbortError(error)) {
-        throw new MistralClientError("Mistral request timed out", "timeout", true);
+    let firstFailure: MistralClientError | undefined;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return EnrichmentDraftSchema.parse(await this.#generate(input));
+      } catch (cause) {
+        const failure = classifyError(cause);
+        if (!failure.retryable || attempt === 1) throw failure;
+        firstFailure = failure;
+        await this.#sleep(250);
       }
-      throw new MistralClientError("Mistral request failed", "upstream", true);
-    } finally {
-      clearTimeout(timeout);
     }
+    throw firstFailure ?? new MistralClientError("Mistral request failed", "upstream", true);
   }
 }
 
 function systemPrompt(): string {
   return `${ENRICHMENT_PROMPT_VERSION}
-Return one JSON object only, without markdown. Draft concise context for a private link library. Respect outputLanguage. Never publish or invent facts.
-Use only supplied tag slugs in suggestedTagSlugs and supplied UUID channel IDs in channelSuggestion.channelId. Put novel bilingual tags in proposedNewTags. If routing confidence is low, channelId must be null.
-The exact shape is:
-{"summary":"string","whyUseful":"string","outputLanguage":"pt-BR or en","suggestedTagSlugs":["existing-slug"],"proposedNewTags":[{"english":"string","portuguese":"string","aliases":["string"]}],"channelSuggestion":{"channelId":"supplied UUID or null","confidence":"high or medium or low","reason":"string"},"includeQuoteInDelivery":false}`;
+Draft concise context for a private link library. Respect outputLanguage. Never publish or invent facts.
+Use only supplied tag slugs in suggestedTagSlugs and supplied UUID channel IDs in channelSuggestion.channelId. Put novel bilingual tags in proposedNewTags. If routing confidence is low, channelId must be null.`;
 }
 
-async function parseResponse(response: Response): Promise<EnrichmentDraft> {
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    throw malformed("Mistral returned non-JSON data");
+function classifyError(cause: unknown): MistralClientError {
+  if (cause instanceof MistralClientError) return cause;
+  if (cause instanceof StandardSchemaValidationError || isZodError(cause)) {
+    return new MistralClientError(
+      "Mistral response did not match the enrichment schema",
+      "malformed",
+      true,
+    );
   }
-  const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> })
-    ?.choices?.[0]?.message?.content;
-  if (typeof content !== "string") throw malformed("Mistral response omitted message content");
-  let draft: unknown;
-  try {
-    draft = JSON.parse(content);
-  } catch {
-    throw malformed("Mistral message content was not JSON");
-  }
-  const parsed = EnrichmentDraftSchema.safeParse(draft);
-  if (!parsed.success) throw malformed("Mistral response did not match the enrichment schema");
-  return parsed.data;
-}
-
-function classifyStatus(status: number): MistralClientError {
-  if (status === 429) {
-    return new MistralClientError("Mistral rate limit reached", "rate_limited", true, status);
-  }
+  const status = numericProperty(cause, "statusCode") ?? numericProperty(cause, "status");
   if (status === 401 || status === 403) {
     return new MistralClientError("Mistral authentication failed", "authentication", false, status);
   }
-  return new MistralClientError("Mistral upstream error", "upstream", status >= 500, status);
+  if (status === 429) {
+    return new MistralClientError("Mistral rate limit reached", "rate_limited", true, status);
+  }
+  if (isTimeoutError(cause)) {
+    return new MistralClientError("Mistral request timed out", "timeout", true, status);
+  }
+  return new MistralClientError(
+    "Mistral request failed",
+    "upstream",
+    status === undefined || status >= 500,
+    status,
+  );
 }
 
-function malformed(message: string): MistralClientError {
-  return new MistralClientError(message, "malformed", false);
+function numericProperty(value: unknown, name: string): number | undefined {
+  if (typeof value !== "object" || value === null || !(name in value)) return undefined;
+  const property = (value as Record<string, unknown>)[name];
+  return typeof property === "number" ? property : undefined;
 }
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
+function isTimeoutError(cause: unknown): boolean {
+  if (!(cause instanceof Error)) return false;
+  return cause.name === "TimeoutError" || cause.name === "AbortError" ||
+    /timed?\s*out|timeout/i.test(cause.message);
+}
+
+function isZodError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === "ZodError";
 }

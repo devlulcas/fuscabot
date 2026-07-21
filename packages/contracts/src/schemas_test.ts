@@ -1,10 +1,28 @@
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import {
   ApiErrorSchema,
+  BulkResourceActionSchema,
   CaptureSchema,
+  DeliverySnapshotSchema,
+  DeliverySnapshotV2Schema,
   EnrichmentDraftSchema,
   ResourceSchema,
 } from "./schemas.ts";
+
+Deno.test("bulk resource actions require unique UUIDs", () => {
+  const id = "01980000-7000-8000-8000-000000000001";
+  assert(
+    BulkResourceActionSchema.safeParse({ ids: [id], action: "archive" })
+      .success,
+  );
+  assertFalse(
+    BulkResourceActionSchema.safeParse({ ids: [id, id], action: "delete" })
+      .success,
+  );
+  assertFalse(
+    BulkResourceActionSchema.safeParse({ ids: [], action: "restore" }).success,
+  );
+});
 
 Deno.test("capture defaults optional metadata safely", () => {
   const capture = CaptureSchema.parse({
@@ -77,4 +95,70 @@ Deno.test("API errors have a stable envelope", () => {
     error: { code: "CONFLICT", message: "Resource already exists" },
   });
   assertEquals(result.error.retryable, false);
+});
+
+Deno.test("delivery snapshots accept legacy rows and validate finalized v2 payloads", () => {
+  const legacy = {
+    title: "Saved link",
+    url: "https://example.com/link",
+    summary: null,
+    whyUseful: null,
+    personalNote: null,
+    selectedQuote: null,
+    includeQuote: false,
+    tags: [],
+    outputLanguage: "en" as const,
+  };
+  assert(DeliverySnapshotSchema.safeParse(legacy).success);
+  assert(
+    DeliverySnapshotV2Schema.safeParse({
+      ...legacy,
+      version: 2,
+      sourceDomain: "example.com",
+      capturedAt: "2026-07-21T12:00:00Z",
+      destinationLabel: "#saved-links",
+      payload: {
+        embeds: [{ title: "Saved link", url: legacy.url }],
+        components: [{
+          type: 1,
+          components: [{
+            type: 2,
+            style: 5,
+            label: "Open link",
+            url: legacy.url,
+          }],
+        }],
+        allowed_mentions: { parse: [] },
+      },
+    }).success,
+  );
+  assertFalse(
+    DeliverySnapshotV2Schema.safeParse({
+      ...legacy,
+      version: 2,
+      sourceDomain: "example.com",
+      capturedAt: "2026-07-21T12:00:00Z",
+      destinationLabel: null,
+      payload: {
+        embeds: [{ title: "x".repeat(257), url: legacy.url }],
+        allowed_mentions: { parse: [] },
+      },
+    }).success,
+  );
+  assertFalse(
+    DeliverySnapshotV2Schema.safeParse({
+      ...legacy,
+      version: 2,
+      sourceDomain: "example.com",
+      capturedAt: "2026-07-21T12:00:00Z",
+      destinationLabel: null,
+      payload: {
+        embeds: [
+          { title: "First", url: legacy.url },
+          { title: "Second", url: legacy.url },
+        ],
+        allowed_mentions: { parse: [] },
+      },
+    }).success,
+  );
 });
