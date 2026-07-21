@@ -82,7 +82,6 @@ async function buildRuntimeApp(source: Record<string, string>) {
   }
   const [
     { createAppDatabase, createDatabasePool },
-    { queryAdapter },
     { bootstrapWorkspace },
     { DiscordClient },
     { MistralClient },
@@ -106,7 +105,6 @@ async function buildRuntimeApp(source: Record<string, string>) {
     },
   ] = await Promise.all([
     import("./db/client.ts"),
-    import("./db/query_adapter.ts"),
     import("./db/workspace.ts"),
     import("./integrations/discord_client.ts"),
     import("./integrations/mistral_client.ts"),
@@ -132,17 +130,16 @@ async function buildRuntimeApp(source: Record<string, string>) {
       throw cause;
     },
   );
-  const sql = queryAdapter(database);
-  const resourceRepository = new PostgresResourceRepository(database);
+  const resourceRepository = new PostgresResourceRepository(appDatabase);
   const extensionOrigins = allowedExtensionOrigins(runtimeEnv.ALLOWED_EXTENSION_ORIGINS);
   const discord = new DiscordClient(runtimeEnv.DISCORD_BOT_TOKEN);
-  const setup = new DiscordSetupCoordinator(new PostgresDiscordSetupRepository(sql));
+  const setup = new DiscordSetupCoordinator(new PostgresDiscordSetupRepository(appDatabase));
   const enrichment = new EnrichmentService(
-    new PostgresEnrichmentStore(sql, "mistral-small-latest"),
+    new PostgresEnrichmentStore(appDatabase, "mistral-small-latest"),
     new MistralClient({ apiKey: runtimeEnv.MISTRAL_API_KEY }),
   );
   const durableDelivery = new DurableDeliveryCoordinator(
-    new PostgresDurableDeliveryRepository(sql),
+    new PostgresDurableDeliveryRepository(appDatabase),
     discordSnapshotSender(discord),
   );
   const app = createApp({

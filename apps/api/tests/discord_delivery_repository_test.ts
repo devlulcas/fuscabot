@@ -1,30 +1,35 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import type { AppDatabase } from "../src/db/client.ts";
 import { DeliveryConflictError } from "../src/domain/durable_delivery.ts";
-import {
-  AUTHORIZE_TARGET_SQL,
-  CREATE_PENDING_SQL,
-  PostgresDurableDeliveryRepository,
-} from "../src/repositories/durable_delivery_repository.ts";
-import {
-  MARK_MISSING_SQL,
-  UPDATE_CHANNEL_SQL,
-  UPSERT_CHANNEL_SQL,
-} from "../src/repositories/discord_setup_repository.ts";
-Deno.test("channel SQL preserves routing fields while marking missing unavailable", () => {
-  assertStringIncludes(UPSERT_CHANNEL_SQL, "ON CONFLICT");
-  assertEquals(UPSERT_CHANNEL_SQL.includes("routing_description="), false);
-  assertStringIncludes(MARK_MISSING_SQL, "availability='unavailable'");
-  assertStringIncludes(UPDATE_CHANNEL_SQL, "availability='available'");
+import { PostgresDurableDeliveryRepository } from "../src/repositories/durable_delivery_repository.ts";
+
+const setupSource = await Deno.readTextFile(
+  new URL("../src/repositories/discord_setup_repository.ts", import.meta.url),
+);
+const deliverySource = await Deno.readTextFile(
+  new URL("../src/repositories/durable_delivery_repository.ts", import.meta.url),
+);
+
+Deno.test("channel and delivery repositories are Drizzle-first and workspace-scoped", () => {
+  for (const source of [setupSource, deliverySource]) {
+    assertEquals(source.includes(".query("), false);
+    assertEquals(source.includes("queryObject"), false);
+    assertEquals(source.includes("sql.raw"), false);
+    assertStringIncludes(source, "workspaceId");
+  }
+  assertStringIncludes(deliverySource, "eq(resources.workspaceId, workspaceId)");
+  assertStringIncludes(deliverySource, "eq(channels.isActiveForRouting, true)");
+  assertStringIncludes(deliverySource, 'kind === "read_later"');
+  assertStringIncludes(setupSource, ".onConflictDoUpdate(");
 });
-Deno.test("delivery target SQL scopes resource/channel/workspace and Read Later", () => {
-  assertStringIncludes(AUTHORIZE_TARGET_SQL, "r.workspace_id=$1::uuid");
-  assertStringIncludes(AUTHORIZE_TARGET_SQL, "c.is_active_for_routing");
-  assertStringIncludes(AUTHORIZE_TARGET_SQL, "c.is_read_later");
-});
+
 Deno.test("pending unique violations map to a domain conflict", async () => {
-  const repository = new PostgresDurableDeliveryRepository({
-    queryObject: () => Promise.reject({ code: "23505" }),
-  });
+  const database = {
+    insert: () => ({
+      values: () => ({ returning: () => Promise.reject({ code: "23505" }) }),
+    }),
+  } as unknown as AppDatabase;
+  const repository = new PostgresDurableDeliveryRepository(database);
   await assertRejects(
     () =>
       repository.createPending("resource", "channel", "share", {
@@ -40,5 +45,4 @@ Deno.test("pending unique violations map to a domain conflict", async () => {
       }),
     DeliveryConflictError,
   );
-  assertStringIncludes(CREATE_PENDING_SQL, "message_snapshot");
 });

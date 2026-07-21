@@ -1,212 +1,167 @@
-import type { Resource, ResourcePatch } from "../domain/resource.ts";
 import type { BulkResourceAction } from "@fuscabot/contracts";
-import type { DatabasePool } from "../db/client.ts";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQLWrapper,
+} from "drizzle-orm";
+import type { AppDatabase } from "../db/client.ts";
+import { deliveries, resources, resourceTags, tagAliases, tagLabels, tags } from "../db/schema.ts";
+import type { Resource, ResourcePatch } from "../domain/resource.ts";
 import type { ResourceQuery, ResourceRepository } from "./resource_repository.ts";
 
-type ResourceRow = {
-  id: string;
-  workspace_id: string;
-  original_url: string;
-  normalized_url: string;
-  canonical_url: string | null;
-  canonical_url_key: string;
-  source_domain: string;
-  source_language: string;
-  output_language: "pt-BR" | "en";
-  title: string;
-  description: string | null;
-  site_name: string | null;
-  author: string | null;
-  published_at_source: Date | string | null;
-  image_url: string | null;
-  selected_quote: string | null;
-  summary: string | null;
-  why_useful: string | null;
-  personal_note: string | null;
-  enrichment_status: "preparing" | "ready" | "failed";
-  enrichment_error: string | null;
-  archived_at: Date | string | null;
-  tags: Resource["tags"] | null;
-  created_at: Date | string;
-  updated_at: Date | string;
-};
-
-const selectResource = `SELECT r.*,
-  COALESCE((
-    SELECT jsonb_agg(jsonb_build_object(
-      'slug', t.slug,
-      'labels', COALESCE((SELECT jsonb_agg(jsonb_build_object('language', tl.language, 'name', tl.name) ORDER BY tl.language) FROM tag_labels tl WHERE tl.tag_id = t.id), '[]'::jsonb),
-      'aliases', COALESCE((SELECT jsonb_agg(ta.alias_normalized ORDER BY ta.alias_normalized) FROM tag_aliases ta WHERE ta.tag_id = t.id), '[]'::jsonb),
-      'source', rt.source
-    ) ORDER BY t.slug)
-    FROM resource_tags rt JOIN tags t ON t.id = rt.tag_id WHERE rt.resource_id = r.id
-  ), '[]'::jsonb) AS tags
-FROM resources r`;
-
 export class PostgresResourceRepository implements ResourceRepository {
-  constructor(private database: DatabasePool) {}
+  constructor(private readonly db: AppDatabase) {}
 
   async findById(workspaceId: string, id: string): Promise<Resource | null> {
-    const result = await this.database.query<ResourceRow>(
-      `${selectResource} WHERE r.workspace_id = $1 AND r.id = $2`,
-      [workspaceId, id],
+    const rows = await this.load(
+      and(eq(resources.workspaceId, workspaceId), eq(resources.id, id)),
+      1,
     );
-    return result.rows[0] ? mapResource(result.rows[0]) : null;
+    return rows[0] ?? null;
   }
 
   async findByCanonicalKey(workspaceId: string, key: string): Promise<Resource | null> {
-    const result = await this.database.query<ResourceRow>(
-      `${selectResource} WHERE r.workspace_id = $1 AND r.canonical_url_key = $2`,
-      [workspaceId, key],
+    const rows = await this.load(
+      and(
+        eq(resources.workspaceId, workspaceId),
+        eq(resources.canonicalUrlKey, key),
+      ),
+      1,
     );
-    return result.rows[0] ? mapResource(result.rows[0]) : null;
+    return rows[0] ?? null;
   }
 
   async create(resource: Resource): Promise<Resource> {
-    await this.database.query(
-      `INSERT INTO resources (
-        id, workspace_id, original_url, normalized_url, canonical_url, canonical_url_key,
-        source_domain, source_language, output_language, title, description, site_name, author,
-        published_at_source, image_url, selected_quote, summary, why_useful, personal_note,
-        enrichment_status, enrichment_error, archived_at, created_at, updated_at
-      ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
-      ) ON CONFLICT (workspace_id, canonical_url_key)
-        DO UPDATE SET updated_at = resources.updated_at`,
-      [
-        resource.id,
-        resource.workspaceId,
-        resource.originalUrl,
-        resource.normalizedUrl,
-        resource.canonicalUrl,
-        resource.canonicalUrlKey,
-        resource.sourceDomain,
-        resource.sourceLanguage,
-        resource.outputLanguage,
-        resource.title,
-        resource.description,
-        resource.siteName,
-        resource.author,
-        resource.publishedAtSource,
-        resource.imageUrl,
-        resource.selectedQuote,
-        resource.summary,
-        resource.whyUseful,
-        resource.personalNote,
-        resource.enrichmentStatus,
-        resource.enrichmentError,
-        resource.archivedAt,
-        resource.createdAt,
-        resource.updatedAt,
-      ],
-    );
+    await this.db.insert(resources).values(toInsert(resource)).onConflictDoNothing({
+      target: [resources.workspaceId, resources.canonicalUrlKey],
+    });
     const persisted = await this.findByCanonicalKey(resource.workspaceId, resource.canonicalUrlKey);
     if (!persisted) throw new Error("Created resource could not be loaded");
     return persisted;
   }
 
   async list(workspaceId: string, query: ResourceQuery): Promise<Resource[]> {
-    const values: unknown[] = [workspaceId];
-    const predicates = ["r.workspace_id = $1"];
+    const predicates = [eq(resources.workspaceId, workspaceId)];
     if (query.archived !== undefined) {
-      values.push(query.archived);
-      predicates.push(`(r.archived_at IS NOT NULL) = $${values.length}`);
+      predicates.push(
+        query.archived ? isNotNull(resources.archivedAt) : isNull(resources.archivedAt),
+      );
     }
-    if (query.domain) {
-      values.push(query.domain);
-      predicates.push(`r.source_domain = $${values.length}`);
-    }
+    if (query.domain) predicates.push(eq(resources.sourceDomain, query.domain));
     if (query.enrichmentStatus) {
-      values.push(query.enrichmentStatus);
-      predicates.push(`r.enrichment_status = $${values.length}`);
+      predicates.push(eq(resources.enrichmentStatus, query.enrichmentStatus));
     }
     if (query.tag) {
-      values.push(query.tag);
-      const parameter = `$${values.length}`;
-      predicates.push(
-        `EXISTS (SELECT 1 FROM resource_tags frt JOIN tags ft ON ft.id=frt.tag_id LEFT JOIN tag_labels ftl ON ftl.tag_id=ft.id LEFT JOIN tag_aliases fta ON fta.tag_id=ft.id WHERE frt.resource_id=r.id AND (ft.slug=${parameter} OR ftl.name=${parameter} OR fta.alias_normalized=${parameter}))`,
-      );
-    }
-    if (query.state === "archived") predicates.push("r.archived_at IS NOT NULL");
-    if (query.state === "inbox") {
-      predicates.push(
-        "r.archived_at IS NULL AND NOT EXISTS (SELECT 1 FROM deliveries sd WHERE sd.resource_id=r.id AND sd.status='sent')",
-      );
-    }
-    if (query.state === "shared" || query.state === "read_later") {
-      values.push(query.state === "shared" ? "share" : "read_later");
-      predicates.push(
-        `EXISTS (SELECT 1 FROM deliveries sd WHERE sd.resource_id=r.id AND sd.status='sent' AND sd.delivery_kind=$${values.length})`,
-      );
-    }
-    if (query.search?.trim()) {
-      values.push(query.search.trim(), `%${escapeLike(query.search.trim())}%`);
-      const fullText = `$${values.length - 1}`;
-      const parameter = `$${values.length}`;
-      predicates.push(`(
-        r.search_document @@ websearch_to_tsquery('simple', ${fullText}) OR
-        r.title ILIKE ${parameter} ESCAPE '\\' OR r.original_url ILIKE ${parameter} ESCAPE '\\' OR
-        r.source_domain ILIKE ${parameter} ESCAPE '\\' OR r.summary ILIKE ${parameter} ESCAPE '\\' OR
-        r.why_useful ILIKE ${parameter} ESCAPE '\\' OR r.personal_note ILIKE ${parameter} ESCAPE '\\' OR
-        r.selected_quote ILIKE ${parameter} ESCAPE '\\' OR EXISTS (
-          SELECT 1 FROM resource_tags srt JOIN tags st ON st.id = srt.tag_id
-          LEFT JOIN tag_labels stl ON stl.tag_id = st.id LEFT JOIN tag_aliases sta ON sta.tag_id = st.id
-          WHERE srt.resource_id = r.id AND (st.slug ILIKE ${parameter} ESCAPE '\\' OR stl.name ILIKE ${parameter} ESCAPE '\\' OR sta.alias_normalized ILIKE ${parameter} ESCAPE '\\')
-        )
+      predicates.push(sql<boolean>`exists (
+        select 1 from ${resourceTags} frt
+        join ${tags} ft on ft.id = frt.tag_id
+        left join ${tagLabels} ftl on ftl.tag_id = ft.id
+        left join ${tagAliases} fta on fta.tag_id = ft.id
+        where frt.resource_id = ${resources.id}
+          and (ft.slug = ${query.tag} or ftl.name = ${query.tag} or fta.alias_normalized = ${query.tag})
       )`);
     }
-    values.push(query.limit, query.offset);
-    const result = await this.database.query<ResourceRow>(
-      `${selectResource} WHERE ${predicates.join(" AND ")} ORDER BY ${sortSql(query.sort)} LIMIT $${
-        values.length - 1
-      } OFFSET $${values.length}`,
-      values,
-    );
-    return result.rows.map(mapResource);
+    if (query.state === "archived") predicates.push(isNotNull(resources.archivedAt));
+    if (query.state === "inbox") {
+      predicates.push(isNull(resources.archivedAt));
+      predicates.push(sql<boolean>`not exists (
+        select 1 from ${deliveries} sd
+        where sd.resource_id = ${resources.id} and sd.status = 'sent'
+      )`);
+    }
+    if (query.state === "shared" || query.state === "read_later") {
+      const kind = query.state === "shared" ? "share" : "read_later";
+      predicates.push(sql<boolean>`exists (
+        select 1 from ${deliveries} sd
+        where sd.resource_id = ${resources.id} and sd.status = 'sent'
+          and sd.delivery_kind = ${kind}
+      )`);
+    }
+    const term = query.search?.trim();
+    if (term) {
+      const pattern = `%${escapeLike(term)}%`;
+      predicates.push(
+        or(
+          sql<boolean>`${sql.identifier("resources")}.${sql.identifier("search_document")}
+            @@ websearch_to_tsquery('simple', ${term})`,
+          like(resources.title, pattern),
+          like(resources.originalUrl, pattern),
+          like(resources.sourceDomain, pattern),
+          like(resources.summary, pattern),
+          like(resources.whyUseful, pattern),
+          like(resources.personalNote, pattern),
+          like(resources.selectedQuote, pattern),
+          sql<boolean>`exists (
+          select 1 from ${resourceTags} srt
+          join ${tags} st on st.id = srt.tag_id
+          left join ${tagLabels} stl on stl.tag_id = st.id
+          left join ${tagAliases} sta on sta.tag_id = st.id
+          where srt.resource_id = ${resources.id}
+            and (st.slug ilike ${pattern} escape '\\'
+              or stl.name ilike ${pattern} escape '\\'
+              or sta.alias_normalized ilike ${pattern} escape '\\')
+        )`,
+        )!,
+      );
+    }
+    const order = query.sort === "oldest"
+      ? asc(resources.createdAt)
+      : query.sort === "updated"
+      ? desc(resources.updatedAt)
+      : desc(resources.createdAt);
+    const rows = await this.db.select().from(resources).where(and(...predicates)).orderBy(order)
+      .limit(query.limit).offset(query.offset);
+    return await this.hydrate(rows);
   }
 
   async update(workspaceId: string, id: string, patch: ResourcePatch): Promise<Resource | null> {
-    const assignments: string[] = [];
-    const values: unknown[] = [workspaceId, id];
-    const set = (column: string, value: unknown) => {
-      values.push(value);
-      assignments.push(`${column} = $${values.length}`);
-    };
-    if (patch.title !== undefined) set("title", patch.title);
-    if (patch.summary !== undefined) set("summary", patch.summary);
-    if (patch.whyUseful !== undefined) set("why_useful", patch.whyUseful);
-    if (patch.personalNote !== undefined) set("personal_note", patch.personalNote);
-    if (patch.selectedQuote !== undefined) set("selected_quote", patch.selectedQuote);
-    if (patch.outputLanguage !== undefined) set("output_language", patch.outputLanguage);
-    if (patch.archived !== undefined) set("archived_at", patch.archived ? new Date() : null);
-    let exists = true;
-    if (assignments.length) {
-      assignments.push("updated_at = now()");
-      const result = await this.database.query(
-        `UPDATE resources SET ${assignments.join(", ")} WHERE workspace_id = $1 AND id = $2`,
-        values,
-      );
-      exists = Boolean(result.rowCount);
-    } else {
-      exists = Boolean(await this.findById(workspaceId, id));
-    }
-    if (!exists) return null;
-    if (patch.tagSlugs) {
-      await this.database.query("DELETE FROM resource_tags WHERE resource_id=$1::uuid", [id]);
-      await this.database.query(
-        `INSERT INTO resource_tags(resource_id,tag_id,source) SELECT $1::uuid,id,'user' FROM tags WHERE workspace_id=$2::uuid AND slug=ANY($3::text[]) ON CONFLICT DO NOTHING`,
-        [id, workspaceId, patch.tagSlugs],
-      );
-    }
-    return this.findById(workspaceId, id);
+    const exists = await this.db.transaction(async (tx) => {
+      const [owned] = await tx.select({ id: resources.id }).from(resources).where(and(
+        eq(resources.workspaceId, workspaceId),
+        eq(resources.id, id),
+      )).for("update").limit(1);
+      if (!owned) return false;
+      const update = toPatch(patch);
+      if (Object.keys(update).length) {
+        await tx.update(resources).set({ ...update, updatedAt: new Date() }).where(and(
+          eq(resources.workspaceId, workspaceId),
+          eq(resources.id, id),
+        ));
+      }
+      if (patch.tagSlugs) {
+        await tx.delete(resourceTags).where(eq(resourceTags.resourceId, id));
+        if (patch.tagSlugs.length) {
+          const selected = await tx.select({ id: tags.id }).from(tags).where(and(
+            eq(tags.workspaceId, workspaceId),
+            inArray(tags.slug, patch.tagSlugs),
+          ));
+          if (selected.length) {
+            await tx.insert(resourceTags).values(selected.map((tag) => ({
+              resourceId: id,
+              tagId: tag.id,
+              source: "user",
+            }))).onConflictDoNothing();
+          }
+        }
+      }
+      return true;
+    });
+    return exists ? await this.findById(workspaceId, id) : null;
   }
 
   async delete(workspaceId: string, id: string): Promise<boolean> {
-    const result = await this.database.query(
-      "DELETE FROM resources WHERE workspace_id = $1 AND id = $2",
-      [workspaceId, id],
-    );
-    return Boolean(result.rowCount);
+    const rows = await this.db.delete(resources).where(and(
+      eq(resources.workspaceId, workspaceId),
+      eq(resources.id, id),
+    )).returning({ id: resources.id });
+    return rows.length === 1;
   }
 
   async bulkAction(
@@ -214,79 +169,136 @@ export class PostgresResourceRepository implements ResourceRepository {
     ids: string[],
     action: BulkResourceAction["action"],
   ): Promise<string[] | null> {
-    const client = await this.database.connect();
-    try {
-      await client.query("BEGIN");
-      const owned = await client.query<{ id: string }>(
-        "SELECT id FROM resources WHERE workspace_id = $1 AND id = ANY($2::uuid[]) FOR UPDATE",
-        [workspaceId, ids],
-      );
-      if (owned.rows.length !== ids.length) {
-        await client.query("ROLLBACK");
-        return null;
-      }
+    return await this.db.transaction(async (tx) => {
+      const owned = await tx.select({ id: resources.id }).from(resources).where(and(
+        eq(resources.workspaceId, workspaceId),
+        inArray(resources.id, ids),
+      )).for("update");
+      if (owned.length !== ids.length) return null;
       if (action === "delete") {
-        await client.query(
-          "DELETE FROM resources WHERE workspace_id = $1 AND id = ANY($2::uuid[])",
-          [workspaceId, ids],
-        );
+        await tx.delete(resources).where(and(
+          eq(resources.workspaceId, workspaceId),
+          inArray(resources.id, ids),
+        ));
       } else {
-        await client.query(
-          `UPDATE resources SET archived_at = ${
-            action === "archive" ? "now()" : "NULL"
-          }, updated_at = now() WHERE workspace_id = $1 AND id = ANY($2::uuid[])`,
-          [workspaceId, ids],
-        );
+        await tx.update(resources).set({
+          archivedAt: action === "archive" ? new Date() : null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(resources.workspaceId, workspaceId),
+          inArray(resources.id, ids),
+        ));
       }
-      await client.query("COMMIT");
       return [...ids];
-    } catch (cause) {
-      await client.query("ROLLBACK");
-      throw cause;
-    } finally {
-      client.release();
-    }
+    });
+  }
+
+  private async load(predicate: ReturnType<typeof and>, limit: number): Promise<Resource[]> {
+    return await this.hydrate(await this.db.select().from(resources).where(predicate).limit(limit));
+  }
+
+  private async hydrate(rows: Array<typeof resources.$inferSelect>): Promise<Resource[]> {
+    if (!rows.length) return [];
+    const ids = rows.map((row) => row.id);
+    const links = await this.db.select({
+      resourceId: resourceTags.resourceId,
+      tagId: tags.id,
+      slug: tags.slug,
+      source: resourceTags.source,
+    }).from(resourceTags).innerJoin(tags, eq(tags.id, resourceTags.tagId))
+      .where(inArray(resourceTags.resourceId, ids));
+    const tagIds = [...new Set(links.map((link) => link.tagId))];
+    const [labels, aliases] = tagIds.length
+      ? await Promise.all([
+        this.db.select().from(tagLabels).where(inArray(tagLabels.tagId, tagIds)),
+        this.db.select().from(tagAliases).where(inArray(tagAliases.tagId, tagIds)),
+      ])
+      : [[], []];
+    return rows.map((row) =>
+      mapResource(
+        row,
+        links.filter((link) => link.resourceId === row.id).map(
+          (link) => ({
+            slug: link.slug,
+            labels: labels.filter((label) => label.tagId === link.tagId).map((label) => ({
+              language: label.language as "en" | "pt-BR",
+              name: label.name,
+            })),
+            aliases: aliases.filter((alias) => alias.tagId === link.tagId).map((alias) =>
+              alias.aliasNormalized
+            ),
+            source: link.source as "ai" | "user",
+          }),
+        ),
+      )
+    );
   }
 }
 
-function sortSql(sort: ResourceQuery["sort"]): string {
-  if (sort === "oldest") return "r.created_at ASC";
-  if (sort === "updated") return "r.updated_at DESC";
-  return "r.created_at DESC";
+function like(column: SQLWrapper, pattern: string) {
+  return sql<boolean>`${column} ilike ${pattern} escape '\\'`;
 }
 
-function mapResource(row: ResourceRow): Resource {
+function toInsert(resource: Resource): typeof resources.$inferInsert {
   return {
-    id: row.id,
-    workspaceId: row.workspace_id,
-    originalUrl: row.original_url,
-    normalizedUrl: row.normalized_url,
-    canonicalUrl: row.canonical_url,
-    canonicalUrlKey: row.canonical_url_key,
-    sourceDomain: row.source_domain,
-    sourceLanguage: row.source_language,
-    outputLanguage: row.output_language,
-    title: row.title,
-    description: row.description,
-    siteName: row.site_name,
-    author: row.author,
-    publishedAtSource: iso(row.published_at_source),
-    imageUrl: row.image_url,
-    selectedQuote: row.selected_quote,
-    summary: row.summary,
-    whyUseful: row.why_useful,
-    personalNote: row.personal_note,
-    enrichmentStatus: row.enrichment_status,
-    enrichmentError: row.enrichment_error,
-    archivedAt: iso(row.archived_at),
-    tags: row.tags ?? [],
-    createdAt: iso(row.created_at)!,
-    updatedAt: iso(row.updated_at)!,
+    id: resource.id,
+    workspaceId: resource.workspaceId,
+    originalUrl: resource.originalUrl,
+    normalizedUrl: resource.normalizedUrl,
+    canonicalUrl: resource.canonicalUrl,
+    canonicalUrlKey: resource.canonicalUrlKey,
+    sourceDomain: resource.sourceDomain,
+    sourceLanguage: resource.sourceLanguage,
+    outputLanguage: resource.outputLanguage,
+    title: resource.title,
+    description: resource.description,
+    siteName: resource.siteName,
+    author: resource.author,
+    publishedAtSource: date(resource.publishedAtSource),
+    imageUrl: resource.imageUrl,
+    selectedQuote: resource.selectedQuote,
+    summary: resource.summary,
+    whyUseful: resource.whyUseful,
+    personalNote: resource.personalNote,
+    enrichmentStatus: resource.enrichmentStatus,
+    enrichmentError: resource.enrichmentError,
+    archivedAt: date(resource.archivedAt),
+    createdAt: new Date(resource.createdAt),
+    updatedAt: new Date(resource.updatedAt),
   };
 }
 
-function iso(value: Date | string | null): string | null {
-  return value === null ? null : new Date(value).toISOString();
+function toPatch(patch: ResourcePatch): Partial<typeof resources.$inferInsert> {
+  return {
+    ...(patch.title === undefined ? {} : { title: patch.title }),
+    ...(patch.summary === undefined ? {} : { summary: patch.summary }),
+    ...(patch.whyUseful === undefined ? {} : { whyUseful: patch.whyUseful }),
+    ...(patch.personalNote === undefined ? {} : { personalNote: patch.personalNote }),
+    ...(patch.selectedQuote === undefined ? {} : { selectedQuote: patch.selectedQuote }),
+    ...(patch.outputLanguage === undefined ? {} : { outputLanguage: patch.outputLanguage }),
+    ...(patch.archived === undefined ? {} : { archivedAt: patch.archived ? new Date() : null }),
+  };
+}
+
+function mapResource(row: typeof resources.$inferSelect, resourceTags: Resource["tags"]): Resource {
+  return {
+    ...row,
+    outputLanguage: row.outputLanguage as "pt-BR" | "en",
+    enrichmentStatus: row.enrichmentStatus as "preparing" | "ready" | "failed",
+    publishedAtSource: iso(row.publishedAtSource),
+    archivedAt: iso(row.archivedAt),
+    tags: resourceTags,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function date(value: string | null): Date | null {
+  return value === null ? null : new Date(value);
+}
+
+function iso(value: Date | null): string | null {
+  return value?.toISOString() ?? null;
 }
 
 function escapeLike(value: string): string {
