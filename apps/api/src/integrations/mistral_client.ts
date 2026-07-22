@@ -2,6 +2,7 @@ import { chat, StandardSchemaValidationError } from "@tanstack/ai";
 import { createMistralText, type MistralChatModels } from "@tanstack/ai-mistral";
 import { type EnrichmentDraft, EnrichmentDraftSchema } from "@fuscabot/contracts";
 import { ENRICHMENT_PROMPT_VERSION, type EnrichmentInput } from "../domain/enrichment.ts";
+import { logWarn } from "../observability/log.ts";
 
 type EnrichmentGenerator = (input: EnrichmentInput) => Promise<EnrichmentDraft>;
 
@@ -19,8 +20,9 @@ export class MistralClientError extends Error {
     readonly code: "timeout" | "rate_limited" | "authentication" | "upstream" | "malformed",
     readonly retryable: boolean,
     readonly status?: number,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = "MistralClientError";
   }
 }
@@ -59,6 +61,13 @@ export class MistralClient {
         const failure = classifyError(cause);
         if (!failure.retryable || attempt === 1) throw failure;
         firstFailure = failure;
+        logWarn("ai_request_retry", {
+          provider: "mistral",
+          attempt: attempt + 1,
+          code: failure.code,
+          status: failure.status,
+          delayMs: 250,
+        });
         await this.#sleep(250);
       }
     }
@@ -79,30 +88,55 @@ function classifyError(cause: unknown): MistralClientError {
       "Mistral response did not match the enrichment schema",
       "malformed",
       true,
+      undefined,
+      { cause },
     );
   }
-  const status = numericProperty(cause, "statusCode") ?? numericProperty(cause, "status");
+  const status = findStatus(cause);
   if (status === 401 || status === 403) {
-    return new MistralClientError("Mistral authentication failed", "authentication", false, status);
+    return new MistralClientError(
+      "Mistral authentication failed",
+      "authentication",
+      false,
+      status,
+      { cause },
+    );
   }
   if (status === 429) {
-    return new MistralClientError("Mistral rate limit reached", "rate_limited", true, status);
+    return new MistralClientError(
+      "Mistral rate limit reached",
+      "rate_limited",
+      true,
+      status,
+      { cause },
+    );
   }
   if (isTimeoutError(cause)) {
-    return new MistralClientError("Mistral request timed out", "timeout", true, status);
+    return new MistralClientError("Mistral request timed out", "timeout", true, status, { cause });
   }
   return new MistralClientError(
     "Mistral request failed",
     "upstream",
     status === undefined || status >= 500,
     status,
+    { cause },
   );
 }
 
 function numericProperty(value: unknown, name: string): number | undefined {
   if (typeof value !== "object" || value === null || !(name in value)) return undefined;
   const property = (value as Record<string, unknown>)[name];
-  return typeof property === "number" ? property : undefined;
+  if (typeof property === "number") return property;
+  if (typeof property === "string" && /^\d{3}$/.test(property)) return Number(property);
+  return undefined;
+}
+
+function findStatus(value: unknown, depth = 0): number | undefined {
+  if (depth > 3 || typeof value !== "object" || value === null) return undefined;
+  const direct = numericProperty(value, "statusCode") ?? numericProperty(value, "status");
+  if (direct !== undefined) return direct;
+  const record = value as Record<string, unknown>;
+  return findStatus(record.response, depth + 1) ?? findStatus(record.cause, depth + 1);
 }
 
 function isTimeoutError(cause: unknown): boolean {

@@ -6,6 +6,7 @@ import {
   type EnrichmentState,
 } from "../domain/enrichment.ts";
 import { MistralClientError } from "../integrations/mistral_client.ts";
+import { logError, logInfo } from "../observability/log.ts";
 
 export interface EnrichmentClient {
   enrich(input: EnrichmentState["input"]): Promise<EnrichmentDraft>;
@@ -54,18 +55,47 @@ export class EnrichmentService {
     // claim() is the durability boundary: no external request begins until the run exists.
     const claim = await this.store.claim(resourceId, input);
     if (!claim.claimed) return claim.state;
+    const startedAt = performance.now();
+    let draft: EnrichmentDraft;
     try {
-      const draft = await this.client.enrich(claim.state.input);
-      return await this.store.completeReady(resourceId, draft);
+      draft = await this.client.enrich(claim.state.input);
     } catch (error) {
       const failure = safeFailure(error);
-      console.warn(JSON.stringify({
-        event: "enrichment_failed",
+      logError("enrichment_failed", error, {
         resourceId,
+        attempt: claim.state.attempt,
+        durationMs: Math.round(performance.now() - startedAt),
         error: failure.message,
+        code: failure.code,
+        status: failure.status,
         retryable: failure.retryable,
-      }));
-      return await this.store.completeFailed(resourceId, failure.message, failure.retryable);
+      });
+      try {
+        return await this.store.completeFailed(resourceId, failure.message, failure.retryable);
+      } catch (cause) {
+        logError("enrichment_persistence_failed", cause, {
+          resourceId,
+          attempt: claim.state.attempt,
+          outcome: "failed",
+        });
+        throw cause;
+      }
+    }
+    try {
+      const state = await this.store.completeReady(resourceId, draft);
+      logInfo("enrichment_completed", {
+        resourceId,
+        attempt: claim.state.attempt,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
+      return state;
+    } catch (cause) {
+      logError("enrichment_persistence_failed", cause, {
+        resourceId,
+        attempt: claim.state.attempt,
+        outcome: "ready",
+      });
+      throw cause;
     }
   }
 
@@ -76,9 +106,19 @@ export class EnrichmentService {
   }
 }
 
-function safeFailure(error: unknown): { message: string; retryable: boolean } {
+function safeFailure(error: unknown): {
+  message: string;
+  retryable: boolean;
+  code?: string;
+  status?: number;
+} {
   if (error instanceof MistralClientError) {
-    return { message: error.message, retryable: error.retryable };
+    return {
+      message: error.message,
+      retryable: error.retryable,
+      code: error.code,
+      status: error.status,
+    };
   }
   return { message: "Enrichment failed unexpectedly", retryable: true };
 }

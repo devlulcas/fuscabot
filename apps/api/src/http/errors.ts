@@ -14,6 +14,7 @@ import { MalformedJsonError, PayloadTooLargeError } from "./json_body.ts";
 import { RateLimitExceededError } from "./rate_limit.ts";
 import { DiscordApiError } from "../integrations/discord_client.ts";
 import { MistralClientError } from "../integrations/mistral_client.ts";
+import { logError } from "../observability/log.ts";
 
 type ApiErrorCode = ApiError["error"]["code"];
 
@@ -95,9 +96,10 @@ export function handleError(c: Context, cause: unknown) {
   if (cause instanceof TagNotFoundError) {
     return error(c, 404, "NOT_FOUND", "Tag not found");
   }
-  console.error(JSON.stringify({
-    event: "request_error",
-    type: cause instanceof Error ? cause.name : "UnknownError",
-  }));
+  logError("request_error", cause, {
+    requestId: c.get("requestId"),
+    method: c.req.method,
+    path: c.req.path,
+  });
   return error(c, 500, "INTERNAL_ERROR", "An unexpected error occurred");
 }

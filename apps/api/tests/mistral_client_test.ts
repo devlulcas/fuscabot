@@ -87,6 +87,16 @@ Deno.test("authentication failures are not retried", async () => {
   ]);
 });
 
+Deno.test("provider status strings nested in a response are classified", async () => {
+  const client = new MistralClient({
+    apiKey: "secret",
+    generate: () => Promise.reject({ response: { status: "401" } }),
+    sleep: () => Promise.resolve(),
+  });
+  const error = await client.enrich(input).catch((error) => error);
+  assertEquals([error.code, error.retryable, error.status], ["authentication", false, 401]);
+});
+
 Deno.test("timeout failures retry once", async () => {
   let calls = 0;
   const client = new MistralClient({

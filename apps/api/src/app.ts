@@ -15,6 +15,7 @@ import {
 import { InMemoryResourceRepository } from "./repositories/resource_repository.ts";
 import type { AuthService, SessionClaims } from "./services/auth_service.ts";
 import { ResourceService } from "./services/resource_service.ts";
+import { logInfo } from "./observability/log.ts";
 
 export type ChannelRecord = {
   id: string;
@@ -122,14 +123,13 @@ export function createApp(
       response = handleError(c, cause);
     }
     secureResponse(response, requestId, c.req.path);
-    console.info(JSON.stringify({
-      event: "request_complete",
+    logInfo("request_complete", {
       requestId,
       method: c.req.method,
       path: c.req.path,
       status: response.status,
       durationMs: Math.round(performance.now() - startedAt),
-    }));
+    });
     if (allowed) {
       for (const [name, value] of corsHeaders(origin)) response.headers.set(name, value);
     }
