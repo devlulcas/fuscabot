@@ -17,3 +17,4 @@ export type DeliveryRecord = {
 export class DeliveryTargetNotAllowedError extends Error {}
 export class DeliveryConflictError extends Error {}
 export class DeliveryNotRetryableError extends Error {}
+export class EnrichmentPreparingError extends Error {}

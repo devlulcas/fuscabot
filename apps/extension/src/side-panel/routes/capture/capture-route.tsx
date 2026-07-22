@@ -21,6 +21,7 @@ import {
   tagsQuery,
 } from "../../data/queries.ts";
 import { queryKeys } from "../../data/query-keys.ts";
+import { canPublish } from "./capture-policy.ts";
 
 export function CaptureRoute() {
   const { captureId } = useParams();
@@ -48,7 +49,7 @@ function CaptureById({ captureId }: { captureId: string }) {
         <h1>
           {pending.data.state === "extracting"
             ? "Reading Page"
-            : "Writing Your Draft"}
+            : "Saving Capture"}
         </h1>
         <PageLoading label="This view updates automatically…" />
       </section>
@@ -86,11 +87,7 @@ function ManualCapture(
           sourceLanguage: null,
         },
       };
-      let resource = await api.createCapture(payload);
-      if (resource.enrichmentStatus === "preparing") {
-        await api.retryEnrichment(resource.id);
-        resource = await api.getResource(resource.id);
-      }
+      const resource = await api.createCapture(payload);
       await chrome.storage.local.set({
         [`pendingCapture:${captureId}`]: {
           captureId,
@@ -151,7 +148,7 @@ function ManualCapture(
           className={`${page.button} ${page.primary}`}
           disabled={mutation.isPending}
         >
-          {mutation.isPending ? "Preparing…" : "Capture & Prepare"}
+          {mutation.isPending ? "Saving…" : "Save Capture"}
         </button>
       </form>
       <UnsavedChanges when={dirty && !mutation.isPending} />
@@ -189,7 +186,12 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
   });
   const retry = useMutation({
     mutationFn: () => api.retryEnrichment(resourceId),
-    onSuccess: invalidate,
+    onSuccess: async (result) => {
+      await invalidate();
+      if (result.status === "ready") {
+        setNotice("AI fields updated. Review them before publishing.");
+      }
+    },
   });
   const publish = useMutation({
     mutationFn: (destination: string) => api.publish(resourceId, destination),
@@ -244,6 +246,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
     );
   }
   const item = resource.data;
+  const publishable = canPublish(item.enrichmentStatus);
   const dirty = dirtyStatus === item.enrichmentStatus;
   const suggestion = item.enrichment?.draft?.channelSuggestion;
   const selectedTags = [
@@ -292,7 +295,16 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
       {item.enrichmentStatus === "preparing"
         ? (
           <InlineNotice>
-            Preparing the AI draft… This view updates automatically.
+            <strong>Basic page details saved.</strong>{" "}
+            Auto-fill the summary, usefulness, tags, and destination when you’re
+            ready.{" "}
+            <button
+              type="button"
+              disabled={retry.isPending}
+              onClick={() => retry.mutate()}
+            >
+              {retry.isPending ? "Auto-filling…" : "Auto-fill with AI"}
+            </button>
           </InlineNotice>
         )
         : null}
@@ -306,7 +318,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
               disabled={retry.isPending}
               onClick={() => retry.mutate()}
             >
-              Retry
+              {retry.isPending ? "Retrying…" : "Retry AI auto-fill"}
             </button>
           </InlineNotice>
         )
@@ -385,11 +397,12 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
             ))}
           </select>
         </label>
-        {save.error || publish.error || readLater.error || archive.error ||
+        {save.error || retry.error || publish.error || readLater.error ||
+            archive.error ||
             remove.error
           ? (
             <InlineNotice error>
-              {(save.error ?? publish.error ?? readLater.error ??
+              {(save.error ?? retry.error ?? publish.error ?? readLater.error ??
                 archive.error ?? remove.error)?.message}
             </InlineNotice>
           )
@@ -407,7 +420,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           </button>
           <button
             type="button"
-            disabled={readLater.isPending}
+            disabled={!publishable || readLater.isPending}
             onClick={() => readLater.mutate()}
           >
             Read Later
@@ -415,7 +428,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           <button
             type="submit"
             className={page.primary}
-            disabled={!destination || publish.isPending}
+            disabled={!publishable || !destination || publish.isPending}
           >
             Publish
           </button>

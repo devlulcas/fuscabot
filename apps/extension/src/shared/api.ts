@@ -10,6 +10,7 @@ import { getConfig, saveConfig } from "./config.ts";
 import type {
   ApiResource,
   CapturePayload,
+  EnrichmentResult,
   UpdateResourcePayload,
 } from "./types.ts";
 
@@ -256,10 +257,11 @@ export const api = {
         },
       ),
     ),
-  retryEnrichment: (id: string): Promise<unknown> =>
-    apiRequest(`/v1/resources/${encodeURIComponent(id)}/enrichment/retry`, {
-      method: "POST",
-    }),
+  retryEnrichment: async (id: string): Promise<EnrichmentResult> =>
+    (await apiRequest<DataEnvelope<EnrichmentResult>>(
+      `/v1/resources/${encodeURIComponent(id)}/enrichment/retry`,
+      { method: "POST" },
+    )).data,
   session: async (signal?: AbortSignal): Promise<DiscordSession> =>
     (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session", {
       signal,

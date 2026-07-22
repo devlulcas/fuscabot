@@ -7,6 +7,7 @@ import type {
 } from "../app.ts";
 import { compactEnrichmentInput } from "../domain/enrichment.ts";
 import type { StoredChannel } from "../domain/discord_setup.ts";
+import { EnrichmentPreparingError } from "../domain/durable_delivery.ts";
 import type { DiscordClient } from "../integrations/discord_client.ts";
 import type { ResourceRepository } from "../repositories/resource_repository.ts";
 import type { DiscordSetupCoordinator } from "./discord_setup_coordinator.ts";
@@ -91,36 +92,13 @@ export class RuntimeEnrichmentCoordinator implements EnrichmentCoordinator {
   async prepare(ownerId: string, resourceId: string): Promise<void> {
     assertOwner(ownerId, this.ownerId);
     const resource = await this.requireResource(resourceId);
-    const channels = await this.setup.list(this.workspaceId);
-    await this.enrichment.prepare(
-      resourceId,
-      compactEnrichmentInput({
-        title: resource.title,
-        url: resource.originalUrl,
-        description: resource.description,
-        selectedQuote: resource.selectedQuote,
-        sourceLanguage: resource.sourceLanguage,
-        outputLanguage: resource.outputLanguage,
-        availableTags: resource.tags.map((tag) => ({
-          slug: tag.slug,
-          english: tag.labels.find((label) => label.language === "en")?.name ?? tag.slug,
-          portuguese: tag.labels.find((label) => label.language === "pt-BR")?.name ?? tag.slug,
-        })),
-        availableChannels: channels.filter((channel) =>
-          channel.availability === "available" && channel.isActiveForRouting
-        ).map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          routingDescription: channel.routingDescription,
-        })),
-      }),
-    );
+    await this.enrichment.prepare(resourceId, await this.inputFor(resource));
   }
 
   async retry(ownerId: string, resourceId: string): Promise<unknown> {
     assertOwner(ownerId, this.ownerId);
-    await this.requireResource(resourceId);
-    return this.enrichment.retry(resourceId);
+    const resource = await this.requireResource(resourceId);
+    return this.enrichment.prepare(resourceId, await this.inputFor(resource));
   }
 
   async get(ownerId: string, resourceId: string): Promise<unknown> {
@@ -133,6 +111,30 @@ export class RuntimeEnrichmentCoordinator implements EnrichmentCoordinator {
     const resource = await this.resources.findById(this.workspaceId, id);
     if (!resource) throw new Error("Resource not found");
     return resource;
+  }
+
+  private async inputFor(resource: Resource) {
+    const channels = await this.setup.list(this.workspaceId);
+    return compactEnrichmentInput({
+      title: resource.title,
+      url: resource.originalUrl,
+      description: resource.description,
+      selectedQuote: resource.selectedQuote,
+      sourceLanguage: resource.sourceLanguage,
+      outputLanguage: resource.outputLanguage,
+      availableTags: resource.tags.map((tag) => ({
+        slug: tag.slug,
+        english: tag.labels.find((label) => label.language === "en")?.name ?? tag.slug,
+        portuguese: tag.labels.find((label) => label.language === "pt-BR")?.name ?? tag.slug,
+      })),
+      availableChannels: channels.filter((channel) =>
+        channel.availability === "available" && channel.isActiveForRouting
+      ).map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        routingDescription: channel.routingDescription,
+      })),
+    });
   }
 }
 
@@ -153,6 +155,7 @@ export class RuntimeDeliveryCoordinator implements DeliveryCoordinator {
     assertOwner(ownerId, this.ownerId);
     const resource = await this.resources.findById(this.workspaceId, resourceId);
     if (!resource) throw new Error("Resource not found");
+    if (resource.enrichmentStatus === "preparing") throw new EnrichmentPreparingError();
     const channels = await this.setup.list(this.workspaceId);
     const channel = input.channelId
       ? channels.find((candidate) => candidate.id === input.channelId)

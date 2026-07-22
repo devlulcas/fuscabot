@@ -26,6 +26,10 @@ export type ApiResource = Resource & {
   >;
 };
 export type UpdateResourcePayload = ResourcePatch;
+export type EnrichmentResult = {
+  status: "preparing" | "ready" | "failed";
+  error?: string | null;
+};
 
 export function isCaptureKind(value: unknown): value is CaptureKind {
   return typeof value === "string" &&

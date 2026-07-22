@@ -67,13 +67,7 @@ export const resourceQuery = (id: string, enabled = true) =>
     queryKey: queryKeys.resource(id),
     queryFn: ({ signal }) => api.getResource(id, signal),
     enabled,
-    staleTime: (query) =>
-      query.state.data?.enrichmentStatus === "preparing" ? 0 : FIVE_MINUTES,
-    refetchInterval: (query) =>
-      capturePollInterval(
-        query.state.data?.enrichmentStatus,
-        query.state.fetchFailureCount,
-        query.state.dataUpdateCount,
-      ),
+    staleTime: FIVE_MINUTES,
+    refetchInterval: false,
     refetchIntervalInBackground: false,
   });

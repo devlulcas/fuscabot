@@ -7,6 +7,7 @@ import {
   DeliveryConflictError,
   DeliveryNotRetryableError,
   DeliveryTargetNotAllowedError,
+  EnrichmentPreparingError,
 } from "../domain/durable_delivery.ts";
 import { BulkResourceNotFoundError } from "../services/resource_service.ts";
 import { TagNotFoundError } from "../services/tag_coordinator.ts";
@@ -86,6 +87,9 @@ export function handleError(c: Context, cause: unknown) {
   }
   if (cause instanceof DeliveryConflictError || cause instanceof DeliveryNotRetryableError) {
     return error(c, 409, "CONFLICT", "Delivery is already active or cannot be retried");
+  }
+  if (cause instanceof EnrichmentPreparingError) {
+    return error(c, 409, "CONFLICT", "Run AI auto-fill or wait for enrichment before publishing");
   }
   if (cause instanceof DeliveryTargetNotAllowedError) {
     return error(c, 403, "FORBIDDEN", "Discord destination is not available");
