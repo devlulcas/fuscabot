@@ -39,6 +39,13 @@ type RequestOptions = {
 };
 
 let refreshInFlight: Promise<{ accessToken: string } | null> | undefined;
+let sessionInvalidated: (() => Promise<void> | void) | undefined;
+
+export function onSessionInvalidated(
+  handler: () => Promise<void> | void,
+): void {
+  sessionInvalidated = handler;
+}
 
 export async function apiRequest<T>(
   path: string,
@@ -124,6 +131,7 @@ async function refreshSession(
         refreshToken: undefined,
         sessionId: undefined,
       });
+      await sessionInvalidated?.();
       return null;
     }
   })();
@@ -137,6 +145,10 @@ async function refreshSession(
 
 type DeliveryResult = { discordUrl?: string };
 type DataEnvelope<T> = { data: T };
+export type ResourcePage = {
+  items: ApiResource[];
+  pageInfo: { limit: number; offset: number; hasMore: boolean };
+};
 export type DiscordSession = {
   discordUserId: string;
   guildIds: string[];
@@ -199,15 +211,19 @@ export const api = {
     domain?: string;
     enrichmentStatus?: "preparing" | "ready" | "failed";
     sort?: "newest" | "oldest" | "updated";
-  } = {}): Promise<ApiResource[]> {
+    limit?: number;
+    offset?: number;
+    signal?: AbortSignal;
+  } = {}): Promise<ResourcePage> {
     const params = new URLSearchParams({ search: query });
     for (const [key, value] of Object.entries(options)) {
+      if (key === "signal") continue;
       if (value !== undefined && value !== "") params.set(key, String(value));
     }
-    return parseResourceListEnvelope(
-      await apiRequest<unknown>(
-        `/v1/resources?${params}`,
-      ),
+    return parseResourcePageEnvelope(
+      await apiRequest<unknown>(`/v1/resources?${params}`, {
+        signal: options.signal,
+      }),
     );
   },
   deleteResource: (id: string): Promise<void> =>
@@ -244,10 +260,15 @@ export const api = {
     apiRequest(`/v1/resources/${encodeURIComponent(id)}/enrichment/retry`, {
       method: "POST",
     }),
-  session: async (): Promise<DiscordSession> =>
-    (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session")).data,
-  guilds: async (): Promise<DiscordGuild[]> =>
-    (await apiRequest<DataEnvelope<DiscordGuild[]>>("/v1/setup/discord/guilds"))
+  session: async (signal?: AbortSignal): Promise<DiscordSession> =>
+    (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session", {
+      signal,
+    })).data,
+  guilds: async (signal?: AbortSignal): Promise<DiscordGuild[]> =>
+    (await apiRequest<DataEnvelope<DiscordGuild[]>>(
+      "/v1/setup/discord/guilds",
+      { signal },
+    ))
       .data,
   syncChannels: async (guildId: string): Promise<DiscordChannel[]> =>
     (await apiRequest<DataEnvelope<DiscordChannel[]>>(
@@ -257,8 +278,10 @@ export const api = {
         body: { guildId },
       },
     )).data,
-  channels: async (): Promise<DiscordChannel[]> =>
-    (await apiRequest<DataEnvelope<DiscordChannel[]>>("/v1/channels")).data,
+  channels: async (signal?: AbortSignal): Promise<DiscordChannel[]> =>
+    (await apiRequest<DataEnvelope<DiscordChannel[]>>("/v1/channels", {
+      signal,
+    })).data,
   updateChannel: async (
     id: string,
     patch: {
@@ -282,9 +305,10 @@ export const api = {
         body: { guildId },
       },
     )).data,
-  tags: async (search = ""): Promise<CanonicalTag[]> =>
+  tags: async (search = "", signal?: AbortSignal): Promise<CanonicalTag[]> =>
     (await apiRequest<DataEnvelope<CanonicalTag[]>>(
       `/v1/tags?${new URLSearchParams({ search })}`,
+      { signal },
     )).data,
   createTag: async (input: {
     slug: string;
@@ -344,6 +368,19 @@ export function parseResourceListEnvelope(value: unknown): ApiResource[] {
   const data = envelopeData(value);
   if (!Array.isArray(data)) throw new ContractResponseError();
   return data.map((resource) => parseResourceEnvelope({ data: resource }));
+}
+
+export function parseResourcePageEnvelope(value: unknown): ResourcePage {
+  const items = parseResourceListEnvelope(value);
+  if (!isRecord(value) || !isRecord(value.meta)) {
+    throw new ContractResponseError();
+  }
+  const { limit, offset, hasMore } = value.meta;
+  if (
+    typeof limit !== "number" || typeof offset !== "number" ||
+    typeof hasMore !== "boolean"
+  ) throw new ContractResponseError();
+  return { items, pageInfo: { limit, offset, hasMore } };
 }
 
 export function parseBulkResourceResult(value: unknown): {

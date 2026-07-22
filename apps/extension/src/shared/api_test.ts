@@ -5,6 +5,7 @@ import {
   parseDeliveryResult,
   parseResourceEnvelope,
   parseResourceListEnvelope,
+  parseResourcePageEnvelope,
 } from "./api.ts";
 
 const resource = {
@@ -42,6 +43,13 @@ Deno.test("resource response parsing validates envelopes and preserves channels"
     [{ id: "channel-1", name: "links" }],
   );
   assertEquals(parseResourceListEnvelope({ data: [resource] }).length, 1);
+  assertEquals(
+    parseResourcePageEnvelope({
+      data: [resource],
+      meta: { limit: 25, offset: 0, hasMore: false },
+    }).pageInfo.hasMore,
+    false,
+  );
   assertThrows(
     () =>
       parseResourceEnvelope({

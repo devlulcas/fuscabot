@@ -1,13 +1,13 @@
 # Fuscabot Chrome extension
 
-Manifest V3 side-panel client built with browser APIs, plain TypeScript, HTML,
-and CSS. The context-menu flow persists a capture through the API before relying
-on the review UI; if extraction or persistence fails, the panel retains an
-editable manual fallback.
+Manifest V3 side-panel client built with Vite, React, React Router DOM, TanStack
+Query, TypeScript, and CSS Modules. The context-menu flow persists a capture
+through the API before relying on the review UI; if extraction or persistence
+fails, the panel retains an editable manual fallback.
 
 ## Develop
 
-Requires Deno 2.x.
+Requires Deno 2.x and Node.js 22+ for Vitest's worker runtime.
 
 ```sh
 deno task check
@@ -24,17 +24,17 @@ session/UI data is stored locally; Discord and Mistral credentials belong on the
 backend.
 
 The Chrome icon set is generated from `assets/icon-source.png` at 16, 32, 48,
-and 128 pixels and copied into the unpacked build by `scripts/build.ts`.
+and 128 pixels and copied into the unpacked build by Vite's public-directory
+pipeline.
 
 ## Structure
 
 - `src/service-worker.ts`: context menus, explicit metadata extraction, durable
   capture request, side-panel coordination.
-- `src/side-panel`: hash router and Capture, Library, and Settings views.
+- `src/side-panel`: React hash router, persisted Query cache, platform adapters,
+  CSS Modules, and Capture, Library, Channels, Tags, and Settings routes.
 - `src/shared`: API, configuration, storage-facing types, and pure helpers.
-- `scripts/build.ts`: dependency-free Deno builder. Source TypeScript
-  deliberately uses browser-compatible syntax; the builder copies it as
-  JavaScript and rewrites local import extensions.
+- `vite.config.ts`: multi-entry side-panel and service-worker production build.
 
 The API routes follow the implementation plan's `/v1` resource shape. The
 extension rotates expired application sessions automatically, polls enrichment,

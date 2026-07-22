@@ -286,9 +286,14 @@ export function createApp(
       limit: z.coerce.number().int().min(1).max(100).default(25),
       offset: z.coerce.number().int().min(0).default(0),
     }).parse(c.req.query());
+    const rows = await deps.resources.list({ ...query, limit: query.limit + 1 });
     return c.json({
-      data: await deps.resources.list(query),
-      meta: { limit: query.limit, offset: query.offset },
+      data: rows.slice(0, query.limit),
+      meta: {
+        limit: query.limit,
+        offset: query.offset,
+        hasMore: rows.length > query.limit,
+      },
     });
   });
   app.post("/v1/resources/bulk-actions", async (c) => {

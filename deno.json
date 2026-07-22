@@ -4,6 +4,7 @@
     "./apps/extension",
     "./packages/contracts"
   ],
+  "nodeModulesDir": "auto",
   "deploy": {
     "org": "devlulcas",
     "app": "fuscabot",

@@ -68,6 +68,26 @@ Deno.test("capture persists and responds without waiting for enrichment", async 
   assertEquals(prepared, false);
   assertEquals(body.data.enrichmentStatus, "preparing");
 });
+Deno.test("resource pages expose reliable hasMore metadata", async () => {
+  const instance = app();
+  for (let index = 1; index <= 3; index++) {
+    await instance.request("/v1/resources/captures", {
+      method: "POST",
+      body: JSON.stringify({
+        ...capture,
+        captureId: `019432f0-7c00-7000-8000-${String(index).padStart(12, "0")}`,
+        url: `https://example.com/${index}`,
+      }),
+      headers: { "content-type": "application/json" },
+    });
+  }
+  const first = await (await instance.request("/v1/resources?limit=2&offset=0")).json();
+  assertEquals(first.data.length, 2);
+  assertEquals(first.meta, { limit: 2, offset: 0, hasMore: true });
+  const second = await (await instance.request("/v1/resources?limit=2&offset=2")).json();
+  assertEquals(second.data.length, 1);
+  assertEquals(second.meta.hasMore, false);
+});
 Deno.test("CRUD and validation error envelope", async () => {
   const instance = app();
   await instance.request("/v1/resources/captures", {

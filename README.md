@@ -11,6 +11,7 @@ in [TASKS.md](./TASKS.md).
 ## Requirements
 
 - Deno 2.4.2 or newer (2.9.x is used during initial development)
+- Node.js 22 or newer for the Vitest worker runtime invoked by Deno tasks
 - PostgreSQL for persistent API development
 - Chrome or Chromium for loading the unpacked extension
 
@@ -29,7 +30,7 @@ place Discord, Mistral, OAuth, or session secrets in the extension.
 
 ```text
 apps/api          Deno + Hono HTTP API and Drizzle schema
-apps/extension    Plain TypeScript Manifest V3 extension
+apps/extension    Vite + React Manifest V3 extension
 packages/contracts Shared boundary schemas and pure domain rules
 ```
 

@@ -11,6 +11,13 @@ declare namespace chrome {
           sendResponse: (value: unknown) => void,
         ) => boolean | void,
       ): void;
+      removeListener(
+        callback: (
+          message: Record<string, unknown>,
+          sender: unknown,
+          sendResponse: (value: unknown) => void,
+        ) => boolean | void,
+      ): void;
     };
     function sendMessage(message: unknown): Promise<unknown>;
   }

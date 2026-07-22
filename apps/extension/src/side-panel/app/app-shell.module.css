@@ -1,0 +1,71 @@
+.skipLink {
+  position: fixed;
+  left: 8px;
+  top: -50px;
+  z-index: 10;
+  padding: 7px;
+  color: var(--ink);
+  background: var(--panel);
+}
+.skipLink:focus {
+  top: 8px;
+}
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--header-background);
+  backdrop-filter: blur(16px);
+}
+.brand {
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.brand span {
+  color: var(--accent-2);
+}
+.header nav {
+  display: flex;
+  min-width: 0;
+  gap: 2px;
+}
+.header nav a {
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  text-decoration: none;
+}
+.header nav a:hover {
+  color: var(--ink);
+  background: var(--nav-hover);
+}
+.header nav a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.header nav .active {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--active-route-background);
+}
+.main {
+  padding: 14px 12px 24px;
+}
+@media (max-width: 370px) {
+  .header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .header nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
