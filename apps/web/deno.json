@@ -1,12 +1,13 @@
 {
   "imports": {
     "@hono/hono": "jsr:@hono/hono@^4.8.3",
-    "@std/assert": "jsr:@std/assert@^1.0.13"
+    "@std/assert": "jsr:@std/assert@^1.0.13",
+    "@std/path": "jsr:@std/path@^1.1.6"
   },
   "tasks": {
     "build": "deno bundle --config deno.client.json --platform browser --minify --output src/client.bundle.js src/client.tsx",
-    "check": "deno task build && deno fmt --check && deno lint && deno check mod.ts src/app_test.ts && deno check --config deno.client.json src/client.tsx && deno test",
-    "test": "deno test"
+    "check": "deno task build && deno fmt --check && deno lint && deno check mod.ts src/app_test.ts && deno check --config deno.client.json src/client.tsx && deno test --allow-read=public",
+    "test": "deno test --allow-read=public"
   },
   "compilerOptions": {
     "jsx": "react-jsx",

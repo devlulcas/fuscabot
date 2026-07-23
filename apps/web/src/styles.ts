@@ -1,4 +1,4 @@
-export const STYLE_PATH = "/assets/archive-a096e273.css";
+export const STYLE_PATH = "/assets/archive-10af37a3.css";
 
 export const ARCHIVE_CSS = String.raw`
 :root {
@@ -12,6 +12,7 @@ export const ARCHIVE_CSS = String.raw`
   --ochre: #b48645;
   --line: #c8c5b8;
   --focus: #3f5944;
+  --artwork-filter: none;
   --measure: 72rem;
   font-family: "Source Serif 4", Georgia, serif;
 }
@@ -109,7 +110,24 @@ blockquote { margin: 2rem 0; padding: .25rem 0 .25rem 1.3rem; border-left: .2rem
 }
 .source-link:hover { background: var(--ink); color: var(--paper); }
 footer {
-  margin-top: auto; border-top: 1px solid var(--line); padding-block: 2rem; color: var(--muted);
+  margin-top: auto; color: var(--muted);
+}
+.artwork {
+  width: min(100%, 100rem); margin: clamp(4rem, 10vw, 9rem) auto 0;
+}
+.artwork__visual { overflow: hidden; background: var(--paper); }
+.artwork__image {
+  display: block; width: 100%; height: min(72dvh, 52rem); object-fit: cover;
+  object-position: center bottom; filter: var(--artwork-filter);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 20%) 12%, #000 38%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 20%) 12%, #000 38%);
+}
+.artwork__credit {
+  margin-block: .8rem 1.5rem; color: var(--muted); text-align: right;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .65rem;
+}
+.footer__bar {
+  border-top: 1px solid var(--line); padding-block: 2rem;
   view-transition-name: site-footer;
 }
 .footer__inner {
@@ -141,15 +159,18 @@ footer {
   .masthead__inner { align-items: center; }
   .masthead__actions { gap: .65rem; }
   .locale-nav span { display: none; }
+  .artwork__credit { text-align: left; }
 }
 :root[data-theme="dark"] {
   color-scheme: dark; --paper: #20231f; --paper-raised: #292d28; --ink: #eee9dc;
   --muted: #b4b7ac; --line: #51564d; --focus: #b9c9ad;
+  --artwork-filter: brightness(.72) saturate(.72);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark; --paper: #20231f; --paper-raised: #292d28; --ink: #eee9dc;
     --muted: #b4b7ac; --line: #51564d; --focus: #b9c9ad;
+    --artwork-filter: brightness(.72) saturate(.72);
   }
 }
 @media (prefers-reduced-motion: reduce) {

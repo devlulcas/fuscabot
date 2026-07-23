@@ -1,7 +1,9 @@
 import { Hono } from "@hono/hono";
 import type { Context, MiddlewareHandler } from "@hono/hono";
+import { serveStatic } from "@hono/hono/deno";
 import { raw } from "@hono/hono/html";
 import type { Child } from "@hono/hono/jsx";
+import { fromFileUrl } from "@std/path";
 import type { ArchiveLocale, PublicArchiveItem, PublicArchiveReader } from "./archive.ts";
 import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
 import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
@@ -9,6 +11,46 @@ import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
 const PAGE_SIZE = 20 as const;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TAG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const ARTWORK_PATH =
+  "/assets/artwork/landscape-with-windmill-anthonie-erkelens-0dfeab43.webp";
+const ARTWORK_FILE = fromFileUrl(
+  new URL(
+    "../public/artwork/landscape-with-windmill-anthonie-erkelens-0dfeab43.webp",
+    import.meta.url,
+  ),
+);
+export const SOCIAL_IMAGE_PATH = "/assets/social/fuscabot-og-e923a46a.jpg";
+const SOCIAL_IMAGE_FILE = fromFileUrl(
+  new URL("../public/social/fuscabot-og-e923a46a.jpg", import.meta.url),
+);
+export const FAVICON_PATHS = {
+  svg: "/favicon.svg",
+  png: "/favicon-96x96.png",
+  ico: "/favicon.ico",
+  appleTouchIcon: "/apple-touch-icon.png",
+  manifest: "/site.webmanifest",
+  manifest192: "/web-app-manifest-192x192.png",
+  manifest512: "/web-app-manifest-512x512.png",
+} as const;
+const FAVICON_DIRECTORY = new URL("../public/favicon/", import.meta.url);
+const FAVICON_ASSETS = [
+  [FAVICON_PATHS.svg, fromFileUrl(new URL("favicon.svg", FAVICON_DIRECTORY))],
+  [FAVICON_PATHS.png, fromFileUrl(new URL("favicon-96x96.png", FAVICON_DIRECTORY))],
+  [FAVICON_PATHS.ico, fromFileUrl(new URL("favicon.ico", FAVICON_DIRECTORY))],
+  [
+    FAVICON_PATHS.appleTouchIcon,
+    fromFileUrl(new URL("apple-touch-icon.png", FAVICON_DIRECTORY)),
+  ],
+  [FAVICON_PATHS.manifest, fromFileUrl(new URL("site.webmanifest", FAVICON_DIRECTORY))],
+  [
+    FAVICON_PATHS.manifest192,
+    fromFileUrl(new URL("web-app-manifest-192x192.png", FAVICON_DIRECTORY)),
+  ],
+  [
+    FAVICON_PATHS.manifest512,
+    fromFileUrl(new URL("web-app-manifest-512x512.png", FAVICON_DIRECTORY)),
+  ],
+] as const;
 
 export interface UmamiOptions {
   scriptUrl: string;
@@ -55,6 +97,8 @@ const copy = {
     darkTheme: "Use dark theme",
     footerLinks: "Creator links",
     website: "Website",
+    artworkAlt: "A windmill beside a canal and wooden bridge",
+    socialImageAlt: "Fuscabot Archive — A public collection of useful links",
   },
   "pt-br": {
     language: "Português",
@@ -87,6 +131,8 @@ const copy = {
     darkTheme: "Usar tema escuro",
     footerLinks: "Links do criador",
     website: "Site",
+    artworkAlt: "Um moinho ao lado de um canal e uma ponte de madeira",
+    socialImageAlt: "Fuscabot Archive — A public collection of useful links",
   },
 } as const;
 
@@ -112,6 +158,11 @@ export function createPublicWebApp(options: PublicWebAppOptions): Hono {
       "Content-Type": "text/javascript; charset=utf-8",
       "Cache-Control": "public, max-age=31536000, immutable",
     }));
+  app.get(ARTWORK_PATH, immutableStaticAsset(ARTWORK_FILE));
+  app.get(SOCIAL_IMAGE_PATH, immutableStaticAsset(SOCIAL_IMAGE_FILE));
+  for (const [path, file] of FAVICON_ASSETS) {
+    app.get(path, staticAsset(file, "public, max-age=86400"));
+  }
 
   app.get("/", (c) => {
     const locale = preferredLocale(c.req.header("Accept-Language"));
@@ -235,6 +286,7 @@ function Document(props: {
   children: Child;
 }) {
   const alternate = otherLocale(props.locale);
+  const socialImage = `${props.origin}${SOCIAL_IMAGE_PATH}`;
   return (
     <>
       {raw("<!doctype html>")}
@@ -249,6 +301,27 @@ function Document(props: {
           <meta property="og:title" content={props.title} />
           <meta property="og:description" content={props.description} />
           <meta property="og:url" content={props.canonical} />
+          <meta property="og:image" content={socialImage} />
+          <meta property="og:image:secure_url" content={socialImage} />
+          <meta property="og:image:type" content="image/jpeg" />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:alt" content={copy[props.locale].socialImageAlt} />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={props.title} />
+          <meta name="twitter:description" content={props.description} />
+          <meta name="twitter:image" content={socialImage} />
+          <meta name="twitter:image:alt" content={copy[props.locale].socialImageAlt} />
+          <link rel="icon" type="image/svg+xml" href={FAVICON_PATHS.svg} />
+          <link rel="icon" type="image/png" sizes="96x96" href={FAVICON_PATHS.png} />
+          <link rel="shortcut icon" href={FAVICON_PATHS.ico} />
+          <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href={FAVICON_PATHS.appleTouchIcon}
+          />
+          <meta name="apple-mobile-web-app-title" content="Fuscabot Archive" />
+          <link rel="manifest" href={FAVICON_PATHS.manifest} />
           <title>{props.title}</title>
           <link rel="canonical" href={props.canonical} />
           <link rel="alternate" hreflang={props.locale} href={props.canonical} />
@@ -279,22 +352,40 @@ function Document(props: {
           <Header locale={props.locale} />
           {props.children}
           <footer>
-            <div class="shell footer__inner">
-              <span translate="no">Fuscabot Archive</span>
-              <nav class="footer__links" aria-label={copy[props.locale].footerLinks}>
-                <a
-                  href="https://github.com/devlulcas"
-                  rel="noopener noreferrer external"
-                >
-                  GitHub ↗
-                </a>
-                <a
-                  href="https://www.lucasalvesrego.com/"
-                  rel="noopener noreferrer external"
-                >
-                  {copy[props.locale].website} ↗
-                </a>
-              </nav>
+            <figure class="artwork">
+              <div class="artwork__visual">
+                <img
+                  class="artwork__image"
+                  src={ARTWORK_PATH}
+                  width="3891"
+                  height="2719"
+                  loading="lazy"
+                  decoding="async"
+                  alt={copy[props.locale].artworkAlt}
+                />
+              </div>
+              <figcaption class="shell artwork__credit">
+                The Elisha Whittelsey Collection, The Elisha Whittelsey Fund, 2003
+              </figcaption>
+            </figure>
+            <div class="footer__bar">
+              <div class="shell footer__inner">
+                <span translate="no">Fuscabot Archive</span>
+                <nav class="footer__links" aria-label={copy[props.locale].footerLinks}>
+                  <a
+                    href="https://github.com/devlulcas"
+                    rel="noopener noreferrer external"
+                  >
+                    GitHub ↗
+                  </a>
+                  <a
+                    href="https://www.lucasalvesrego.com/"
+                    rel="noopener noreferrer external"
+                  >
+                    {copy[props.locale].website} ↗
+                  </a>
+                </nav>
+              </div>
             </div>
           </footer>
           <script type="module" src={CLIENT_PATH} />
@@ -302,6 +393,20 @@ function Document(props: {
       </html>
     </>
   );
+}
+
+function immutableStaticAsset(file: string): MiddlewareHandler {
+  return staticAsset(file, "public, max-age=31536000, immutable");
+}
+
+function staticAsset(file: string, cacheControl: string): MiddlewareHandler {
+  return serveStatic({
+    root: "/",
+    path: file,
+    onFound: (_path, c) => {
+      c.header("Cache-Control", cacheControl);
+    },
+  });
 }
 
 function Header({ locale }: { locale: ArchiveLocale }) {

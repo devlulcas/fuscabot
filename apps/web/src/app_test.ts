@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertMatch, assertNotMatch } from "@std/assert";
-import { createPublicWebApp } from "./app.tsx";
+import { ARTWORK_PATH, createPublicWebApp, FAVICON_PATHS, SOCIAL_IMAGE_PATH } from "./app.tsx";
 import type {
   ArchiveLocale,
   PublicArchiveItem,
@@ -103,12 +103,45 @@ Deno.test("archive renders semantic escaped content and passes normalized query"
   assertMatch(body, /href="https:\/\/github\.com\/devlulcas"/);
   assertMatch(body, /href="https:\/\/www\.lucasalvesrego\.com\/"/);
   assertMatch(body, /aria-label="Creator links"/);
+  assertMatch(body, new RegExp(`src="${ARTWORK_PATH.replaceAll("/", "\\/")}"`));
+  assertMatch(
+    body,
+    /The Elisha Whittelsey Collection, The Elisha Whittelsey Fund, 2003/,
+  );
+  assertMatch(body, /loading="lazy"/);
   assertMatch(body, /A useful &lt;link&gt;/);
   assertNotMatch(body, /A useful <link>/);
   assertMatch(
     body,
     /rel="canonical" href="https:\/\/fuscabot\.example\/en\/\?q=useful&amp;tag=design"/,
   );
+  assertMatch(
+    body,
+    new RegExp(
+      `property="og:image" content="https:\\/\\/fuscabot\\.example${
+        SOCIAL_IMAGE_PATH.replaceAll("/", "\\/")
+      }"`,
+    ),
+  );
+  assertMatch(body, /property="og:image:type" content="image\/jpeg"/);
+  assertMatch(body, /property="og:image:width" content="1200"/);
+  assertMatch(body, /property="og:image:height" content="630"/);
+  assertMatch(body, /property="og:image:alt" content="Fuscabot Archive — A public collection/);
+  assertMatch(body, /name="twitter:card" content="summary_large_image"/);
+  assertMatch(
+    body,
+    new RegExp(
+      `name="twitter:image" content="https:\\/\\/fuscabot\\.example${
+        SOCIAL_IMAGE_PATH.replaceAll("/", "\\/")
+      }"`,
+    ),
+  );
+  assertMatch(body, /rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"/);
+  assertMatch(body, /rel="icon" type="image\/png" sizes="96x96"/);
+  assertMatch(body, /rel="shortcut icon" href="\/favicon\.ico"/);
+  assertMatch(body, /rel="apple-touch-icon" sizes="180x180"/);
+  assertMatch(body, /name="apple-mobile-web-app-title" content="Fuscabot Archive"/);
+  assertMatch(body, /rel="manifest" href="\/site\.webmanifest"/);
   assertMatch(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
   assertEquals(response.headers.get("cache-control"), "public, max-age=0, must-revalidate");
   assert(response.headers.get("etag"));
@@ -229,6 +262,44 @@ Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies",
     assertMatch(asset.headers.get("content-type") ?? "", /text\/javascript/);
     assertMatch(await asset.text(), /fuscabot-theme/);
   }
+
+  const artwork = await web.request(ARTWORK_PATH);
+  assertEquals(artwork.status, 200);
+  assertEquals(artwork.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assertMatch(artwork.headers.get("content-type") ?? "", /image\/webp/);
+  assert((await artwork.arrayBuffer()).byteLength > 500_000);
+
+  const socialImage = await web.request(SOCIAL_IMAGE_PATH);
+  assertEquals(socialImage.status, 200);
+  assertEquals(
+    socialImage.headers.get("cache-control"),
+    "public, max-age=31536000, immutable",
+  );
+  assertMatch(socialImage.headers.get("content-type") ?? "", /image\/jpeg/);
+  assert((await socialImage.arrayBuffer()).byteLength > 70_000);
+
+  for (
+    const [path, contentType] of [
+      [FAVICON_PATHS.svg, /image\/svg\+xml/],
+      [FAVICON_PATHS.png, /image\/png/],
+      [FAVICON_PATHS.ico, /image\/(?:vnd\.microsoft\.icon|x-icon)/],
+      [FAVICON_PATHS.appleTouchIcon, /image\/png/],
+      [FAVICON_PATHS.manifest, /application\/manifest\+json/],
+      [FAVICON_PATHS.manifest192, /image\/png/],
+      [FAVICON_PATHS.manifest512, /image\/png/],
+    ] as const
+  ) {
+    const asset = await web.request(path);
+    assertEquals(asset.status, 200);
+    assertEquals(asset.headers.get("cache-control"), "public, max-age=86400");
+    assertMatch(asset.headers.get("content-type") ?? "", contentType);
+    assert((await asset.arrayBuffer()).byteLength > 400);
+  }
+
+  const manifest = await (await web.request(FAVICON_PATHS.manifest)).json();
+  assertEquals(manifest.name, "Fuscabot");
+  assertEquals(manifest.icons[0].src, FAVICON_PATHS.manifest192);
+  assertEquals(manifest.icons[1].src, FAVICON_PATHS.manifest512);
 });
 
 Deno.test("matching ETag receives a bodyless 304 response", async () => {

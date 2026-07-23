@@ -22,8 +22,8 @@ production API (`https://fuscabot.xyz`). Production is the default; use Settings
 to select localhost during development. Only extension session/UI data is stored
 locally; Discord and Mistral credentials belong on the backend.
 
-The Chrome icon set is generated from `assets/icon-source.png` at 16, 32, 48,
-and 128 pixels and copied into the unpacked build by Vite's public-directory
+The Chrome icon set uses the shared website favicon artwork at 16, 32, 48, and
+128 pixels and is copied into the unpacked build by Vite's public-directory
 pipeline.
 
 ## Structure
