@@ -1,4 +1,4 @@
-export const STYLE_PATH = "/assets/archive-10af37a3.css";
+export const STYLE_PATH = "/assets/archive-db65fe3e.css";
 
 export const ARCHIVE_CSS = String.raw`
 :root {
@@ -46,9 +46,9 @@ h1, h2 { text-wrap: balance; overflow-wrap: anywhere; }
 .wordmark { font-size: 1.15rem; text-decoration: none; }
 .locale-nav { display: flex; gap: .8rem; font-size: .85rem; }
 .locale-nav [aria-current] { text-decoration: none; color: var(--muted); }
-.theme-control-mount { min-width: 6.7rem; min-height: 2.15rem; }
+.theme-control-mount { min-width: 4.6rem; min-height: 2.15rem; }
 .theme-control {
-  display: grid; grid-template-columns: repeat(3, 1fr); padding: .18rem;
+  display: grid; grid-template-columns: repeat(2, 1fr); padding: .18rem;
   border: 1px solid var(--line); border-radius: 999px; background: var(--paper-raised);
 }
 .theme-choice {
@@ -164,14 +164,7 @@ footer {
 :root[data-theme="dark"] {
   color-scheme: dark; --paper: #20231f; --paper-raised: #292d28; --ink: #eee9dc;
   --muted: #b4b7ac; --line: #51564d; --focus: #b9c9ad;
-  --artwork-filter: brightness(.72) saturate(.72);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark; --paper: #20231f; --paper-raised: #292d28; --ink: #eee9dc;
-    --muted: #b4b7ac; --line: #51564d; --focus: #b9c9ad;
-    --artwork-filter: brightness(.72) saturate(.72);
-  }
+  --artwork-filter: invert(1);
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

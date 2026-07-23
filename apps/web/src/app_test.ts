@@ -97,7 +97,9 @@ Deno.test("archive renders semantic escaped content and passes normalized query"
     pageSize: 20,
   });
   assertMatch(body, /<main id="main"/);
+  assertMatch(body, /<html lang="en" data-theme="light">/);
   assertMatch(body, /data-theme-control="true"/);
+  assertNotMatch(body, /data-system=/);
   assertMatch(body, new RegExp(`src="${THEME_BOOT_PATH.replaceAll("/", "\\/")}"`));
   assertMatch(body, new RegExp(`src="${CLIENT_PATH.replaceAll("/", "\\/")}"`));
   assertMatch(body, /href="https:\/\/github\.com\/devlulcas"/);
@@ -251,6 +253,8 @@ Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies",
   assertMatch(stylesheet, /prefers-reduced-motion/);
   assertMatch(stylesheet, /@view-transition/);
   assertMatch(stylesheet, /:root\[data-theme="dark"\]/);
+  assertMatch(stylesheet, /--artwork-filter: invert\(1\)/);
+  assertNotMatch(stylesheet, /prefers-color-scheme/);
   assertMatch(stylesheet, /min-height: 100dvh/);
   assertMatch(stylesheet, /margin-top: auto/);
   assertMatch(stylesheet, /padding-block: clamp\(1\.8rem, 4vw, 2\.8rem\)/);
@@ -260,8 +264,14 @@ Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies",
     assertEquals(asset.status, 200);
     assertEquals(asset.headers.get("cache-control"), "public, max-age=31536000, immutable");
     assertMatch(asset.headers.get("content-type") ?? "", /text\/javascript/);
-    assertMatch(await asset.text(), /fuscabot-theme/);
+    const source = await asset.text();
+    assertMatch(source, /fuscabot-theme/);
+    assertNotMatch(source, /prefers-color-scheme|matchMedia/);
   }
+
+  assertMatch(THEME_BOOT_JS, /let t="light"/);
+  assertMatch(THEME_BOOT_JS, /e==="dark"/);
+  assertNotMatch(CLIENT_JS, /system/);
 
   const artwork = await web.request(ARTWORK_PATH);
   assertEquals(artwork.status, 200);

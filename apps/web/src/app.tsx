@@ -92,7 +92,6 @@ const copy = {
     invalidTitle: "Invalid request",
     invalidBody: "Check the search and page values, then try again.",
     theme: "Theme",
-    systemTheme: "Use system theme",
     lightTheme: "Use light theme",
     darkTheme: "Use dark theme",
     footerLinks: "Creator links",
@@ -126,7 +125,6 @@ const copy = {
     invalidTitle: "Solicitação inválida",
     invalidBody: "Confira a pesquisa e a página e tente novamente.",
     theme: "Tema",
-    systemTheme: "Usar tema do sistema",
     lightTheme: "Usar tema claro",
     darkTheme: "Usar tema escuro",
     footerLinks: "Links do criador",
@@ -290,7 +288,7 @@ function Document(props: {
   return (
     <>
       {raw("<!doctype html>")}
-      <html lang={props.locale}>
+      <html lang={props.locale} data-theme="light">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -424,7 +422,6 @@ function Header({ locale }: { locale: ArchiveLocale }) {
             class="theme-control-mount"
             data-theme-control
             data-label={copy[locale].theme}
-            data-system={copy[locale].systemTheme}
             data-light={copy[locale].lightTheme}
             data-dark={copy[locale].darkTheme}
           />
