@@ -1,25 +1,25 @@
 .stack {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .stack .stack {
-  gap: 8px;
+  gap: 10px;
 }
 .settings {
-  gap: 14px;
+  gap: 16px;
 }
 .card,
 .source,
 .details {
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-background);
 }
 .settingsCard {
   display: grid;
-  gap: 14px;
-  padding: 16px 13px;
+  gap: 16px;
+  padding: 18px 15px;
 }
 .titleRow,
 .sectionHeading,
@@ -63,7 +63,7 @@
 }
 .source {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   overflow: hidden;
 }
 .source strong {
@@ -72,19 +72,19 @@
   white-space: nowrap;
 }
 .source blockquote {
-  margin: 5px 0 0;
-  padding-left: 8px;
+  margin: 6px 0 0;
+  padding-left: 10px;
   border-left: 2px solid var(--accent);
   color: var(--quote-ink);
   font-size: 12px;
 }
 .form {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .form label {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   color: var(--label-ink);
   font-size: 11px;
   font-weight: 650;
@@ -94,7 +94,7 @@
 .form select {
   width: 100%;
   min-width: 0;
-  padding: 7px 8px;
+  padding: 8px 9px;
   border: 1px solid var(--line);
   border-radius: 3px;
   color: var(--ink);
@@ -108,14 +108,14 @@
   accent-color: var(--accent);
 }
 .form textarea {
-  min-height: 56px;
+  min-height: 64px;
   resize: vertical;
   line-height: 1.35;
 }
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
 }
 .actions button,
 .button,
@@ -124,7 +124,7 @@
   align-items: center;
   justify-content: center;
   min-width: 0;
-  padding: 7px 9px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 3px;
   color: var(--ink);
@@ -163,8 +163,8 @@
 .search {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  padding: 9px;
+  gap: 9px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--search-background);
@@ -175,18 +175,18 @@
 }
 .list {
   display: grid;
-  gap: 11px;
+  gap: 12px;
 }
 .resource {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 7px 9px;
+  gap: 8px 10px;
   content-visibility: auto;
 }
 .resourceCopy {
   display: grid;
   min-width: 0;
-  gap: 3px;
+  gap: 4px;
 }
 .resourceCopy strong,
 .truncate {
@@ -218,11 +218,57 @@
 }
 .channelRow {
   display: grid;
-  gap: 10px;
-  padding: 14px 11px;
+  gap: 12px;
+  padding: 16px 13px;
 }
 .channelRow + .channelRow {
   border-top: 1px solid var(--line);
+}
+.channelIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+.channelHash {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 7px;
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent) 10%, var(--subtle-background));
+  font-weight: 800;
+}
+.channelTitle {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.channelTitle strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channelTitle span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channelControls {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 6px;
+}
+.channelActions {
+  justify-content: flex-end;
 }
 .switch {
   display: inline-flex !important;
@@ -249,12 +295,39 @@
 .dialog {
   width: min(100%, 360px);
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 14px;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   color: var(--ink);
   background: var(--panel);
+}
+.details {
+  padding: 0;
+  overflow: clip;
+}
+.details summary {
+  padding: 11px 12px;
+  border-radius: inherit;
+  color: var(--label-ink);
+  cursor: pointer;
+  font-weight: 650;
+  touch-action: manipulation;
+}
+.details summary::marker {
+  color: var(--accent-2);
+}
+.details[open] summary {
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--ink);
+  background: var(--subtle-background);
+}
+.details > .actions {
+  padding: 14px 12px;
+}
+.details > .actions button {
+  flex: 1 1 140px;
 }
 @media (hover: hover) {
   .actions button:hover:not(:disabled),
@@ -262,5 +335,9 @@
   .buttonLink:hover {
     border-color: #69728a;
     background: var(--button-secondary-hover);
+  }
+  .details summary:hover {
+    color: var(--ink);
+    background: var(--subtle-background);
   }
 }

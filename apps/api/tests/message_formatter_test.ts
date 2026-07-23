@@ -21,7 +21,6 @@ const resource: Resource = {
   imageUrl: null,
   selectedQuote: "Keep delivery snapshots immutable.",
   summary: "A concise guide to durable delivery boundaries.",
-  whyUseful: "It explains how to separate resources from outbound messages.",
   personalNote: "Use this when revisiting the bot architecture.",
   enrichmentStatus: "ready",
   enrichmentError: null,
@@ -36,33 +35,27 @@ const resource: Resource = {
   updatedAt: "2026-07-21T14:30:00Z",
 };
 
-Deno.test("rich delivery snapshot follows the visual hierarchy", () => {
+Deno.test("delivery snapshot uses a normal markdown message", () => {
   const snapshot = formatDiscordSnapshot(resource, "share", "#saved-links");
   DeliverySnapshotV2Schema.parse(snapshot);
   const payload = snapshot.payload;
-  const embed = payload.embeds[0];
-  assertEquals([snapshot.version, embed.title, embed.url], [
-    2,
-    resource.title,
-    resource.originalUrl,
-  ]);
-  assertEquals(embed.author, { name: "example.com", url: resource.originalUrl });
-  assertEquals(embed.description, resource.summary);
-  assertEquals(embed.fields?.map((field) => field.name), [
-    "Why save it?",
-    "Selected context",
-    "Tags",
-  ]);
-  assertStringIncludes(embed.fields?.[0].value ?? "", "**Your note**");
-  assertEquals(embed.fields?.[2].value, "`#typescript` `#browser-extension`");
-  assertStringIncludes(embed.footer?.text ?? "", "#saved-links");
-  assertEquals(embed.timestamp, resource.createdAt);
-  assertEquals(payload.components?.[0].components[0], {
-    type: 2,
-    style: 5,
-    label: "Open link",
-    url: resource.originalUrl,
-  });
+  assertEquals(snapshot.version, 2);
+  assertEquals(
+    payload.content,
+    `### A practical Deno architecture
+
+A concise guide to durable delivery boundaries.
+
+> "Keep delivery snapshots immutable."
+
+_Use this when revisiting the bot architecture._
+
+Tags:
+- typescript
+- browser-extension
+
+[example.com](https://example.com/articles/deno)`,
+  );
   assertEquals(payload.allowed_mentions, { parse: [] });
 });
 
@@ -78,16 +71,15 @@ Deno.test("sparse delivery omits empty optional sections", () => {
   const sparse = formatDiscordSnapshot({
     ...resource,
     summary: null,
-    whyUseful: null,
     personalNote: null,
     selectedQuote: null,
     tags: [],
   }, "share");
-  const embed = sparse.payload.embeds[0];
-  assertEquals(embed.description, undefined);
-  assertEquals(embed.fields, undefined);
+  assertEquals(
+    sparse.payload.content,
+    "### A practical Deno architecture\n\n[example.com](https://example.com/articles/deno)",
+  );
   assertEquals(sparse.destinationLabel, null);
-  assertEquals(embed.footer?.text.includes("#"), false);
 });
 
 Deno.test("formatter gracefully truncates every Discord limit and disables mentions", () => {
@@ -97,7 +89,6 @@ Deno.test("formatter gracefully truncates every Discord limit and disables menti
       title: `@everyone ${"😀".repeat(300)}`,
       sourceDomain: "d".repeat(300),
       summary: "s".repeat(8_000),
-      whyUseful: "w".repeat(3_000),
       personalNote: "n".repeat(3_000),
       selectedQuote: "q".repeat(3_000),
       tags: Array.from({ length: 8 }, (_, index) => ({
@@ -110,32 +101,46 @@ Deno.test("formatter gracefully truncates every Discord limit and disables menti
     "share",
     `#${"channel".repeat(30)}`,
   );
-  const embed = oversized.payload.embeds[0];
-  const aggregate = embed.title.length + (embed.description?.length ?? 0) +
-    (embed.author?.name.length ?? 0) + (embed.footer?.text.length ?? 0) +
-    (embed.fields?.reduce((sum, field) => sum + field.name.length + field.value.length, 0) ?? 0);
-  assert(embed.title.length <= 256);
-  assertEquals(/\p{Surrogate}/u.test([...embed.title].at(-2) ?? ""), false);
-  assert((embed.description?.length ?? 0) <= 4_096);
-  assert(embed.fields?.every((field) => field.name.length <= 256 && field.value.length <= 1_024));
-  assert(aggregate <= 6_000);
+  assert(oversized.payload.content.length <= 2_000);
+  assertStringIncludes(oversized.payload.content, "### @everyone");
+  assertStringIncludes(oversized.payload.content, '> "');
+  assertStringIncludes(oversized.payload.content, "Tags:");
+  assertStringIncludes(oversized.payload.content, resource.originalUrl);
   assertEquals(DiscordMessagePayloadSchema.safeParse(oversized.payload).success, true);
   assertEquals(oversized.payload.allowed_mentions, { parse: [] });
 });
 
-Deno.test("legacy snapshots retain a compatible link-button renderer", () => {
+Deno.test("legacy snapshots render as markdown", () => {
   const payload = snapshotPayload({
     title: "Legacy",
     url: "https://example.com/legacy",
     summary: "Old snapshot",
-    whyUseful: null,
     personalNote: null,
     selectedQuote: null,
     includeQuote: false,
     tags: [],
     outputLanguage: "pt-BR",
   });
-  assertEquals(payload.components?.[0].components[0].url, "https://example.com/legacy");
-  assertEquals(payload.components?.[0].components[0].label, "Abrir link");
+  assertEquals(
+    payload.content,
+    "### Legacy\n\nOld snapshot\n\n[example.com](https://example.com/legacy)",
+  );
   assertEquals(payload.allowed_mentions, { parse: [] });
+});
+
+Deno.test("formatter keeps the link intact with multiline user content", () => {
+  const snapshot = formatDiscordSnapshot({
+    ...resource,
+    title: "A title\nwith another line",
+    summary: "summary\n".repeat(500),
+    selectedQuote: "quote\n".repeat(500),
+    personalNote: "note\n".repeat(500),
+    originalUrl: "https://example.com/an(article)",
+  }, "share");
+  assert(snapshot.payload.content.length <= 2_000);
+  assertStringIncludes(
+    snapshot.payload.content,
+    "[example.com](https://example.com/an%28article%29)",
+  );
+  assertEquals(snapshot.payload.content.endsWith(")"), true);
 });

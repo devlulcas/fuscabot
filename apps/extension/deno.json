@@ -3,7 +3,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "test:ui": "node ../../node_modules/vitest/vitest.mjs run",
-    "check": "deno fmt --check && deno lint && deno check src/*.ts src/**/*.ts vite.config.ts && deno run -A npm:typescript@7.0.2/tsc --noEmit -p tsconfig.json && deno test && deno task test:ui"
+    "check": "deno fmt --check && deno lint && deno check src/*.ts src/**/*.ts vite.config.ts && deno run -A npm:typescript@7.0.2/tsc --noEmit -p tsconfig.json && deno test && deno task test:ui && deno task build"
   },
   "imports": {
     "@std/assert": "jsr:@std/assert@1",

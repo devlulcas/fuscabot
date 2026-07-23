@@ -1,4 +1,5 @@
 import { and, asc, eq, ilike, inArray, or } from "drizzle-orm";
+import { tagSlug } from "@fuscabot/contracts";
 import type { AppDatabase } from "../db/client.ts";
 import { resourceTags, tagAliases, tagLabels, tags } from "../db/schema.ts";
 
@@ -155,8 +156,7 @@ function aliasValues(workspaceId: string, tagId: string, aliases: string[]) {
 }
 
 function normalize(value: string): string {
-  return value.normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase().trim()
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+  return tagSlug(value).slice(0, 80);
 }
 
 function escapeLike(value: string): string {

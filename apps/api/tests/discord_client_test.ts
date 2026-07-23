@@ -2,7 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { DiscordApiError, DiscordClient } from "../src/integrations/discord_client.ts";
 
 const payload = {
-  embeds: [{ title: "Title", url: "https://example.com" }],
+  content: "### Title\n\n[example.com](https://example.com)",
   allowed_mentions: { parse: [] as [] },
 };
 
@@ -45,4 +45,34 @@ Deno.test("Discord successful malformed response fails closed as unknown", async
     DiscordApiError,
   );
   assertEquals(error.outcome, "unknown");
+});
+
+Deno.test("Discord successful invalid message shape fails closed as unknown", async () => {
+  const client = new DiscordClient(
+    "token",
+    (() => Promise.resolve(Response.json({}))) as typeof fetch,
+    "https://discord.test",
+  );
+  const error = await assertRejects(
+    () => client.createChannelMessage("channel", payload),
+    DiscordApiError,
+  );
+  assertEquals(error.outcome, "unknown");
+});
+
+Deno.test("Discord channel and guild reads reject invalid successful shapes", async () => {
+  const client = new DiscordClient(
+    "token",
+    (() => Promise.resolve(Response.json({}))) as typeof fetch,
+    "https://discord.test",
+  );
+  const channelError = await assertRejects(
+    () => client.listGuildTextChannels("guild"),
+    DiscordApiError,
+  );
+  const guildError = await assertRejects(
+    () => client.getGuild("guild"),
+    DiscordApiError,
+  );
+  assertEquals([channelError.outcome, guildError.outcome], ["rejected", "rejected"]);
 });

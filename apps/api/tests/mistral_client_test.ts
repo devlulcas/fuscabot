@@ -15,7 +15,6 @@ const input = compactEnrichmentInput({
 });
 const draft: EnrichmentDraft = {
   summary: "Resumo útil",
-  whyUseful: "Ajuda a compreender o tema",
   outputLanguage: "pt-BR",
   suggestedTagSlugs: [],
   proposedNewTags: [],

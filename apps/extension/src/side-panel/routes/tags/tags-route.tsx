@@ -85,7 +85,10 @@ export function TagsRoute() {
           onInput={() => setDirty((current) => new Set(current).add("create"))}
           onSubmit={(event) => {
             event.preventDefault();
-            create.mutate(tagInput(new FormData(event.currentTarget)));
+            const form = event.currentTarget;
+            create.mutate(tagInput(new FormData(form)), {
+              onSuccess: () => form.reset(),
+            });
           }}
         >
           <label>
@@ -121,23 +124,29 @@ export function TagsRoute() {
           )
           : null}
         <div className={page.list}>
-          {tags.data.map((tag) => (
-            <TagForm
-              key={tag.id}
-              tag={tag}
-              tags={tags.data}
-              pending={update.isPending || merge.isPending}
-              onDirty={() =>
-                setDirty((current) => new Set(current).add(tag.id))}
-              onSave={(input) => update.mutate({ id: tag.id, input })}
-              onMerge={(targetId) => {
-                if (confirm("Merge this tag into the selected tag?")) {
-                  merge
-                    .mutate({ sourceId: tag.id, targetId });
-                }
-              }}
-            />
-          ))}
+          {tags.data.length
+            ? tags.data.map((tag) => (
+              <TagForm
+                key={tag.id}
+                tag={tag}
+                tags={tags.data}
+                pending={update.isPending || merge.isPending}
+                onDirty={() =>
+                  setDirty((current) => new Set(current).add(tag.id))}
+                onSave={(input) => update.mutate({ id: tag.id, input })}
+                onMerge={(targetId) => {
+                  if (confirm("Merge this tag into the selected tag?")) {
+                    merge
+                      .mutate({ sourceId: tag.id, targetId });
+                  }
+                }}
+              />
+            ))
+            : (
+              <InlineNotice>
+                No canonical tags yet. Add one above to improve AI suggestions.
+              </InlineNotice>
+            )}
         </div>
       </section>
       <UnsavedChanges

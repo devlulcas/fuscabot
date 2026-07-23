@@ -9,7 +9,7 @@ import {
   DeliveryTargetNotAllowedError,
   EnrichmentPreparingError,
 } from "../domain/durable_delivery.ts";
-import { BulkResourceNotFoundError } from "../services/resource_service.ts";
+import { BulkResourceNotFoundError, ResourceNotFoundError } from "../services/resource_service.ts";
 import { TagNotFoundError } from "../services/tag_coordinator.ts";
 import { MalformedJsonError, PayloadTooLargeError } from "./json_body.ts";
 import { RateLimitExceededError } from "./rate_limit.ts";
@@ -95,6 +95,9 @@ export function handleError(c: Context, cause: unknown) {
     return error(c, 403, "FORBIDDEN", "Discord destination is not available");
   }
   if (cause instanceof BulkResourceNotFoundError) {
+    return error(c, 404, "NOT_FOUND", cause.message);
+  }
+  if (cause instanceof ResourceNotFoundError) {
     return error(c, 404, "NOT_FOUND", cause.message);
   }
   if (cause instanceof TagNotFoundError) {

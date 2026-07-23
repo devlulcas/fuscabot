@@ -65,6 +65,7 @@ declare namespace chrome {
   namespace storage.local {
     function get(keys?: string | string[]): Promise<Record<string, unknown>>;
     function set(items: Record<string, unknown>): Promise<void>;
+    function remove(keys: string | string[]): Promise<void>;
   }
   namespace identity {
     function getRedirectURL(path?: string): string;

@@ -1,4 +1,4 @@
-import type { BulkResourceAction } from "@fuscabot/contracts";
+import { type BulkResourceAction, tagSlug } from "@fuscabot/contracts";
 import {
   and,
   asc,
@@ -95,7 +95,6 @@ export class PostgresResourceRepository implements ResourceRepository {
           like(resources.originalUrl, pattern),
           like(resources.sourceDomain, pattern),
           like(resources.summary, pattern),
-          like(resources.whyUseful, pattern),
           like(resources.personalNote, pattern),
           like(resources.selectedQuote, pattern),
           sql<boolean>`exists (
@@ -136,19 +135,31 @@ export class PostgresResourceRepository implements ResourceRepository {
         ));
       }
       if (patch.tagSlugs) {
+        const requestedSlugs = [
+          ...new Set(patch.tagSlugs.map(tagSlug).filter(Boolean)),
+        ];
         await tx.delete(resourceTags).where(eq(resourceTags.resourceId, id));
-        if (patch.tagSlugs.length) {
+        if (requestedSlugs.length) {
+          const created = await tx.insert(tags).values(
+            requestedSlugs.map((slug) => ({ workspaceId, slug })),
+          ).onConflictDoNothing({
+            target: [tags.workspaceId, tags.slug],
+          }).returning({ id: tags.id, slug: tags.slug });
+          if (created.length) {
+            await tx.insert(tagLabels).values(created.flatMap((tag) => [
+              { tagId: tag.id, language: "en", name: tag.slug },
+              { tagId: tag.id, language: "pt-BR", name: tag.slug },
+            ])).onConflictDoNothing();
+          }
           const selected = await tx.select({ id: tags.id }).from(tags).where(and(
             eq(tags.workspaceId, workspaceId),
-            inArray(tags.slug, patch.tagSlugs),
+            inArray(tags.slug, requestedSlugs),
           ));
-          if (selected.length) {
-            await tx.insert(resourceTags).values(selected.map((tag) => ({
-              resourceId: id,
-              tagId: tag.id,
-              source: "user",
-            }))).onConflictDoNothing();
-          }
+          await tx.insert(resourceTags).values(selected.map((tag) => ({
+            resourceId: id,
+            tagId: tag.id,
+            source: "user",
+          }))).onConflictDoNothing();
         }
       }
       return true;
@@ -258,7 +269,6 @@ function toInsert(resource: Resource): typeof resources.$inferInsert {
     imageUrl: resource.imageUrl,
     selectedQuote: resource.selectedQuote,
     summary: resource.summary,
-    whyUseful: resource.whyUseful,
     personalNote: resource.personalNote,
     enrichmentStatus: resource.enrichmentStatus,
     enrichmentError: resource.enrichmentError,
@@ -272,7 +282,6 @@ function toPatch(patch: ResourcePatch): Partial<typeof resources.$inferInsert> {
   return {
     ...(patch.title === undefined ? {} : { title: patch.title }),
     ...(patch.summary === undefined ? {} : { summary: patch.summary }),
-    ...(patch.whyUseful === undefined ? {} : { whyUseful: patch.whyUseful }),
     ...(patch.personalNote === undefined ? {} : { personalNote: patch.personalNote }),
     ...(patch.selectedQuote === undefined ? {} : { selectedQuote: patch.selectedQuote }),
     ...(patch.outputLanguage === undefined ? {} : { outputLanguage: patch.outputLanguage }),

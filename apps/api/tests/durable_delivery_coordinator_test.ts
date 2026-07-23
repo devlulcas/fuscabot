@@ -15,7 +15,6 @@ const snapshot: DeliverySnapshot = {
   title: "Title",
   url: "https://example.com",
   summary: "Original",
-  whyUseful: null,
   personalNote: null,
   selectedQuote: null,
   includeQuote: false,
@@ -25,11 +24,7 @@ const snapshot: DeliverySnapshot = {
   capturedAt: "2026-07-21T12:00:00Z",
   destinationLabel: "#links",
   payload: {
-    embeds: [{ title: "Title", url: "https://example.com" }],
-    components: [{
-      type: 1,
-      components: [{ type: 2, style: 5, label: "Abrir link", url: "https://example.com" }],
-    }],
+    content: "### Title\n\n[example.com](https://example.com)",
     allowed_mentions: { parse: [] },
   },
 };
@@ -88,9 +83,12 @@ Deno.test("delivery persists immutable pending snapshot before Discord and marks
     createChannelMessage: (_channel, sent) => {
       pendingSeen = state.get()?.status === "pending";
       assertEquals(sent.summary, "Original");
-      assertEquals("version" in sent && sent.payload, snapshot.payload);
+      assertEquals(
+        "version" in sent && sent.payload,
+        "version" in snapshot && snapshot.payload,
+      );
       input.summary = "Changed later";
-      if ("version" in input) input.payload.embeds[0].title = "Changed later";
+      if ("version" in input) input.payload.content = "Changed later";
       return Promise.resolve({ id: "message" });
     },
   });
@@ -102,8 +100,8 @@ Deno.test("delivery persists immutable pending snapshot before Discord and marks
     "https://discord.com/channels/guild/discord-channel/message",
   ]);
   assertEquals(
-    "version" in sent.snapshot && sent.snapshot.payload.embeds[0].title,
-    "Title",
+    "version" in sent.snapshot && sent.snapshot.payload.content,
+    "### Title\n\n[example.com](https://example.com)",
   );
 });
 Deno.test("unknown Discord outcome blocks blind retry and stores no upstream detail", async () => {

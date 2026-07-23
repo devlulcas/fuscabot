@@ -6,6 +6,7 @@ import { type CaptureKind, capturePath } from "./shared/types.ts";
 
 const MENU = {
   page: "capture-page",
+  autoFill: "capture-page-auto-fill",
   selection: "capture-selection",
   link: "capture-link",
 } as const;
@@ -15,6 +16,11 @@ chrome.runtime.onInstalled.addListener(async () => {
   chrome.contextMenus.create({
     id: MENU.page,
     title: "Capture this page for Discord",
+    contexts: ["page"],
+  });
+  chrome.contextMenus.create({
+    id: MENU.autoFill,
+    title: "Capture, Auto-fill & Review",
     contexts: ["page"],
   });
   chrome.contextMenus.create({
@@ -46,8 +52,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     : info.menuItemId === MENU.selection
     ? "selection"
     : "page";
+  const autoFill = info.menuItemId === MENU.autoFill;
   const captureId = crypto.randomUUID();
-  void captureFromContextMenu(info, tab, kind, captureId);
+  void captureFromContextMenu(info, tab, kind, captureId, autoFill);
 });
 
 async function captureFromContextMenu(
@@ -55,11 +62,15 @@ async function captureFromContextMenu(
   tab: chrome.tabs.Tab,
   kind: CaptureKind,
   captureId: string,
+  autoFill = false,
 ): Promise<void> {
   if (tab.id === undefined) return;
   await savePendingCapture({ captureId, state: "extracting" });
-  await navigatePanel(tab, captureId);
+  await navigatePanel(tab, captureId).catch((cause) =>
+    console.error("Could not navigate the capture panel", cause)
+  );
 
+  let capturedResourceId: string | undefined;
   try {
     const [{ result: metadata }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -77,11 +88,18 @@ async function captureFromContextMenu(
       linkUrl: info.linkUrl,
       selectionText: info.selectionText,
     }));
+    capturedResourceId = resource.id;
     await savePendingCapture({
       captureId,
       resourceId: resource.id,
       state: "ready",
     });
+    await notifyCapture(captureId, resource.id);
+    if (autoFill) {
+      await api.retryEnrichment(resource.id).catch((cause) =>
+        console.error("Could not start automatic enrichment", cause)
+      );
+    }
   } catch (error) {
     await savePendingCapture({
       captureId,
@@ -94,7 +112,7 @@ async function captureFromContextMenu(
       },
     });
   }
-  await notifyCapture(captureId);
+  await notifyCapture(captureId, capturedResourceId);
 }
 
 async function navigatePanel(
@@ -113,7 +131,14 @@ async function navigatePanel(
   }).catch(() => undefined);
 }
 
-async function notifyCapture(captureId: string): Promise<void> {
-  await chrome.runtime.sendMessage({ type: "capture-updated", captureId })
+async function notifyCapture(
+  captureId: string,
+  resourceId?: string,
+): Promise<void> {
+  await chrome.runtime.sendMessage({
+    type: "capture-updated",
+    captureId,
+    resourceId,
+  })
     .catch(() => undefined);
 }

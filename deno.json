@@ -29,8 +29,7 @@
   },
   "fmt": {
     "exclude": [
-      "apps/extension/dist/",
-      "discord-link-library-plan.md"
+      "apps/extension/dist/"
     ]
   },
   "lint": {

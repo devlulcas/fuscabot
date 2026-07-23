@@ -75,7 +75,6 @@ export class PostgresEnrichmentStore implements EnrichmentStore {
       if (!run) return null;
       await tx.update(resources).set({
         summary: parsed.summary,
-        whyUseful: parsed.whyUseful,
         outputLanguage: parsed.outputLanguage,
         enrichmentStatus: "ready",
         enrichmentError: null,

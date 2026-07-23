@@ -85,6 +85,9 @@ export function LibraryRoute() {
     setSelected(new Set());
   };
   const items = resources.data?.items ?? [];
+  const hasFilters = Boolean(
+    filters.q || filters.state || filters.domain || filters.enrichmentStatus,
+  );
   const allSelected = items.length > 0 &&
     items.every((item) => selected.has(item.id));
   const runBulk = (action: "archive" | "restore" | "delete") => {
@@ -263,7 +266,9 @@ export function LibraryRoute() {
         )
         : (
           <InlineNotice>
-            No resources found. Capture a page to start your library.
+            {hasFilters
+              ? "No resources match these filters."
+              : "No resources found. Capture a page to start your library."}
           </InlineNotice>
         )}
       <nav className={page.pagination} aria-label="Library pages">

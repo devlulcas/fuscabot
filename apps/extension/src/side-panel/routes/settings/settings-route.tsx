@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { api } from "../../../shared/api.ts";
 import {
   getConfig,
   saveConfig,
@@ -11,6 +12,7 @@ import { applyAppearance, effectiveAccent } from "../../app/appearance.ts";
 import { UnsavedChanges } from "../../components/unsaved-changes/unsaved-changes.tsx";
 import {
   InlineNotice,
+  PageError,
   PageLoading,
 } from "../../components/page-status/page-status.tsx";
 import page from "../../components/layout/page.module.css";
@@ -82,7 +84,30 @@ export function SettingsRoute() {
       globalThis.location.reload();
     },
   });
-  if (!config.data) return <PageLoading label="Loading settings…" />;
+  const logout = useMutation({
+    mutationFn: async () => {
+      await api.logout();
+      const current = await getConfig();
+      await saveConfig({
+        ...current,
+        accessToken: undefined,
+        refreshToken: undefined,
+        sessionId: undefined,
+        selectedGuildId: undefined,
+      });
+      await resetCacheIdentity(client);
+    },
+    onSuccess: () => globalThis.location.reload(),
+  });
+  if (config.isPending) return <PageLoading label="Loading settings…" />;
+  if (config.isError) {
+    return (
+      <PageError
+        error={config.error}
+        retry={() => void config.refetch()}
+      />
+    );
+  }
   const current = config.data;
   return (
     <section className={`${page.stack} ${page.settings}`}>
@@ -167,29 +192,54 @@ export function SettingsRoute() {
       </section>
       <section className={`${page.card} ${page.settingsCard}`}>
         <h2>Discord Account</h2>
-        <InlineNotice>
+        {session.isError
+          ? (
+            <InlineNotice error>
+              Couldn’t verify the connection. Your saved session was kept.
+            </InlineNotice>
+          )
+          : (
+            <InlineNotice>
+              {session.isPending
+                ? "Checking connection…"
+                : session.data
+                ? "Connected as the configured owner."
+                : "Not connected."}
+            </InlineNotice>
+          )}
+        <div className={page.actions}>
+          <button
+            type="button"
+            className={page.button}
+            disabled={connect.isPending || logout.isPending}
+            onClick={() => connect.mutate()}
+          >
+            {connect.isPending
+              ? "Connecting…"
+              : session.data
+              ? "Reconnect Discord"
+              : "Connect Discord"}
+          </button>
           {session.data
-            ? "Connected as the configured owner."
-            : "Not connected."}
-        </InlineNotice>
-        <button
-          type="button"
-          className={page.button}
-          disabled={connect.isPending}
-          onClick={() => connect.mutate()}
-        >
-          {connect.isPending
-            ? "Connecting…"
-            : session.data
-            ? "Reconnect Discord"
-            : "Connect Discord"}
-        </button>
+            ? (
+              <button
+                type="button"
+                className={`${page.button} ${page.danger}`}
+                disabled={connect.isPending || logout.isPending}
+                onClick={() => logout.mutate()}
+              >
+                {logout.isPending ? "Signing Out…" : "Sign Out"}
+              </button>
+            )
+            : null}
+        </div>
       </section>
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      {saveAppearance.error || saveApi.error || connect.error
+      {saveAppearance.error || saveApi.error || connect.error || logout.error
         ? (
           <InlineNotice error>
-            {(saveAppearance.error ?? saveApi.error ?? connect.error)?.message}
+            {(saveAppearance.error ?? saveApi.error ?? connect.error ??
+              logout.error)?.message}
           </InlineNotice>
         )
         : null}

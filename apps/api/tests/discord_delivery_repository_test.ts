@@ -36,7 +36,6 @@ Deno.test("pending unique violations map to a domain conflict", async () => {
         title: "T",
         url: "https://example.com",
         summary: null,
-        whyUseful: null,
         personalNote: null,
         selectedQuote: null,
         includeQuote: false,

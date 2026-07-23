@@ -130,6 +130,13 @@ export function ChannelsRoute() {
             </InlineNotice>
           )
           : null}
+        {!guilds.data.length
+          ? (
+            <InlineNotice>
+              No manageable Discord servers were found for this account.
+            </InlineNotice>
+          )
+          : null}
         <label className={page.form}>
           Read Later Destination<select
             value={readLater}
@@ -204,19 +211,31 @@ function ChannelForm(
       }}
     >
       <div className={page.row}>
-        <div className={page.truncate}>
-          <strong>#{channel.name}</strong>
-          <p className={page.muted}>{channel.parentName ?? "No Category"}</p>
+        <div className={page.channelIdentity}>
+          <span className={page.channelHash} aria-hidden="true">#</span>
+          <div className={page.channelTitle}>
+            <strong>{channel.name}</strong>
+            <span>{channel.parentName ?? "No Category"}</span>
+          </div>
         </div>
-        <label className={page.switch}>
-          <input
-            type="checkbox"
-            name="active"
-            defaultChecked={channel.isActiveForRouting}
-            disabled={channel.availability !== "available"}
-          />{" "}
-          Active for Routing
-        </label>
+        <div className={page.channelControls}>
+          {channel.availability !== "available"
+            ? (
+              <span className={`${page.status} ${page.failed}`}>
+                Unavailable
+              </span>
+            )
+            : null}
+          <label className={page.switch}>
+            <input
+              type="checkbox"
+              name="active"
+              defaultChecked={channel.isActiveForRouting}
+              disabled={channel.availability !== "available"}
+            />{" "}
+            Active for Routing
+          </label>
+        </div>
       </div>
       <p className={page.muted}>{channel.discordTopic ?? "No Discord topic"}</p>
       <label>
@@ -226,8 +245,7 @@ function ChannelForm(
           placeholder="What belongs in this channel?…"
         />
       </label>
-      <div className={page.row}>
-        <span className={page.muted}>{channel.availability}</span>
+      <div className={`${page.actions} ${page.channelActions}`}>
         <button
           type="submit"
           className={`${page.button} ${page.compact}`}

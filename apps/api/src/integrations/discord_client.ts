@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type DiscordTextChannel = {
   id: string;
   name: string;
@@ -12,6 +14,23 @@ export type DiscordFetch = typeof fetch;
 import { fetchWithTimeout, readBoundedJson, UpstreamTimeoutError } from "./http_boundary.ts";
 
 export type DiscordFailureOutcome = "rejected" | "not_sent" | "unknown";
+
+const DiscordTextChannelSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  type: z.number().int(),
+  parent_id: z.string().nullable(),
+  topic: z.string().nullable(),
+});
+const DiscordGuildSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  icon: z.string().nullable(),
+});
+const DiscordMessageSchema = z.object({
+  id: z.string().min(1),
+  channel_id: z.string().min(1),
+});
 
 export class DiscordApiError extends Error {
   constructor(
@@ -34,22 +53,34 @@ export class DiscordClient {
   ) {}
 
   async listGuildTextChannels(guildId: string): Promise<DiscordTextChannel[]> {
-    const channels = await this.call<Array<DiscordTextChannel & { type: number }>>(
-      `/guilds/${guildId}/channels`,
-    );
+    const body = await this.call<unknown>(`/guilds/${guildId}/channels`);
+    const parsed = z.array(DiscordTextChannelSchema).safeParse(body);
+    if (!parsed.success) throw invalidResponse("rejected");
+    const channels = parsed.data;
     return channels.filter((channel): channel is DiscordTextChannel => channel.type === 0);
   }
 
-  getGuild(guildId: string): Promise<DiscordGuild> {
-    return this.call(`/guilds/${guildId}`);
+  async getGuild(guildId: string): Promise<DiscordGuild> {
+    const parsed = DiscordGuildSchema.safeParse(
+      await this.call<unknown>(`/guilds/${guildId}`),
+    );
+    if (!parsed.success) throw invalidResponse("rejected");
+    return parsed.data;
   }
 
-  createChannelMessage(channelId: string, payload: DiscordMessagePayload): Promise<DiscordMessage> {
-    return this.call(`/channels/${channelId}/messages`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
-    });
+  async createChannelMessage(
+    channelId: string,
+    payload: DiscordMessagePayload,
+  ): Promise<DiscordMessage> {
+    const parsed = DiscordMessageSchema.safeParse(
+      await this.call<unknown>(`/channels/${channelId}/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
+      }),
+    );
+    if (!parsed.success) throw invalidResponse("unknown");
+    return parsed.data;
   }
 
   private async call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -108,6 +139,10 @@ export class DiscordClient {
     }
     return body as T;
   }
+}
+
+function invalidResponse(outcome: DiscordFailureOutcome): DiscordApiError {
+  return new DiscordApiError("Discord returned an invalid response", 200, null, outcome);
 }
 
 export type DiscordMessagePayload = ContractDiscordMessagePayload;

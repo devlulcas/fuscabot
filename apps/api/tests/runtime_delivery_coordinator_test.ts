@@ -30,7 +30,6 @@ const resource: Resource & { workspaceId: string } = {
   imageUrl: null,
   selectedQuote: "Selected",
   summary: "Summary",
-  whyUseful: "Useful",
   personalNote: "Note",
   enrichmentStatus: "ready",
   enrichmentError: null,

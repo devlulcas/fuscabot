@@ -15,14 +15,18 @@ describe("capture runtime bridge", () => {
     });
     const invalidateQueries = vi.fn(() => Promise.resolve());
     const dispose = installRuntimeBridge({ invalidateQueries } as never);
-    listener?.({ type: "capture-updated", captureId: "capture-1" });
+    listener?.({
+      type: "capture-updated",
+      captureId: "capture-1",
+      resourceId: "resource-1",
+    });
     listener?.({ type: "unrelated", captureId: "capture-2" });
     expect(invalidateQueries).toHaveBeenCalledTimes(2);
     expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
       queryKey: ["pending-capture", "capture-1"],
     });
     expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
-      queryKey: ["resources", "detail", "capture-1"],
+      queryKey: ["resources", "detail", "resource-1"],
     });
     dispose();
     expect(removeListener).toHaveBeenCalledOnce();

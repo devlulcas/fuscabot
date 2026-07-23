@@ -58,7 +58,6 @@ Deno.test("resource and capture contracts reject non-web and credential URLs", (
 Deno.test("enrichment contract caps tags and prevents low confidence preselection", () => {
   const base = {
     summary: "Resumo",
-    whyUseful: "Porque é útil",
     outputLanguage: "pt-BR",
     suggestedTagSlugs: ["deno"],
     proposedNewTags: [],
@@ -102,7 +101,6 @@ Deno.test("delivery snapshots accept legacy rows and validate finalized v2 paylo
     title: "Saved link",
     url: "https://example.com/link",
     summary: null,
-    whyUseful: null,
     personalNote: null,
     selectedQuote: null,
     includeQuote: false,
@@ -118,16 +116,7 @@ Deno.test("delivery snapshots accept legacy rows and validate finalized v2 paylo
       capturedAt: "2026-07-21T12:00:00Z",
       destinationLabel: "#saved-links",
       payload: {
-        embeds: [{ title: "Saved link", url: legacy.url }],
-        components: [{
-          type: 1,
-          components: [{
-            type: 2,
-            style: 5,
-            label: "Open link",
-            url: legacy.url,
-          }],
-        }],
+        content: "### Saved link\n\n[example.com](https://example.com/link)",
         allowed_mentions: { parse: [] },
       },
     }).success,
@@ -140,7 +129,7 @@ Deno.test("delivery snapshots accept legacy rows and validate finalized v2 paylo
       capturedAt: "2026-07-21T12:00:00Z",
       destinationLabel: null,
       payload: {
-        embeds: [{ title: "x".repeat(257), url: legacy.url }],
+        content: "x".repeat(2_001),
         allowed_mentions: { parse: [] },
       },
     }).success,
@@ -153,10 +142,7 @@ Deno.test("delivery snapshots accept legacy rows and validate finalized v2 paylo
       capturedAt: "2026-07-21T12:00:00Z",
       destinationLabel: null,
       payload: {
-        embeds: [
-          { title: "First", url: legacy.url },
-          { title: "Second", url: legacy.url },
-        ],
+        content: "",
         allowed_mentions: { parse: [] },
       },
     }).success,

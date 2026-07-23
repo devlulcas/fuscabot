@@ -19,5 +19,7 @@ Deno.test("resource search binds hostile values and includes bilingual tag metad
   assertStringIncludes(source, "${pattern}");
   assertStringIncludes(source, "tagLabels");
   assertStringIncludes(source, "tagAliases");
+  assertStringIncludes(source, "patch.tagSlugs.map(tagSlug)");
+  assertStringIncludes(source, "onConflictDoNothing");
   assertEquals(source.includes("sql.raw"), false);
 });

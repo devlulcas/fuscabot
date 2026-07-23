@@ -97,10 +97,24 @@ Deno.test("CRUD and validation error envelope", async () => {
   });
   const patched = await instance.request(`/v1/resources/${capture.captureId}`, {
     method: "PATCH",
-    body: JSON.stringify({ personalNote: "Read this", archived: true }),
+    body: JSON.stringify({
+      personalNote: "Read this",
+      archived: true,
+      tagSlugs: ["New Tag", "new-tag"],
+    }),
     headers: { "content-type": "application/json" },
   });
-  assertEquals((await patched.json()).data.personalNote, "Read this");
+  const updated = (await patched.json()).data;
+  assertEquals(updated.personalNote, "Read this");
+  assertEquals(updated.tags, [{
+    slug: "new-tag",
+    labels: [
+      { language: "en", name: "new-tag" },
+      { language: "pt-BR", name: "new-tag" },
+    ],
+    aliases: [],
+    source: "user",
+  }]);
   assertEquals(
     (await instance.request(`/v1/resources/${capture.captureId}`, { method: "DELETE" })).status,
     204,

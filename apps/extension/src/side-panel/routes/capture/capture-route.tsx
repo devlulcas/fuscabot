@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../../shared/api.ts";
+import { savePendingCapture } from "../../../shared/pending-capture.ts";
 import type { CapturePayload } from "../../../shared/types.ts";
 import {
   safeDiscordMessageUrl,
@@ -21,7 +22,11 @@ import {
   tagsQuery,
 } from "../../data/queries.ts";
 import { queryKeys } from "../../data/query-keys.ts";
-import { canPublish } from "./capture-policy.ts";
+import {
+  canPublish,
+  resolveDestination,
+  saveBeforeDelivery,
+} from "./capture-policy.ts";
 
 export function CaptureRoute() {
   const { captureId } = useParams();
@@ -88,13 +93,10 @@ function ManualCapture(
         },
       };
       const resource = await api.createCapture(payload);
-      await chrome.storage.local.set({
-        [`pendingCapture:${captureId}`]: {
-          captureId,
-          resourceId: resource.id,
-          state: "ready",
-        },
-        pendingCapture: { captureId, resourceId: resource.id, state: "ready" },
+      await savePendingCapture({
+        captureId,
+        resourceId: resource.id,
+        state: "ready",
       });
       return captureId;
     },
@@ -174,13 +176,16 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
       client.invalidateQueries({ queryKey: queryKeys.resourceLists }),
     ]);
   };
+  const persistDraft = async (patch: ReturnType<typeof resourcePatch>) => {
+    const updated = await api.updateResource(resourceId, patch);
+    client.setQueryData(queryKeys.resource(resourceId), updated);
+    await client.invalidateQueries({ queryKey: queryKeys.resourceLists });
+    setDirtyStatus(null);
+    return updated;
+  };
   const save = useMutation({
-    mutationFn: (patch: ReturnType<typeof resourcePatch>) =>
-      api.updateResource(resourceId, patch),
-    onSuccess: async (updated) => {
-      client.setQueryData(queryKeys.resource(resourceId), updated);
-      await client.invalidateQueries({ queryKey: queryKeys.resourceLists });
-      setDirtyStatus(null);
+    mutationFn: persistDraft,
+    onSuccess: () => {
       setNotice("Saved.");
     },
   });
@@ -194,7 +199,17 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
     },
   });
   const publish = useMutation({
-    mutationFn: (destination: string) => api.publish(resourceId, destination),
+    mutationFn: (
+      { destination, patch }: {
+        destination: string;
+        patch: ReturnType<typeof resourcePatch>;
+      },
+    ) =>
+      saveBeforeDelivery(
+        patch,
+        persistDraft,
+        () => api.publish(resourceId, destination),
+      ),
     onSuccess: async (delivery) => {
       await invalidate();
       const url = safeDiscordMessageUrl(delivery.discordUrl);
@@ -214,7 +229,12 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
     },
   });
   const readLater = useMutation({
-    mutationFn: () => api.readLater(resourceId),
+    mutationFn: (patch: ReturnType<typeof resourcePatch>) =>
+      saveBeforeDelivery(
+        patch,
+        persistDraft,
+        () => api.readLater(resourceId),
+      ),
     onSuccess: async () => {
       await invalidate();
       setNotice("Sent to Read Later.");
@@ -248,6 +268,8 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
   const item = resource.data;
   const publishable = canPublish(item.enrichmentStatus);
   const dirty = dirtyStatus === item.enrichmentStatus;
+  const busy = save.isPending || publish.isPending || readLater.isPending ||
+    archive.isPending || remove.isPending;
   const suggestion = item.enrichment?.draft?.channelSuggestion;
   const selectedTags = [
     ...new Set([
@@ -255,10 +277,19 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
       ...(item.enrichment?.draft?.suggestedTagSlugs ?? []),
     ]),
   ];
-  const destination = channelSelection.enrichmentStatus ===
-      item.enrichmentStatus
-    ? channelSelection.channelId || suggestion?.channelId || ""
-    : suggestion?.channelId || "";
+  const availableChannels =
+    channels.data?.filter((channel) =>
+      channel.isActiveForRouting && channel.availability === "available"
+    ) ?? [];
+  const destination = resolveDestination({
+    enrichmentStatus: item.enrichmentStatus,
+    selectionStatus: channelSelection.enrichmentStatus,
+    selectedChannelId: channelSelection.channelId,
+    suggestedChannelId: suggestion?.channelId,
+    availableChannelIds: new Set(
+      availableChannels.map((channel) => channel.id),
+    ),
+  });
   return (
     <section className={page.stack}>
       <div className={page.titleRow}>
@@ -296,14 +327,13 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
         ? (
           <InlineNotice>
             <strong>Basic page details saved.</strong>{" "}
-            Auto-fill the summary, usefulness, tags, and destination when you’re
-            ready.{" "}
+            Auto-fill the summary, tags, and destination when you’re ready.{" "}
             <button
               type="button"
               disabled={retry.isPending}
               onClick={() => retry.mutate()}
             >
-              {retry.isPending ? "Auto-filling…" : "Auto-fill with AI"}
+              {retry.isPending ? "Auto-filling…" : "Auto-fill & Go"}
             </button>
           </InlineNotice>
         )
@@ -337,7 +367,10 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
         onInput={() => setDirtyStatus(item.enrichmentStatus)}
         onSubmit={(event) => {
           event.preventDefault();
-          publish.mutate(destination);
+          publish.mutate({
+            destination,
+            patch: resourcePatch(new FormData(event.currentTarget)),
+          });
         }}
       >
         <label>
@@ -345,12 +378,6 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
         </label>
         <label>
           Summary<textarea name="summary" defaultValue={item.summary ?? ""} />
-        </label>
-        <label>
-          Why It Is Useful<textarea
-            name="whyUseful"
-            defaultValue={item.whyUseful ?? ""}
-          />
         </label>
         <label>
           Your Note<textarea
@@ -388,15 +415,27 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
             }}
           >
             <option value="">Choose a channel</option>
-            {channels.data?.filter((channel) =>
-              channel.isActiveForRouting && channel.availability === "available"
-            ).map((channel) => (
+            {availableChannels.map((channel) => (
               <option key={channel.id} value={channel.id}>
                 #{channel.name}
               </option>
             ))}
           </select>
         </label>
+        {channels.isError
+          ? (
+            <InlineNotice error>
+              Couldn’t load destinations. Retry from the Channels page.
+            </InlineNotice>
+          )
+          : null}
+        {tags.isError
+          ? (
+            <InlineNotice error>
+              Couldn’t load known tags. You can still enter tags manually.
+            </InlineNotice>
+          )
+          : null}
         {save.error || retry.error || publish.error || readLater.error ||
             archive.error ||
             remove.error
@@ -410,27 +449,31 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
         <div className={page.actions}>
           <button
             type="button"
-            disabled={save.isPending}
+            disabled={busy}
             onClick={(event) =>
               save.mutate(
                 resourcePatch(new FormData(event.currentTarget.form!)),
               )}
           >
-            Update
+            {save.isPending ? "Saving…" : "Save Draft"}
           </button>
           <button
             type="button"
-            disabled={!publishable || readLater.isPending}
-            onClick={() => readLater.mutate()}
+            disabled={!publishable || busy}
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              if (!form?.reportValidity()) return;
+              readLater.mutate(resourcePatch(new FormData(form)));
+            }}
           >
-            Read Later
+            {readLater.isPending ? "Saving & Sending…" : "Read Later"}
           </button>
           <button
             type="submit"
             className={page.primary}
-            disabled={!publishable || !destination || publish.isPending}
+            disabled={!publishable || !destination || busy}
           >
-            Publish
+            {publish.isPending ? "Saving & Publishing…" : "Publish"}
           </button>
         </div>
         <details className={page.details}>
@@ -438,7 +481,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           <div className={page.actions}>
             <button
               type="button"
-              disabled={archive.isPending || remove.isPending}
+              disabled={busy}
               onClick={() => archive.mutate()}
             >
               {item.archivedAt ? "Restore from Archive" : "Archive"}
@@ -446,7 +489,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
             <button
               type="button"
               className={page.danger}
-              disabled={archive.isPending || remove.isPending}
+              disabled={busy}
               onClick={() => {
                 if (
                   !confirm(
@@ -461,7 +504,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           </div>
         </details>
       </form>
-      <UnsavedChanges when={dirty && !save.isPending} />
+      <UnsavedChanges when={dirty && !busy} />
     </section>
   );
 }
@@ -470,7 +513,6 @@ function resourcePatch(form: FormData) {
   return {
     title: value(form, "title"),
     summary: optionalValue(form, "summary"),
-    whyUseful: optionalValue(form, "whyUseful"),
     personalNote: optionalValue(form, "personalNote"),
     selectedQuote: optionalValue(form, "selectedQuote"),
     tagSlugs: value(form, "tagSlugs").split(",").map((tag) => tag.trim())

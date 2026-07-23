@@ -47,7 +47,6 @@ export type Capture = z.infer<typeof CaptureSchema>;
 export const ResourcePatchSchema = z.object({
   title: nonBlank.max(1_000).optional(),
   summary: z.string().max(10_000).nullable().optional(),
-  whyUseful: z.string().max(10_000).nullable().optional(),
   personalNote: z.string().max(10_000).nullable().optional(),
   selectedQuote: z.string().max(10_000).nullable().optional(),
   outputLanguage: LanguageSchema.optional(),
@@ -100,7 +99,6 @@ export const ChannelSuggestionSchema = z.object({
 
 export const EnrichmentDraftSchema = z.object({
   summary: nonBlank.max(1_000),
-  whyUseful: nonBlank.max(1_000),
   outputLanguage: LanguageSchema,
   suggestedTagSlugs: z.array(nonBlank.max(80)).max(8),
   proposedNewTags: z.array(ProposedTagSchema).max(5),
@@ -138,7 +136,6 @@ export const ResourceSchema = z.object({
   imageUrl: httpUrl.nullable(),
   selectedQuote: nullableText,
   summary: nullableText,
-  whyUseful: nullableText,
   personalNote: nullableText,
   enrichmentStatus: EnrichmentStatusSchema,
   enrichmentError: nullableText,
@@ -157,50 +154,8 @@ export const DeliveryStatusSchema = z.enum([
 ]);
 export const DeliveryKindSchema = z.enum(["read_later", "share"]);
 
-const DiscordEmbedFieldSchema = z.object({
-  name: nonBlank.max(256),
-  value: nonBlank.max(1_024),
-  inline: z.boolean().optional(),
-});
-
-const DiscordEmbedSchema = z.object({
-  title: nonBlank.max(256),
-  url: httpUrl,
-  description: nonBlank.max(4_096).optional(),
-  color: z.number().int().min(0).max(0xFFFFFF).optional(),
-  author: z.object({ name: nonBlank.max(256), url: httpUrl.optional() })
-    .optional(),
-  fields: z.array(DiscordEmbedFieldSchema).max(25).optional(),
-  footer: z.object({ text: nonBlank.max(2_048) }).optional(),
-  timestamp: z.iso.datetime({ offset: true }).optional(),
-}).superRefine((embed, context) => {
-  const total = embed.title.length + (embed.description?.length ?? 0) +
-    (embed.author?.name.length ?? 0) + (embed.footer?.text.length ?? 0) +
-    (embed.fields?.reduce(
-      (sum, field) => sum + field.name.length + field.value.length,
-      0,
-    ) ?? 0);
-  if (total > 6_000) {
-    context.addIssue({
-      code: "custom",
-      message: "Discord embeds cannot exceed 6000 characters",
-    });
-  }
-});
-
-const DiscordLinkButtonSchema = z.object({
-  type: z.literal(2),
-  style: z.literal(5),
-  label: nonBlank.max(80),
-  url: httpUrl,
-});
-
 export const DiscordMessagePayloadSchema = z.object({
-  embeds: z.array(DiscordEmbedSchema).length(1),
-  components: z.array(z.object({
-    type: z.literal(1),
-    components: z.array(DiscordLinkButtonSchema).min(1).max(5),
-  })).max(5).optional(),
+  content: nonBlank.max(2_000),
   allowed_mentions: z.object({ parse: z.tuple([]) }),
 });
 export type DiscordMessagePayload = z.infer<typeof DiscordMessagePayloadSchema>;
@@ -209,7 +164,6 @@ export const LegacyDeliverySnapshotSchema = z.object({
   title: nonBlank.max(256),
   url: httpUrl,
   summary: nullableText,
-  whyUseful: nullableText,
   personalNote: nullableText,
   selectedQuote: nullableText,
   includeQuote: z.boolean(),

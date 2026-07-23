@@ -99,8 +99,9 @@ async function refreshSession(
 ): Promise<{ accessToken: string } | null> {
   if (refreshInFlight) return await refreshInFlight;
   const operation = (async (): Promise<{ accessToken: string } | null> => {
+    let refresh: Response;
     try {
-      const refresh = await fetch(`${config.apiBaseUrl}/v1/auth/refresh`, {
+      refresh = await fetch(`${config.apiBaseUrl}/v1/auth/refresh`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -111,6 +112,12 @@ async function refreshSession(
           refreshToken: config.refreshToken,
         }),
       });
+    } catch {
+      // Keep the rotating refresh token when the server may never have
+      // received the request. A later request can safely try again.
+      return null;
+    }
+    try {
       const refreshed = await refresh.json().catch(() => undefined);
       const data = isRecord(refreshed) && isRecord(refreshed.data)
         ? refreshed.data
@@ -266,6 +273,8 @@ export const api = {
     (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session", {
       signal,
     })).data,
+  logout: (): Promise<void> =>
+    apiRequest("/v1/auth/logout", { method: "POST" }),
   guilds: async (signal?: AbortSignal): Promise<DiscordGuild[]> =>
     (await apiRequest<DataEnvelope<DiscordGuild[]>>(
       "/v1/setup/discord/guilds",

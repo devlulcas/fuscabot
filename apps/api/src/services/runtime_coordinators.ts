@@ -7,6 +7,7 @@ import type {
 } from "../app.ts";
 import { compactEnrichmentInput } from "../domain/enrichment.ts";
 import type { StoredChannel } from "../domain/discord_setup.ts";
+import { InvalidReadLaterChannelError } from "../domain/discord_setup.ts";
 import { EnrichmentPreparingError } from "../domain/durable_delivery.ts";
 import type { DiscordClient } from "../integrations/discord_client.ts";
 import type { ResourceRepository } from "../repositories/resource_repository.ts";
@@ -14,6 +15,7 @@ import type { DiscordSetupCoordinator } from "./discord_setup_coordinator.ts";
 import type { DurableDeliveryCoordinator } from "./durable_delivery_coordinator.ts";
 import type { EnrichmentService } from "./enrichment_service.ts";
 import { formatDiscordSnapshot, snapshotPayload } from "./message_formatter.ts";
+import { ResourceNotFoundError } from "./resource_service.ts";
 
 function assertOwner(actual: string, expected: string): void {
   if (actual !== expected) throw new Error("Workspace access denied");
@@ -109,7 +111,7 @@ export class RuntimeEnrichmentCoordinator implements EnrichmentCoordinator {
 
   private async requireResource(id: string): Promise<Resource> {
     const resource = await this.resources.findById(this.workspaceId, id);
-    if (!resource) throw new Error("Resource not found");
+    if (!resource) throw new ResourceNotFoundError();
     return resource;
   }
 
@@ -154,7 +156,7 @@ export class RuntimeDeliveryCoordinator implements DeliveryCoordinator {
   ): Promise<unknown> {
     assertOwner(ownerId, this.ownerId);
     const resource = await this.resources.findById(this.workspaceId, resourceId);
-    if (!resource) throw new Error("Resource not found");
+    if (!resource) throw new ResourceNotFoundError();
     if (resource.enrichmentStatus === "preparing") throw new EnrichmentPreparingError();
     const channels = await this.setup.list(this.workspaceId);
     const channel = input.channelId
@@ -164,7 +166,11 @@ export class RuntimeDeliveryCoordinator implements DeliveryCoordinator {
         candidate.availability === "available"
       );
     const channelId = input.channelId ?? channel?.id;
-    if (!channelId) throw new Error("Configure an active Read Later channel first");
+    if (!channelId) {
+      throw new InvalidReadLaterChannelError(
+        "Configure an active Read Later channel first",
+      );
+    }
     return this.delivery.publish(
       this.workspaceId,
       resourceId,

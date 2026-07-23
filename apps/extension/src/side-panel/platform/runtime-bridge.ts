@@ -19,7 +19,11 @@ export function installRuntimeBridge(queryClient: QueryClient): () => void {
         queryKey: queryKeys.pendingCapture(message.captureId),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.resource(message.captureId),
+        queryKey: queryKeys.resource(
+          typeof message.resourceId === "string"
+            ? message.resourceId
+            : message.captureId,
+        ),
       }),
     ]);
   };

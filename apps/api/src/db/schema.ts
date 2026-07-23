@@ -96,7 +96,6 @@ export const resources = pgTable(
     imageUrl: text("image_url"),
     selectedQuote: text("selected_quote"),
     summary: text("summary"),
-    whyUseful: text("why_useful"),
     personalNote: text("personal_note"),
     enrichmentStatus: text("enrichment_status").notNull().default("preparing"),
     enrichmentError: text("enrichment_error"),

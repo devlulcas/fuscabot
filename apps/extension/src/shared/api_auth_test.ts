@@ -81,3 +81,25 @@ Deno.test("failed refresh clears all session credentials", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+Deno.test("network failure during refresh preserves session credentials", async () => {
+  const state = installChrome(session);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input) => {
+    if (String(input).endsWith("/v1/auth/refresh")) {
+      return Promise.reject(new TypeError("offline"));
+    }
+    return Promise.resolve(Response.json({ error: {} }, { status: 401 }));
+  };
+  try {
+    await assertRejects(() => apiRequest("/v1/test"), ApiError);
+    assertEquals(state.stored.accessToken, "old-access");
+    assertEquals(state.stored.refreshToken, "old-refresh");
+    assertEquals(
+      state.stored.sessionId,
+      "019432f0-7c00-7000-8000-000000000001",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

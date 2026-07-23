@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { configQuery, sessionQuery } from "../data/queries.ts";
-import { PageLoading } from "../components/page-status/page-status.tsx";
+import {
+  PageError,
+  PageLoading,
+} from "../components/page-status/page-status.tsx";
 import page from "../components/layout/page.module.css";
 
 export function AuthBoundary({ children }: { children: React.ReactNode }) {
@@ -14,7 +17,25 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
   if (config.isPending || (config.data?.accessToken && session.isPending)) {
     return <PageLoading label="Checking your session…" />;
   }
-  if (!config.data?.accessToken || session.isError) {
+  if (config.isError) {
+    return (
+      <PageError
+        error={config.error}
+        retry={() => void config.refetch()}
+      />
+    );
+  }
+  if (config.data?.accessToken && session.isError) {
+    return (
+      <PageError
+        error={new Error(
+          "Couldn’t verify your Discord session. Check your connection and try again.",
+        )}
+        retry={() => void session.refetch()}
+      />
+    );
+  }
+  if (!config.data?.accessToken) {
     return (
       <section className={page.stack}>
         <h1>Connect Discord</h1>

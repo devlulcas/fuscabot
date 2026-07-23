@@ -35,7 +35,6 @@ export class ResourceService {
       imageUrl: input.metadata.imageUrl,
       selectedQuote: input.selectedQuote ?? null,
       summary: null,
-      whyUseful: null,
       personalNote: null,
       enrichmentStatus: "preparing",
       enrichmentError: null,
@@ -69,5 +68,12 @@ export class BulkResourceNotFoundError extends Error {
   constructor() {
     super("One or more resources could not be found");
     this.name = "BulkResourceNotFoundError";
+  }
+}
+
+export class ResourceNotFoundError extends Error {
+  constructor() {
+    super("Resource not found");
+    this.name = "ResourceNotFoundError";
   }
 }

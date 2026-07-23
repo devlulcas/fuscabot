@@ -83,4 +83,15 @@ Deno.test("OAuth routes hand a session back to Chrome and protect the API", asyn
   assertEquals((await channels.json()).data.map((channel: { id: string }) => channel.id), [
     "text-1",
   ]);
+
+  const logout = await instance.request("/v1/auth/logout", {
+    method: "POST",
+    headers,
+  });
+  assertEquals(logout.status, 204);
+  assertEquals(logout.headers.get("cache-control"), "no-store");
+  assertEquals(
+    (await instance.request("/v1/auth/session", { headers })).status,
+    401,
+  );
 });

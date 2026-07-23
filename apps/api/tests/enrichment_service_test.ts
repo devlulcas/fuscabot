@@ -7,7 +7,6 @@ import { EnrichmentService, InMemoryEnrichmentStore } from "../src/services/enri
 const resourceId = "019432f0-7c00-7000-8000-000000000001";
 const draft: EnrichmentDraft = {
   summary: "Resumo",
-  whyUseful: "Útil",
   outputLanguage: "pt-BR",
   suggestedTagSlugs: [],
   proposedNewTags: [],

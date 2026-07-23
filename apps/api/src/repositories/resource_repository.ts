@@ -1,4 +1,5 @@
 import type { BulkResourceAction } from "@fuscabot/contracts";
+import { tagSlug } from "@fuscabot/contracts";
 import type { Resource, ResourcePatch } from "../domain/resource.ts";
 
 export type ResourceQuery = {
@@ -69,10 +70,22 @@ export class InMemoryResourceRepository implements ResourceRepository {
   update(workspaceId: string, id: string, patch: ResourcePatch) {
     const current = this.#resources.get(id);
     if (!current || current.workspaceId !== workspaceId) return Promise.resolve(null);
-    const { archived, tagSlugs: _tagSlugs, ...fields } = patch;
+    const { archived, tagSlugs, ...fields } = patch;
+    const nextTags = tagSlugs === undefined
+      ? current.tags
+      : [...new Set(tagSlugs.map(tagSlug).filter(Boolean))].map((slug) => ({
+        slug,
+        labels: [
+          { language: "en" as const, name: slug },
+          { language: "pt-BR" as const, name: slug },
+        ],
+        aliases: [],
+        source: "user" as const,
+      }));
     const updated = {
       ...current,
       ...fields,
+      tags: nextTags,
       archivedAt: archived === undefined
         ? current.archivedAt
         : archived
