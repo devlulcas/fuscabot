@@ -1,5 +1,7 @@
 # Discord Link Library
 
+![Fuscabot Archive: A public collection of useful links](apps/web/public/social/fuscabot-og-e923a46a.jpg)
+
 An extension-first library that captures and enriches links, publishes reviewed
 snapshots to Discord, and exposes only explicitly published resources through a
 read-only bilingual archive. PostgreSQL is the source of truth.
