@@ -1,19 +1,28 @@
 import type { DeliverySnapshot } from "../../../../packages/contracts/mod.ts";
-export type DeliveryKind = "read_later" | "share";
-export type DeliveryRecord = {
-  id: string;
-  resourceId: string;
-  channelId: string;
-  discordChannelId: string;
-  guildId: string;
-  kind: DeliveryKind;
-  snapshot: DeliverySnapshot;
-  status: "pending" | "sent" | "failed" | "unknown";
-  externalMessageId: string | null;
-  externalUrl: string | null;
-  error: string | null;
-  retryOfDeliveryId: string | null;
-};
+import type { deliveries, discordConnections } from "../db/schema.ts";
+
+type DeliveryRow = typeof deliveries.$inferSelect;
+type DiscordConnectionRow = typeof discordConnections.$inferSelect;
+
+export type DeliveryKind = DeliveryRow["deliveryKind"];
+export type DeliveryRecord =
+  & Pick<
+    DeliveryRow,
+    | "id"
+    | "resourceId"
+    | "externalMessageId"
+    | "externalUrl"
+    | "error"
+    | "retryOfDeliveryId"
+  >
+  & {
+    channelId: NonNullable<DeliveryRow["channelId"]>;
+    discordChannelId: string;
+    guildId: DiscordConnectionRow["discordGuildId"];
+    kind: DeliveryKind;
+    snapshot: DeliverySnapshot;
+    status: DeliveryRow["status"];
+  };
 export class DeliveryTargetNotAllowedError extends Error {}
 export class DeliveryConflictError extends Error {}
 export class DeliveryNotRetryableError extends Error {}

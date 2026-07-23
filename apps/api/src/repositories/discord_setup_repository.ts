@@ -172,6 +172,6 @@ function mapChannel(row: typeof channels.$inferSelect): StoredChannel {
     routingDescription: row.routingDescription,
     isActiveForRouting: row.isActiveForRouting,
     isReadLater: row.isReadLater,
-    availability: row.availability as "available" | "unavailable",
+    availability: row.availability,
   };
 }

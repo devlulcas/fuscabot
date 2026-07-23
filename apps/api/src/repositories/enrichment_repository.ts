@@ -1,4 +1,4 @@
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { type EnrichmentDraft, EnrichmentDraftSchema } from "../../../../packages/contracts/mod.ts";
 import type { AppDatabase } from "../db/client.ts";
 import { enrichmentRuns, resources } from "../db/schema.ts";
@@ -59,19 +59,22 @@ export class PostgresEnrichmentStore implements EnrichmentStore {
   async completeReady(resourceId: string, draft: EnrichmentDraft): Promise<EnrichmentState> {
     const parsed = EnrichmentDraftSchema.parse(draft);
     return await this.complete(resourceId, async (tx, now) => {
+      const [current] = await tx.select({
+        id: enrichmentRuns.id,
+        createdAt: enrichmentRuns.createdAt,
+      }).from(enrichmentRuns).where(and(
+        eq(enrichmentRuns.resourceId, resourceId),
+        eq(enrichmentRuns.status, "preparing"),
+      )).for("update").limit(1);
+      if (!current) return null;
       const [run] = await tx.update(enrichmentRuns).set({
         status: "ready",
         output: structuredClone(parsed),
         error: null,
         retryable: false,
-        durationMs: sql<
-          number
-        >`(extract(epoch from (${now} - ${enrichmentRuns.createdAt})) * 1000)::int`,
+        durationMs: elapsedMilliseconds(current.createdAt, now),
         updatedAt: now,
-      }).where(and(
-        eq(enrichmentRuns.resourceId, resourceId),
-        eq(enrichmentRuns.status, "preparing"),
-      )).returning();
+      }).where(eq(enrichmentRuns.id, current.id)).returning();
       if (!run) return null;
       await tx.update(resources).set({
         summary: parsed.summary,
@@ -91,18 +94,21 @@ export class PostgresEnrichmentStore implements EnrichmentStore {
   ): Promise<EnrichmentState> {
     const safeError = error.slice(0, 1_000);
     return await this.complete(resourceId, async (tx, now) => {
+      const [current] = await tx.select({
+        id: enrichmentRuns.id,
+        createdAt: enrichmentRuns.createdAt,
+      }).from(enrichmentRuns).where(and(
+        eq(enrichmentRuns.resourceId, resourceId),
+        eq(enrichmentRuns.status, "preparing"),
+      )).for("update").limit(1);
+      if (!current) return null;
       const [run] = await tx.update(enrichmentRuns).set({
         status: "failed",
         error: safeError,
         retryable,
-        durationMs: sql<
-          number
-        >`(extract(epoch from (${now} - ${enrichmentRuns.createdAt})) * 1000)::int`,
+        durationMs: elapsedMilliseconds(current.createdAt, now),
         updatedAt: now,
-      }).where(and(
-        eq(enrichmentRuns.resourceId, resourceId),
-        eq(enrichmentRuns.status, "preparing"),
-      )).returning();
+      }).where(eq(enrichmentRuns.id, current.id)).returning();
       if (!run) return null;
       await tx.update(resources).set({
         enrichmentStatus: "failed",
@@ -132,11 +138,15 @@ export class PostgresEnrichmentStore implements EnrichmentStore {
   }
 }
 
+function elapsedMilliseconds(startedAt: Date, completedAt: Date): number {
+  return Math.max(0, completedAt.getTime() - startedAt.getTime());
+}
+
 function toState(row: typeof enrichmentRuns.$inferSelect, attempt: number): EnrichmentState {
   return {
     resourceId: row.resourceId,
     input: row.inputSnapshot as EnrichmentInput,
-    status: row.status as EnrichmentState["status"],
+    status: row.status,
     attempt,
     draft: row.output === null ? null : EnrichmentDraftSchema.parse(row.output),
     error: row.error,

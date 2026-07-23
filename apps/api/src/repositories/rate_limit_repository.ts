@@ -31,6 +31,7 @@ export class DrizzleRateLimitStore implements RateLimitStore {
           rateLimitBuckets.windowStart,
         ],
         set: {
+          // Atomic increments require a column expression in an upsert assignment.
           count: sql`${rateLimitBuckets.count} + 1`,
           expiresAt,
         },

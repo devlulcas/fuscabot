@@ -1,7 +1,10 @@
 import type { AppDatabase } from "./client.ts";
 import { workspaces } from "./schema.ts";
 
-export type Workspace = { id: string; ownerDiscordUserId: string; name: string };
+export type Workspace = Pick<
+  typeof workspaces.$inferSelect,
+  "id" | "ownerDiscordUserId" | "name"
+>;
 
 /** Creates the private v1 workspace once and returns its stable identity. */
 export async function bootstrapWorkspace(

@@ -25,6 +25,8 @@
     "test": "deno test -A",
     "dev:api": "deno task --cwd apps/api dev",
     "build:extension": "deno task --cwd apps/extension build",
+    "db:generate": "deno task --cwd apps/api db:generate",
+    "db:check": "deno task --cwd apps/api db:check",
     "db:migrate": "deno task --cwd apps/api migrate",
     "migrate": "deno task --cwd apps/api migrate"
   },

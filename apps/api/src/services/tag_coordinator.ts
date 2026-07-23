@@ -3,11 +3,15 @@ import { tagSlug } from "@fuscabot/contracts";
 import type { AppDatabase } from "../db/client.ts";
 import { resourceTags, tagAliases, tagLabels, tags } from "../db/schema.ts";
 
-export type TagRecord = {
-  id: string;
-  slug: string;
-  labels: Array<{ language: "en" | "pt-BR"; name: string }>;
-  aliases: string[];
+type TagRow = typeof tags.$inferSelect;
+type TagLabelRow = typeof tagLabels.$inferSelect;
+type TagAliasRow = typeof tagAliases.$inferSelect;
+
+export type TagRecord = Pick<TagRow, "id" | "slug"> & {
+  labels: Array<
+    Pick<TagLabelRow, "name"> & { language: Extract<TagLabelRow["language"], "en" | "pt-BR"> }
+  >;
+  aliases: TagAliasRow["aliasNormalized"][];
 };
 
 export class TagNotFoundError extends Error {}
@@ -36,28 +40,29 @@ export class PostgresTagCoordinator {
         ))
       : null;
     if (matchingIds && matchingIds.length === 0) return [];
-    const rows = await this.db.select({ id: tags.id, slug: tags.slug }).from(tags).where(and(
-      eq(tags.workspaceId, this.workspaceId),
-      matchingIds ? inArray(tags.id, matchingIds.map((row) => row.id)) : undefined,
-    )).orderBy(asc(tags.slug));
+    const rows = await this.db.query.tags.findMany({
+      columns: { id: true, slug: true },
+      where: and(
+        eq(tags.workspaceId, this.workspaceId),
+        matchingIds ? inArray(tags.id, matchingIds.map((row) => row.id)) : undefined,
+      ),
+      orderBy: [asc(tags.slug)],
+      with: {
+        labels: true,
+        aliases: {
+          where: eq(tagAliases.workspaceId, this.workspaceId),
+        },
+      },
+    });
     if (rows.length === 0) return [];
-    const ids = rows.map((row) => row.id);
-    const [labels, aliases] = await Promise.all([
-      this.db.select().from(tagLabels).where(inArray(tagLabels.tagId, ids)),
-      this.db.select().from(tagAliases).where(and(
-        eq(tagAliases.workspaceId, this.workspaceId),
-        inArray(tagAliases.tagId, ids),
-      )),
-    ]);
     return rows.map((row) => ({
-      ...row,
-      labels: labels.filter((label) => label.tagId === row.id).map((label) => ({
+      id: row.id,
+      slug: row.slug,
+      labels: row.labels.map((label) => ({
         language: label.language as "en" | "pt-BR",
         name: label.name,
       })),
-      aliases: aliases.filter((alias) => alias.tagId === row.id).map((alias) =>
-        alias.aliasNormalized
-      ).sort(),
+      aliases: row.aliases.map((alias) => alias.aliasNormalized).sort(),
     }));
   }
 
@@ -138,16 +143,27 @@ export class PostgresTagCoordinator {
   }
 }
 
-type TagInput = { slug: string; english: string; portuguese: string; aliases: string[] };
+type TagInput = {
+  slug: TagRow["slug"];
+  english: TagLabelRow["name"];
+  portuguese: TagLabelRow["name"];
+  aliases: TagAliasRow["aliasNormalized"][];
+};
 
-function labelValues(tagId: string, input: TagInput) {
+function labelValues(tagId: TagLabelRow["tagId"], input: TagInput): Array<
+  typeof tagLabels.$inferInsert
+> {
   return [
     { tagId, language: "en", name: input.english.trim() },
     { tagId, language: "pt-BR", name: input.portuguese.trim() },
   ];
 }
 
-function aliasValues(workspaceId: string, tagId: string, aliases: string[]) {
+function aliasValues(
+  workspaceId: TagAliasRow["workspaceId"],
+  tagId: TagAliasRow["tagId"],
+  aliases: TagInput["aliases"],
+): Array<typeof tagAliases.$inferInsert> {
   return [...new Set(aliases.map(normalize).filter(Boolean))].map((aliasNormalized) => ({
     workspaceId,
     tagId,

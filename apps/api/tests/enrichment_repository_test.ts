@@ -15,8 +15,8 @@ Deno.test("enrichment repository uses Drizzle transactions for claims and comple
   assertStringIncludes(source, 'enrichmentStatus: "failed"');
 });
 
-Deno.test("enrichment duration is the only fixed PostgreSQL expression", () => {
-  const expressions = source.match(/sql<\s*number\s*>`/g) ?? [];
-  assertEquals(expressions.length, 2);
-  assertStringIncludes(source, "extract(epoch");
+Deno.test("enrichment duration uses locked inferred rows instead of raw SQL", () => {
+  assertEquals(source.includes("sql<"), false);
+  assertEquals(source.includes("extract(epoch"), false);
+  assertStringIncludes(source, "elapsedMilliseconds(current.createdAt, now)");
 });

@@ -4,12 +4,14 @@ import {
   asc,
   desc,
   eq,
+  exists,
+  ilike,
   inArray,
   isNotNull,
   isNull,
+  notExists,
   or,
   sql,
-  type SQLWrapper,
 } from "drizzle-orm";
 import type { AppDatabase } from "../db/client.ts";
 import { deliveries, resources, resourceTags, tagAliases, tagLabels, tags } from "../db/schema.ts";
@@ -59,52 +61,67 @@ export class PostgresResourceRepository implements ResourceRepository {
       predicates.push(eq(resources.enrichmentStatus, query.enrichmentStatus));
     }
     if (query.tag) {
-      predicates.push(sql<boolean>`exists (
-        select 1 from ${resourceTags} frt
-        join ${tags} ft on ft.id = frt.tag_id
-        left join ${tagLabels} ftl on ftl.tag_id = ft.id
-        left join ${tagAliases} fta on fta.tag_id = ft.id
-        where frt.resource_id = ${resources.id}
-          and (ft.slug = ${query.tag} or ftl.name = ${query.tag} or fta.alias_normalized = ${query.tag})
-      )`);
+      predicates.push(exists(
+        this.db.select({ resourceId: resourceTags.resourceId }).from(resourceTags)
+          .innerJoin(tags, eq(tags.id, resourceTags.tagId))
+          .leftJoin(tagLabels, eq(tagLabels.tagId, tags.id))
+          .leftJoin(tagAliases, eq(tagAliases.tagId, tags.id))
+          .where(and(
+            eq(resourceTags.resourceId, resources.id),
+            or(
+              eq(tags.slug, query.tag),
+              eq(tagLabels.name, query.tag),
+              eq(tagAliases.aliasNormalized, query.tag),
+            ),
+          )),
+      ));
     }
     if (query.state === "inbox") {
-      predicates.push(sql<boolean>`not exists (
-        select 1 from ${deliveries} sd
-        where sd.resource_id = ${resources.id} and sd.status = 'sent'
-      )`);
+      predicates.push(notExists(
+        this.db.select({ resourceId: deliveries.resourceId }).from(deliveries).where(and(
+          eq(deliveries.resourceId, resources.id),
+          eq(deliveries.status, "sent"),
+        )),
+      ));
     }
     if (query.state === "shared" || query.state === "read_later") {
       const kind = query.state === "shared" ? "share" : "read_later";
-      predicates.push(sql<boolean>`exists (
-        select 1 from ${deliveries} sd
-        where sd.resource_id = ${resources.id} and sd.status = 'sent'
-          and sd.delivery_kind = ${kind}
-      )`);
+      predicates.push(exists(
+        this.db.select({ resourceId: deliveries.resourceId }).from(deliveries).where(and(
+          eq(deliveries.resourceId, resources.id),
+          eq(deliveries.status, "sent"),
+          eq(deliveries.deliveryKind, kind),
+        )),
+      ));
     }
     const term = query.search?.trim();
     if (term) {
       const pattern = `%${escapeLike(term)}%`;
       predicates.push(
         or(
+          // Drizzle has no query-builder operator for PostgreSQL tsvector @@ tsquery.
           sql<boolean>`${sql.identifier("resources")}.${sql.identifier("search_document")}
             @@ websearch_to_tsquery('simple', ${term})`,
-          like(resources.title, pattern),
-          like(resources.originalUrl, pattern),
-          like(resources.sourceDomain, pattern),
-          like(resources.summary, pattern),
-          like(resources.personalNote, pattern),
-          like(resources.selectedQuote, pattern),
-          sql<boolean>`exists (
-          select 1 from ${resourceTags} srt
-          join ${tags} st on st.id = srt.tag_id
-          left join ${tagLabels} stl on stl.tag_id = st.id
-          left join ${tagAliases} sta on sta.tag_id = st.id
-          where srt.resource_id = ${resources.id}
-            and (st.slug ilike ${pattern} escape '\\'
-              or stl.name ilike ${pattern} escape '\\'
-              or sta.alias_normalized ilike ${pattern} escape '\\')
-        )`,
+          ilike(resources.title, pattern),
+          ilike(resources.originalUrl, pattern),
+          ilike(resources.sourceDomain, pattern),
+          ilike(resources.summary, pattern),
+          ilike(resources.personalNote, pattern),
+          ilike(resources.selectedQuote, pattern),
+          exists(
+            this.db.select({ resourceId: resourceTags.resourceId }).from(resourceTags)
+              .innerJoin(tags, eq(tags.id, resourceTags.tagId))
+              .leftJoin(tagLabels, eq(tagLabels.tagId, tags.id))
+              .leftJoin(tagAliases, eq(tagAliases.tagId, tags.id))
+              .where(and(
+                eq(resourceTags.resourceId, resources.id),
+                or(
+                  ilike(tags.slug, pattern),
+                  ilike(tagLabels.name, pattern),
+                  ilike(tagAliases.aliasNormalized, pattern),
+                ),
+              )),
+          ),
         )!,
       );
     }
@@ -119,15 +136,24 @@ export class PostgresResourceRepository implements ResourceRepository {
   }
 
   async publish(workspaceId: string, id: string, slug: string): Promise<Resource | null> {
-    const [row] = await this.db.update(resources).set({
-      publicSlug: sql`coalesce(${resources.publicSlug}, ${slug})`,
-      publicPublishedAt: sql`coalesce(${resources.publicPublishedAt}, now())`,
-      updatedAt: new Date(),
-    }).where(and(
-      eq(resources.workspaceId, workspaceId),
-      eq(resources.id, id),
-    )).returning({ id: resources.id });
-    return row ? await this.findById(workspaceId, row.id) : null;
+    const publishedId = await this.db.transaction(async (tx) => {
+      const [current] = await tx.select({
+        id: resources.id,
+        publicSlug: resources.publicSlug,
+        publicPublishedAt: resources.publicPublishedAt,
+      }).from(resources).where(and(
+        eq(resources.workspaceId, workspaceId),
+        eq(resources.id, id),
+      )).for("update").limit(1);
+      if (!current) return null;
+      await tx.update(resources).set({
+        publicSlug: current.publicSlug ?? slug,
+        publicPublishedAt: current.publicPublishedAt ?? new Date(),
+        updatedAt: new Date(),
+      }).where(eq(resources.id, current.id));
+      return current.id;
+    });
+    return publishedId ? await this.findById(workspaceId, publishedId) : null;
   }
 
   async unpublish(workspaceId: string, id: string): Promise<Resource | null> {
@@ -167,20 +193,22 @@ export class PostgresResourceRepository implements ResourceRepository {
             target: [tags.workspaceId, tags.slug],
           }).returning({ id: tags.id, slug: tags.slug });
           if (created.length) {
-            await tx.insert(tagLabels).values(created.flatMap((tag) => [
+            const labels: Array<typeof tagLabels.$inferInsert> = created.flatMap((tag) => [
               { tagId: tag.id, language: "en", name: tag.slug },
               { tagId: tag.id, language: "pt-BR", name: tag.slug },
-            ])).onConflictDoNothing();
+            ]);
+            await tx.insert(tagLabels).values(labels).onConflictDoNothing();
           }
           const selected = await tx.select({ id: tags.id }).from(tags).where(and(
             eq(tags.workspaceId, workspaceId),
             inArray(tags.slug, requestedSlugs),
           ));
-          await tx.insert(resourceTags).values(selected.map((tag) => ({
+          const links: Array<typeof resourceTags.$inferInsert> = selected.map((tag) => ({
             resourceId: id,
             tagId: tag.id,
             source: "user",
-          }))).onConflictDoNothing();
+          }));
+          await tx.insert(resourceTags).values(links).onConflictDoNothing();
         }
       }
       return true;
@@ -224,44 +252,35 @@ export class PostgresResourceRepository implements ResourceRepository {
   private async hydrate(rows: Array<typeof resources.$inferSelect>): Promise<Resource[]> {
     if (!rows.length) return [];
     const ids = rows.map((row) => row.id);
-    const links = await this.db.select({
-      resourceId: resourceTags.resourceId,
-      tagId: tags.id,
-      slug: tags.slug,
-      source: resourceTags.source,
-    }).from(resourceTags).innerJoin(tags, eq(tags.id, resourceTags.tagId))
-      .where(inArray(resourceTags.resourceId, ids));
-    const tagIds = [...new Set(links.map((link) => link.tagId))];
-    const [labels, aliases] = tagIds.length
-      ? await Promise.all([
-        this.db.select().from(tagLabels).where(inArray(tagLabels.tagId, tagIds)),
-        this.db.select().from(tagAliases).where(inArray(tagAliases.tagId, tagIds)),
-      ])
-      : [[], []];
+    const links = await this.db.query.resourceTags.findMany({
+      where: inArray(resourceTags.resourceId, ids),
+      with: {
+        tag: {
+          with: {
+            labels: true,
+            aliases: true,
+          },
+        },
+      },
+    });
     return rows.map((row) =>
       mapResource(
         row,
         this.publicSiteOrigin,
         links.filter((link) => link.resourceId === row.id).map(
           (link) => ({
-            slug: link.slug,
-            labels: labels.filter((label) => label.tagId === link.tagId).map((label) => ({
-              language: label.language as "en" | "pt-BR",
+            slug: link.tag.slug,
+            labels: link.tag.labels.map((label) => ({
+              language: label.language,
               name: label.name,
             })),
-            aliases: aliases.filter((alias) => alias.tagId === link.tagId).map((alias) =>
-              alias.aliasNormalized
-            ),
-            source: link.source as "ai" | "user",
+            aliases: link.tag.aliases.map((alias) => alias.aliasNormalized),
+            source: link.source,
           }),
         ),
       )
     );
   }
-}
-
-function like(column: SQLWrapper, pattern: string) {
-  return sql<boolean>`${column} ilike ${pattern} escape '\\'`;
 }
 
 function toInsert(resource: Resource): typeof resources.$inferInsert {
@@ -310,8 +329,8 @@ function mapResource(
 ): Resource {
   return {
     ...row,
-    outputLanguage: row.outputLanguage as "pt-BR" | "en",
-    enrichmentStatus: row.enrichmentStatus as "preparing" | "ready" | "failed",
+    outputLanguage: row.outputLanguage,
+    enrichmentStatus: row.enrichmentStatus,
     publishedAtSource: iso(row.publishedAtSource),
     publicPublication: row.publicSlug && row.publicPublishedAt
       ? {

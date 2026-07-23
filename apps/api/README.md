@@ -35,12 +35,11 @@ https://fuscabot.xyz/v1/auth/discord/callback
 
 ## Database
 
-Run `deno task migrate` to apply every numbered migration. The runner records checksums and refuses
-changed migrations. Constraints cover canonical identity, one Read Later channel, active enrichment
-claims, and duplicate delivery protection; separate weighted GIN indexes support private library
-search and the allow-listed public archive search projection. Production runs the same
-advisory-lock/checksum boundary lazily before the first protected API request, after the HTTP
-listener is available.
+Run `deno task db:generate` after changing the Drizzle schema, `deno task db:check` to validate
+generated migrations, and `deno task migrate` to apply them. Never edit generated migration SQL
+manually. Constraints cover canonical identity, one Read Later channel, active enrichment claims,
+and duplicate delivery protection; separate weighted GIN indexes support private library search and
+the allow-listed public archive search projection.
 
 For local access to the managed development timeline, use `deno task --tunnel migrate` or
 `deno task --tunnel dev`.
@@ -49,8 +48,8 @@ For local access to the managed development timeline, use `deno task --tunnel mi
 
 Managed PostgreSQL is the source of truth. Before destructive schema changes, take a provider
 snapshot/export from the Prisma Postgres project attached as `fuscabot-db`. A portable export must
-include all public tables plus the `schema_migrations` ledger. Periodically verify restoration into
-a disposable database; Discord messages are outbound snapshots, not backups.
+include all public tables plus Drizzle's migration journal. Periodically verify restoration into a
+disposable database; Discord messages are outbound snapshots, not backups.
 
 ## Secrets
 
@@ -75,6 +74,5 @@ UMAMI_WEBSITE_ID=b7f428a4-b9d3-402d-a8ec-f5ba944f728f
 
 `UMAMI_HOST_URL` may override the collection origin for a self-hosted tracker. Public HTML is
 revalidated on every request with ETags; static fingerprinted assets are immutable. Run
-`deno task migrate` before starting code that expects the publication columns. Existing archived
-records return to the active library; Inbox, Read Later, and Shared continue to derive from delivery
-history.
+`deno task migrate` before starting the application. Inbox, Read Later, and Shared derive from
+delivery history.

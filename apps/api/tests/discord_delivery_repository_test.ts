@@ -17,6 +17,8 @@ Deno.test("channel and delivery repositories are Drizzle-first and workspace-sco
   assertStringIncludes(deliverySource, "eq(resources.workspaceId, workspaceId)");
   assertStringIncludes(deliverySource, "eq(channels.isActiveForRouting, true)");
   assertStringIncludes(deliverySource, 'kind === "read_later"');
+  assertStringIncludes(deliverySource, "tx.query.channels.findFirst");
+  assertStringIncludes(deliverySource, "discordConnection:");
   assertStringIncludes(setupSource, ".onConflictDoUpdate(");
 });
 

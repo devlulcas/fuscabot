@@ -44,6 +44,7 @@ export class PostgresDurableDeliveryRepository {
   ) {
     try {
       return await this.db.transaction(async (tx) => {
+        // A transaction-scoped advisory lock has no Drizzle query-builder equivalent.
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext(${`${resourceId}:${channelId}:${kind}`}))`,
         );
@@ -118,14 +119,17 @@ export class PostgresDurableDeliveryRepository {
         eq(deliveries.status, "pending"),
       )).returning();
       if (!row) throw new Error("Delivery state transition was lost");
-      const [channel] = await tx.select({
-        discordChannelId: channels.discordChannelId,
-        guildId: discordConnections.discordGuildId,
-      }).from(channels)
-        .innerJoin(discordConnections, eq(discordConnections.id, channels.discordConnectionId))
-        .where(eq(channels.id, row.channelId!)).limit(1);
+      const channel = await tx.query.channels.findFirst({
+        columns: { discordChannelId: true },
+        where: eq(channels.id, row.channelId!),
+        with: {
+          discordConnection: {
+            columns: { discordGuildId: true },
+          },
+        },
+      });
       if (!channel) throw new Error("Delivery channel could not be loaded");
-      return map(row, channel.discordChannelId, channel.guildId);
+      return map(row, channel.discordChannelId, channel.discordConnection.discordGuildId);
     });
   }
 
@@ -155,9 +159,9 @@ function map(
     channelId: row.channelId!,
     discordChannelId,
     guildId,
-    kind: row.deliveryKind as DeliveryKind,
+    kind: row.deliveryKind,
     snapshot: row.messageSnapshot as DeliverySnapshot,
-    status: row.status as DeliveryRecord["status"],
+    status: row.status,
     externalMessageId: row.externalMessageId,
     externalUrl: row.externalUrl,
     error: row.error,

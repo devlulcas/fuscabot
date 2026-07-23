@@ -1,24 +1,28 @@
+import type { channels } from "../db/schema.ts";
+
+type ChannelRow = typeof channels.$inferSelect;
+
 export type ImportedTextChannel = {
-  discordChannelId: string;
-  name: string;
-  parentDiscordChannelId: string | null;
-  parentName: string | null;
-  topic: string | null;
+  discordChannelId: ChannelRow["discordChannelId"];
+  name: ChannelRow["name"];
+  parentDiscordChannelId: ChannelRow["parentDiscordChannelId"];
+  parentName: ChannelRow["parentName"];
+  topic: ChannelRow["discordTopic"];
 };
 
 export type StoredChannel = ImportedTextChannel & {
-  id: string;
-  workspaceId: string;
-  routingDescription: string | null;
-  isActiveForRouting: boolean;
-  isReadLater: boolean;
-  availability: "available" | "unavailable";
+  id: ChannelRow["id"];
+  workspaceId: ChannelRow["workspaceId"];
+  routingDescription: ChannelRow["routingDescription"];
+  isActiveForRouting: ChannelRow["isActiveForRouting"];
+  isReadLater: ChannelRow["isReadLater"];
+  availability: ChannelRow["availability"];
 };
 
 export type ChannelPatch = {
-  routingDescription?: string | null;
-  isActiveForRouting?: boolean;
-  isReadLater?: boolean;
+  routingDescription?: ChannelRow["routingDescription"];
+  isActiveForRouting?: ChannelRow["isActiveForRouting"];
+  isReadLater?: ChannelRow["isReadLater"];
 };
 
 export class DiscordSetupConflictError extends Error {}

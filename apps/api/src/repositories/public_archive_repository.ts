@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, exists, ilike, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { AppDatabase } from "../db/client.ts";
 import { resources, resourceTags, tagLabels, tags } from "../db/schema.ts";
 
@@ -55,15 +55,10 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
     const predicates = this.predicates(term, input.tag);
     const page = Math.max(1, Math.trunc(input.page));
     const pageSize = 20;
+    const matchingTag = term ? this.matchingTag(term) : undefined;
+    // PostgreSQL tsvector ranking has no Drizzle query-builder equivalent.
     const tagRank = term
-      ? sql<number>`case when exists (
-          select 1 from ${resourceTags} rank_rt
-          join ${tags} rank_t on rank_t.id = rank_rt.tag_id
-          join ${tagLabels} rank_tl on rank_tl.tag_id = rank_t.id
-          where rank_rt.resource_id = ${resources.id}
-            and (rank_t.slug ilike ${`%${escapeLike(term)}%`} escape '\\'
-              or rank_tl.name ilike ${`%${escapeLike(term)}%`} escape '\\')
-        ) then 1 else 0 end`
+      ? sql<number>`case when ${exists(matchingTag!)} then 1 else 0 end`
       : sql<number>`0`;
     const [rows, counts, availableTags] = await Promise.all([
       this.db.select().from(resources).where(and(...predicates)).orderBy(
@@ -75,7 +70,7 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
         desc(resources.publicPublishedAt),
         desc(resources.id),
       ).limit(pageSize).offset((page - 1) * pageSize),
-      this.db.select({ count: sql<number>`count(*)::int` }).from(resources)
+      this.db.select({ count: count() }).from(resources)
         .where(and(...predicates)),
       this.loadTags(),
     ]);
@@ -133,29 +128,37 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
     ];
     const term = query?.trim();
     if (term) {
-      const pattern = `%${escapeLike(term)}%`;
-      predicates.push(sql<boolean>`(
-        ${sql.identifier("public_search_document")}
-          @@ websearch_to_tsquery('simple', ${term})
-        or exists (
-          select 1 from ${resourceTags} search_rt
-          join ${tags} search_t on search_t.id = search_rt.tag_id
-          join ${tagLabels} search_tl on search_tl.tag_id = search_t.id
-          where search_rt.resource_id = ${resources.id}
-            and (search_t.slug ilike ${pattern} escape '\\'
-              or search_tl.name ilike ${pattern} escape '\\')
-        )
-      )`);
+      predicates.push(
+        or(
+          // Drizzle has no query-builder operator for PostgreSQL tsvector @@ tsquery.
+          sql<boolean>`${sql.identifier("public_search_document")}
+          @@ websearch_to_tsquery('simple', ${term})`,
+          exists(this.matchingTag(term)),
+        )!,
+      );
     }
     if (tag) {
-      predicates.push(sql<boolean>`exists (
-        select 1 from ${resourceTags} filter_rt
-        join ${tags} filter_t on filter_t.id = filter_rt.tag_id
-        where filter_rt.resource_id = ${resources.id}
-          and filter_t.slug = ${tag}
-      )`);
+      predicates.push(exists(
+        this.db.select({ resourceId: resourceTags.resourceId }).from(resourceTags)
+          .innerJoin(tags, eq(tags.id, resourceTags.tagId))
+          .where(and(
+            eq(resourceTags.resourceId, resources.id),
+            eq(tags.slug, tag),
+          )),
+      ));
     }
     return predicates;
+  }
+
+  private matchingTag(term: string) {
+    const pattern = `%${escapeLike(term)}%`;
+    return this.db.select({ resourceId: resourceTags.resourceId }).from(resourceTags)
+      .innerJoin(tags, eq(tags.id, resourceTags.tagId))
+      .innerJoin(tagLabels, eq(tagLabels.tagId, tags.id))
+      .where(and(
+        eq(resourceTags.resourceId, resources.id),
+        or(ilike(tags.slug, pattern), ilike(tagLabels.name, pattern)),
+      ));
   }
 
   private async hydrate(
@@ -164,14 +167,20 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
   ): Promise<PublicArchiveItem[]> {
     const ids = rows.map((row) => row.id);
     const tagRows = ids.length
-      ? await this.db.select({
-        resourceId: resourceTags.resourceId,
-        slug: tags.slug,
-        language: tagLabels.language,
-        name: tagLabels.name,
-      }).from(resourceTags).innerJoin(tags, eq(tags.id, resourceTags.tagId))
-        .innerJoin(tagLabels, eq(tagLabels.tagId, tags.id))
-        .where(inArray(resourceTags.resourceId, ids))
+      ? await this.db.query.resourceTags.findMany({
+        columns: { resourceId: true },
+        where: inArray(resourceTags.resourceId, ids),
+        with: {
+          tag: {
+            columns: { slug: true },
+            with: {
+              labels: {
+                columns: { language: true, name: true },
+              },
+            },
+          },
+        },
+      })
       : [];
     return rows.flatMap((row) => {
       if (!row.publicSlug || !row.publicPublishedAt) return [];
@@ -185,7 +194,15 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
         sourceDomain: row.sourceDomain,
         outboundUrl,
         tags: localizeTags(
-          mapTags(tagRows.filter((tag) => tag.resourceId === row.id)),
+          mapTags(
+            tagRows.filter((tag) => tag.resourceId === row.id).flatMap((link) =>
+              link.tag.labels.map((label) => ({
+                slug: link.tag.slug,
+                language: label.language,
+                name: label.name,
+              }))
+            ),
+          ),
           locale,
         ),
         publishedAt: row.publicPublishedAt,

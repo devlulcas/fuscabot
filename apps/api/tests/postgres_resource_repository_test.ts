@@ -11,12 +11,17 @@ Deno.test("resource repository is Drizzle-first and keeps workspace predicates",
   assertStringIncludes(source, "eq(resources.workspaceId, workspaceId)");
   assertStringIncludes(source, '.for("update")');
   assertStringIncludes(source, "tx.delete(resourceTags)");
+  assertStringIncludes(source, "this.db.query.resourceTags.findMany");
+  assertStringIncludes(source, "labels: true");
+  assertStringIncludes(source, "aliases: true");
 });
 
 Deno.test("resource search binds hostile values and includes bilingual tag metadata", () => {
   assertStringIncludes(source, "escapeLike(term)");
   assertStringIncludes(source, "websearch_to_tsquery");
-  assertStringIncludes(source, "${pattern}");
+  assertStringIncludes(source, "ilike(resources.title, pattern)");
+  assertStringIncludes(source, "exists(");
+  assertStringIncludes(source, "notExists(");
   assertStringIncludes(source, "tagLabels");
   assertStringIncludes(source, "tagAliases");
   assertStringIncludes(source, "patch.tagSlugs.map(tagSlug)");
