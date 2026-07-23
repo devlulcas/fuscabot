@@ -14,10 +14,10 @@
       "entrypoint": "./apps/api/main.ts",
       "cwd": "."
     },
-    "predeploy": "deno task migrate"
+    "predeploy": "deno task predeploy"
   },
   "tasks": {
-    "check": "deno task fmt:check && deno task lint && deno task typecheck && deno task test",
+    "check": "deno task build:web && deno task fmt:check && deno task lint && deno task typecheck && deno task test",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
     "lint": "deno lint",
@@ -25,18 +25,21 @@
     "test": "deno test -A",
     "dev:api": "deno task --cwd apps/api dev",
     "build:extension": "deno task --cwd apps/extension build",
+    "build:web": "deno task --cwd apps/web build",
     "db:generate": "deno task --cwd apps/api db:generate",
     "db:check": "deno task --cwd apps/api db:check",
     "db:migrate": "deno task --cwd apps/api migrate",
-    "migrate": "deno task --cwd apps/api migrate"
+    "migrate": "deno task --cwd apps/api migrate",
+    "predeploy": "deno task build:web && deno task migrate"
   },
   "fmt": {
     "exclude": [
-      "apps/extension/dist/"
+      "apps/extension/dist/",
+      "apps/web/src/client.bundle.js"
     ]
   },
   "lint": {
-    "exclude": ["apps/extension/dist/"]
+    "exclude": ["apps/extension/dist/", "apps/web/src/client.bundle.js"]
   },
-  "exclude": ["apps/extension/dist/"]
+  "exclude": ["apps/extension/dist/", "apps/web/src/client.bundle.js"]
 }

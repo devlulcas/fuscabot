@@ -6,7 +6,8 @@ import type {
   PublicArchiveListQuery,
   PublicArchiveReader,
 } from "./archive.ts";
-import { STYLE_PATH } from "./styles.ts";
+import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
+import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
 
 const item: PublicArchiveItem = {
   slug: "useful-link-a1b2c3d4",
@@ -96,6 +97,12 @@ Deno.test("archive renders semantic escaped content and passes normalized query"
     pageSize: 20,
   });
   assertMatch(body, /<main id="main"/);
+  assertMatch(body, /data-theme-control="true"/);
+  assertMatch(body, new RegExp(`src="${THEME_BOOT_PATH.replaceAll("/", "\\/")}"`));
+  assertMatch(body, new RegExp(`src="${CLIENT_PATH.replaceAll("/", "\\/")}"`));
+  assertMatch(body, /href="https:\/\/github\.com\/devlulcas"/);
+  assertMatch(body, /href="https:\/\/www\.lucasalvesrego\.com\/"/);
+  assertMatch(body, /aria-label="Creator links"/);
   assertMatch(body, /A useful &lt;link&gt;/);
   assertNotMatch(body, /A useful <link>/);
   assertMatch(
@@ -190,8 +197,11 @@ Deno.test("analytics is absent by default and constrained when configured", asyn
   assertMatch(response.headers.get("content-security-policy") ?? "", /https:\/\/cloud\.umami\.is/);
 });
 
-Deno.test("robots, sitemap, and fingerprinted stylesheet have appropriate policies", async () => {
+Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies", async () => {
   const { app: web } = app();
+  assertEquals(STYLE_PATH, `/assets/archive-${await shortHash(ARCHIVE_CSS)}.css`);
+  assertEquals(CLIENT_PATH, `/assets/archive-client-${await shortHash(CLIENT_JS)}.js`);
+  assertEquals(THEME_BOOT_PATH, `/assets/archive-theme-${await shortHash(THEME_BOOT_JS)}.js`);
   const robots = await web.request("/robots.txt");
   assertMatch(await robots.text(), /Sitemap: https:\/\/fuscabot\.example\/sitemap\.xml/);
   assert(robots.headers.get("etag"));
@@ -204,7 +214,21 @@ Deno.test("robots, sitemap, and fingerprinted stylesheet have appropriate polici
 
   const css = await web.request(STYLE_PATH);
   assertEquals(css.headers.get("cache-control"), "public, max-age=31536000, immutable");
-  assertMatch(await css.text(), /prefers-reduced-motion/);
+  const stylesheet = await css.text();
+  assertMatch(stylesheet, /prefers-reduced-motion/);
+  assertMatch(stylesheet, /@view-transition/);
+  assertMatch(stylesheet, /:root\[data-theme="dark"\]/);
+  assertMatch(stylesheet, /min-height: 100dvh/);
+  assertMatch(stylesheet, /margin-top: auto/);
+  assertMatch(stylesheet, /padding-block: clamp\(1\.8rem, 4vw, 2\.8rem\)/);
+
+  for (const path of [THEME_BOOT_PATH, CLIENT_PATH]) {
+    const asset = await web.request(path);
+    assertEquals(asset.status, 200);
+    assertEquals(asset.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assertMatch(asset.headers.get("content-type") ?? "", /text\/javascript/);
+    assertMatch(await asset.text(), /fuscabot-theme/);
+  }
 });
 
 Deno.test("matching ETag receives a bodyless 304 response", async () => {
@@ -256,3 +280,10 @@ Deno.test("configuration rejects unsafe origins and analytics", () => {
   }
   assert(thrown);
 });
+
+async function shortHash(value: string): Promise<string> {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes).slice(0, 4))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}

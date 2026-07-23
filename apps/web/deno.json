@@ -4,13 +4,17 @@
     "@std/assert": "jsr:@std/assert@^1.0.13"
   },
   "tasks": {
-    "check": "deno fmt --check && deno lint && deno check mod.ts src/app_test.ts && deno test",
+    "build": "deno bundle --config deno.client.json --platform browser --minify --output src/client.bundle.js src/client.tsx",
+    "check": "deno task build && deno fmt --check && deno lint && deno check mod.ts src/app_test.ts && deno check --config deno.client.json src/client.tsx && deno test",
     "test": "deno test"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "@hono/hono/jsx"
   },
-  "fmt": { "lineWidth": 100 },
-  "lint": { "rules": { "tags": ["recommended"] } }
+  "fmt": { "lineWidth": 100, "exclude": ["src/client.bundle.js"] },
+  "lint": {
+    "exclude": ["src/client.bundle.js"],
+    "rules": { "tags": ["recommended"] }
+  }
 }

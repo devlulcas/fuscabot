@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler } from "@hono/hono";
 import { raw } from "@hono/hono/html";
 import type { Child } from "@hono/hono/jsx";
 import type { ArchiveLocale, PublicArchiveItem, PublicArchiveReader } from "./archive.ts";
+import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
 import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
 
 const PAGE_SIZE = 20 as const;
@@ -48,6 +49,12 @@ const copy = {
     notFoundBody: "This page is unavailable or is no longer public.",
     invalidTitle: "Invalid request",
     invalidBody: "Check the search and page values, then try again.",
+    theme: "Theme",
+    systemTheme: "Use system theme",
+    lightTheme: "Use light theme",
+    darkTheme: "Use dark theme",
+    footerLinks: "Creator links",
+    website: "Website",
   },
   "pt-br": {
     language: "Português",
@@ -74,6 +81,12 @@ const copy = {
     notFoundBody: "Esta página não está disponível ou deixou de ser pública.",
     invalidTitle: "Solicitação inválida",
     invalidBody: "Confira a pesquisa e a página e tente novamente.",
+    theme: "Tema",
+    systemTheme: "Usar tema do sistema",
+    lightTheme: "Usar tema claro",
+    darkTheme: "Usar tema escuro",
+    footerLinks: "Links do criador",
+    website: "Site",
   },
 } as const;
 
@@ -87,6 +100,16 @@ export function createPublicWebApp(options: PublicWebAppOptions): Hono {
   app.get(STYLE_PATH, (c) =>
     c.body(ARCHIVE_CSS, 200, {
       "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    }));
+  app.get(CLIENT_PATH, (c) =>
+    c.body(CLIENT_JS, 200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    }));
+  app.get(THEME_BOOT_PATH, (c) =>
+    c.body(THEME_BOOT_JS, 200, {
+      "Content-Type": "text/javascript; charset=utf-8",
       "Cache-Control": "public, max-age=31536000, immutable",
     }));
 
@@ -234,6 +257,7 @@ function Document(props: {
             hreflang={alternate}
             href={`${props.origin}${props.alternatePath}`}
           />
+          <script src={THEME_BOOT_PATH} />
           <link rel="stylesheet" href={STYLE_PATH} />
           {props.analytics
             ? (
@@ -255,8 +279,25 @@ function Document(props: {
           <Header locale={props.locale} />
           {props.children}
           <footer>
-            <div class="shell">Fuscabot Archive</div>
+            <div class="shell footer__inner">
+              <span translate="no">Fuscabot Archive</span>
+              <nav class="footer__links" aria-label={copy[props.locale].footerLinks}>
+                <a
+                  href="https://github.com/devlulcas"
+                  rel="noopener noreferrer external"
+                >
+                  GitHub ↗
+                </a>
+                <a
+                  href="https://www.lucasalvesrego.com/"
+                  rel="noopener noreferrer external"
+                >
+                  {copy[props.locale].website} ↗
+                </a>
+              </nav>
+            </div>
           </footer>
+          <script type="module" src={CLIENT_PATH} />
         </body>
       </html>
     </>
@@ -269,10 +310,20 @@ function Header({ locale }: { locale: ArchiveLocale }) {
     <header class="masthead">
       <div class="shell masthead__inner">
         <a class="wordmark" href={`/${locale}/`} translate="no">Fuscabot Archive</a>
-        <nav class="locale-nav" aria-label="Language">
-          <span aria-current="page">{copy[locale].language}</span>
-          <a href={`/${alternate}/`} lang={alternate}>{copy[locale].alternateLanguage}</a>
-        </nav>
+        <div class="masthead__actions">
+          <nav class="locale-nav" aria-label="Language">
+            <span aria-current="page">{copy[locale].language}</span>
+            <a href={`/${alternate}/`} lang={alternate}>{copy[locale].alternateLanguage}</a>
+          </nav>
+          <div
+            class="theme-control-mount"
+            data-theme-control
+            data-label={copy[locale].theme}
+            data-system={copy[locale].systemTheme}
+            data-light={copy[locale].lightTheme}
+            data-dark={copy[locale].darkTheme}
+          />
+        </div>
       </div>
     </header>
   );

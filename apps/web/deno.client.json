@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "@hono/hono": "jsr:@hono/hono@^4.8.3"
+  },
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@hono/hono/jsx/dom"
+  }
+}
