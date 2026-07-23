@@ -152,6 +152,24 @@ async function refreshSession(
 }
 
 type DeliveryResult = { discordUrl?: string };
+export type PublicationTargetResult = {
+  status:
+    | "published"
+    | "already_published"
+    | "sent"
+    | "already_sent"
+    | "failed"
+    | "unavailable"
+    | "not_requested";
+  url?: string;
+  error?: string;
+  deliveryId?: string;
+  retryable: boolean;
+};
+export type PublicationResult = {
+  website: PublicationTargetResult;
+  discord: PublicationTargetResult;
+};
 type DataEnvelope<T> = { data: T };
 export type ResourcePage = {
   items: ApiResource[];
@@ -214,8 +232,8 @@ export const api = {
     );
   },
   async listResources(query = "", options: {
-    archived?: boolean;
-    state?: "inbox" | "read_later" | "shared" | "archived";
+    state?: "inbox" | "read_later" | "shared";
+    visibility?: "public" | "private";
     domain?: string;
     enrichmentStatus?: "preparing" | "ready" | "failed";
     sort?: "newest" | "oldest" | "updated";
@@ -248,11 +266,20 @@ export const api = {
         body: { ids, action },
       }),
     ),
-  publish: async (id: string, channelId: string): Promise<DeliveryResult> =>
-    parseDeliveryResult(
-      await apiRequest(`/v1/resources/${encodeURIComponent(id)}/deliveries`, {
+  publish: async (
+    id: string,
+    channelId?: string,
+  ): Promise<PublicationResult> =>
+    parsePublicationResult(
+      await apiRequest(`/v1/resources/${encodeURIComponent(id)}/publication`, {
         method: "POST",
-        body: { channelId },
+        body: channelId ? { channelId } : {},
+      }),
+    ),
+  unpublish: async (id: string): Promise<ApiResource> =>
+    parseResourceEnvelope(
+      await apiRequest(`/v1/resources/${encodeURIComponent(id)}/publication`, {
+        method: "DELETE",
       }),
     ),
   readLater: async (id: string): Promise<DeliveryResult> =>
@@ -269,6 +296,12 @@ export const api = {
       `/v1/resources/${encodeURIComponent(id)}/enrichment/retry`,
       { method: "POST" },
     )).data,
+  retryDelivery: async (id: string): Promise<DeliveryResult> =>
+    parseDeliveryResult(
+      await apiRequest(`/v1/deliveries/${encodeURIComponent(id)}/retry`, {
+        method: "POST",
+      }),
+    ),
   session: async (signal?: AbortSignal): Promise<DiscordSession> =>
     (await apiRequest<DataEnvelope<DiscordSession>>("/v1/auth/session", {
       signal,
@@ -368,6 +401,7 @@ export function parseResourceEnvelope(value: unknown): ApiResource {
     ? {
       enrichment: data.enrichment as ApiResource["enrichment"],
       deliveries: data.deliveries as ApiResource["deliveries"],
+      publicPublication: readPublicPublication(data.publicPublication),
     }
     : {};
   return channels === undefined
@@ -424,6 +458,62 @@ export function parseDeliveryResult(value: unknown): DeliveryResult {
     };
   }
   throw new ContractResponseError();
+}
+
+export function parsePublicationResult(value: unknown): PublicationResult {
+  const data = envelopeData(value);
+  if (!isRecord(data)) throw new ContractResponseError();
+  return {
+    website: parsePublicationTarget(data.website),
+    discord: parsePublicationTarget(data.discord),
+  };
+}
+
+function parsePublicationTarget(value: unknown): PublicationTargetResult {
+  if (!isRecord(value)) throw new ContractResponseError();
+  const statuses = [
+    "published",
+    "already_published",
+    "sent",
+    "already_sent",
+    "failed",
+    "unavailable",
+    "not_requested",
+  ] as const;
+  const status = statuses.find((candidate) => candidate === value.status);
+  if (
+    !status || typeof value.retryable !== "boolean" ||
+    (value.url !== undefined && value.url !== null &&
+      typeof value.url !== "string") ||
+    (value.error !== undefined && value.error !== null &&
+      typeof value.error !== "string") ||
+    (value.deliveryId !== undefined && value.deliveryId !== null &&
+      typeof value.deliveryId !== "string")
+  ) throw new ContractResponseError();
+  return {
+    status,
+    retryable: value.retryable,
+    ...(typeof value.url === "string" ? { url: value.url } : {}),
+    ...(typeof value.error === "string" ? { error: value.error } : {}),
+    ...(typeof value.deliveryId === "string"
+      ? { deliveryId: value.deliveryId }
+      : {}),
+  };
+}
+
+function readPublicPublication(
+  value: unknown,
+): ApiResource["publicPublication"] {
+  if (value === undefined || value === null) return value;
+  if (
+    !isRecord(value) || typeof value.slug !== "string" ||
+    typeof value.publishedAt !== "string" || typeof value.url !== "string"
+  ) throw new ContractResponseError();
+  return {
+    slug: value.slug,
+    publishedAt: value.publishedAt,
+    url: value.url,
+  };
 }
 
 function envelopeData(value: unknown): unknown {

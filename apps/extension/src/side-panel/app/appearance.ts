@@ -1,18 +1,27 @@
 import type { ExtensionConfig, UiTheme } from "../../shared/config.ts";
 
 const ACCENTS: Record<UiTheme, string> = {
-  dark: "#9b8cff",
-  light: "#6d5bd0",
-  adwaita: "#3584e4",
-  "adwaita-dark": "#3584e4",
+  system: "#66755b",
+  botanical: "#66755b",
+  "botanical-dark": "#a8b89b",
 };
+const colorScheme = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
+let appliedConfig: ExtensionConfig | undefined;
+
+colorScheme?.addEventListener("change", () => {
+  if (appliedConfig?.theme === "system") applyAppearance(appliedConfig);
+});
 
 export function effectiveAccent(config: ExtensionConfig): string {
   return config.accentColor ?? ACCENTS[config.theme];
 }
 
 export function applyAppearance(config: ExtensionConfig): void {
-  document.documentElement.dataset.theme = config.theme;
+  appliedConfig = config;
+  const theme = config.theme === "system"
+    ? colorScheme?.matches ? "botanical-dark" : "botanical"
+    : config.theme;
+  document.documentElement.dataset.theme = theme;
   document.documentElement.style.setProperty(
     "--accent",
     effectiveAccent(config),

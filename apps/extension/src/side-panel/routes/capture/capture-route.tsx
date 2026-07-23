@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../../../shared/api.ts";
+import { api, type PublicationResult } from "../../../shared/api.ts";
 import { savePendingCapture } from "../../../shared/pending-capture.ts";
 import type { CapturePayload } from "../../../shared/types.ts";
 import {
@@ -170,6 +170,9 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
     channelId: "",
   });
   const [notice, setNotice] = useState<React.ReactNode>();
+  const [publicationResult, setPublicationResult] = useState<
+    PublicationResult | null
+  >(null);
   const invalidate = async () => {
     await Promise.all([
       client.invalidateQueries({ queryKey: queryKeys.resource(resourceId) }),
@@ -208,24 +211,11 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
       saveBeforeDelivery(
         patch,
         persistDraft,
-        () => api.publish(resourceId, destination),
+        () => api.publish(resourceId, destination || undefined),
       ),
-    onSuccess: async (delivery) => {
+    onSuccess: async (result) => {
       await invalidate();
-      const url = safeDiscordMessageUrl(delivery.discordUrl);
-      setNotice(
-        <>
-          Published successfully.{url
-            ? (
-              <>
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  Open in Discord
-                </a>
-              </>
-            )
-            : null}
-        </>,
-      );
+      setPublicationResult(result);
     },
   });
   const readLater = useMutation({
@@ -240,12 +230,38 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
       setNotice("Sent to Read Later.");
     },
   });
-  const archive = useMutation({
-    mutationFn: () =>
-      api.updateResource(resourceId, { archived: !resource.data?.archivedAt }),
+  const unpublish = useMutation({
+    mutationFn: () => api.unpublish(resourceId),
     onSuccess: async () => {
       await invalidate();
-      navigate("/library");
+      setNotice("Removed from the public site.");
+    },
+  });
+  const retryWebsite = useMutation({
+    mutationFn: () => api.publish(resourceId),
+    onSuccess: async (result) => {
+      await invalidate();
+      setPublicationResult(result);
+    },
+  });
+  const retryDiscord = useMutation({
+    mutationFn: (deliveryId: string) => api.retryDelivery(deliveryId),
+    onSuccess: async (delivery) => {
+      await invalidate();
+      const url = safeDiscordMessageUrl(delivery.discordUrl);
+      setNotice(
+        <>
+          Discord delivery sent.{" "}
+          {url
+            ? (
+              <a href={url} target="_blank" rel="noopener noreferrer">
+                Open in Discord
+              </a>
+            )
+            : null}
+        </>,
+      );
+      setPublicationResult(null);
     },
   });
   const remove = useMutation({
@@ -269,7 +285,8 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
   const publishable = canPublish(item.enrichmentStatus);
   const dirty = dirtyStatus === item.enrichmentStatus;
   const busy = save.isPending || publish.isPending || readLater.isPending ||
-    archive.isPending || remove.isPending;
+    unpublish.isPending || retryWebsite.isPending || retryDiscord.isPending ||
+    remove.isPending;
   const suggestion = item.enrichment?.draft?.channelSuggestion;
   const selectedTags = [
     ...new Set([
@@ -297,17 +314,22 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           <p className={page.eyebrow}>Captured</p>
           <h1>Review Draft</h1>
         </div>
-        <span
-          className={`${page.status} ${
-            item.enrichmentStatus === "ready"
-              ? page.ready
-              : item.enrichmentStatus === "failed"
-              ? page.failed
-              : ""
-          }`}
-        >
-          {item.enrichmentStatus}
-        </span>
+        <div className={page.badges}>
+          {item.publicPublication
+            ? <span className={`${page.status} ${page.public}`}>Public</span>
+            : null}
+          <span
+            className={`${page.status} ${
+              item.enrichmentStatus === "ready"
+                ? page.ready
+                : item.enrichmentStatus === "failed"
+                ? page.failed
+                : ""
+            }`}
+          >
+            {item.enrichmentStatus}
+          </span>
+        </div>
       </div>
       <article className={page.source}>
         <strong>{item.title}</strong>
@@ -354,6 +376,17 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
         )
         : null}
       {notice ? <InlineNotice>{notice}</InlineNotice> : null}
+      {publicationResult
+        ? (
+          <PublicationResults
+            result={publicationResult}
+            retryingWebsite={retryWebsite.isPending}
+            retryingDiscord={retryDiscord.isPending}
+            onRetryWebsite={() => retryWebsite.mutate()}
+            onRetryDiscord={(deliveryId) => retryDiscord.mutate(deliveryId)}
+          />
+        )
+        : null}
       {resource.isRefetchError
         ? (
           <InlineNotice error>
@@ -437,12 +470,13 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           )
           : null}
         {save.error || retry.error || publish.error || readLater.error ||
-            archive.error ||
+            unpublish.error || retryWebsite.error || retryDiscord.error ||
             remove.error
           ? (
             <InlineNotice error>
               {(save.error ?? retry.error ?? publish.error ?? readLater.error ??
-                archive.error ?? remove.error)?.message}
+                unpublish.error ?? retryWebsite.error ?? retryDiscord.error ??
+                remove.error)?.message}
             </InlineNotice>
           )
           : null}
@@ -471,21 +505,42 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           <button
             type="submit"
             className={page.primary}
-            disabled={!publishable || !destination || busy}
+            disabled={busy}
           >
             {publish.isPending ? "Saving & Publishing…" : "Publish"}
           </button>
         </div>
+        <p className={page.destinationSummary}>
+          Publishes to <strong>Fuscabot Archive</strong>
+          {destination
+            ? (
+              <>
+                {" "}and{" "}
+                <strong>
+                  #{availableChannels.find((channel) =>
+                    channel.id === destination
+                  )?.name ?? "selected Discord channel"}
+                </strong>
+              </>
+            )
+            : ". Choose a Discord destination to send it there too."}
+        </p>
         <details className={page.details}>
           <summary>More Actions</summary>
           <div className={page.actions}>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => archive.mutate()}
-            >
-              {item.archivedAt ? "Restore from Archive" : "Archive"}
-            </button>
+            {item.publicPublication
+              ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => unpublish.mutate()}
+                >
+                  {unpublish.isPending
+                    ? "Removing…"
+                    : "Remove from public site"}
+                </button>
+              )
+              : null}
             <button
               type="button"
               className={page.danger}
@@ -525,4 +580,93 @@ function value(form: FormData, name: string): string {
 }
 function optionalValue(form: FormData, name: string): string | null {
   return value(form, name).trim() || null;
+}
+
+function PublicationResults({
+  result,
+  retryingWebsite,
+  retryingDiscord,
+  onRetryWebsite,
+  onRetryDiscord,
+}: {
+  result: PublicationResult;
+  retryingWebsite: boolean;
+  retryingDiscord: boolean;
+  onRetryWebsite: () => void;
+  onRetryDiscord: (deliveryId: string) => void;
+}) {
+  const websiteUrl = safeWebUrl(result.website.url);
+  const discordUrl = safeDiscordMessageUrl(result.discord.url);
+  return (
+    <section className={page.resultPanel} aria-live="polite">
+      <h2>Publication results</h2>
+      <div className={page.resultRow}>
+        <div>
+          <strong>Fuscabot Archive</strong>
+          <span>{publicationStatus(result.website.status)}</span>
+          {result.website.error ? <small>{result.website.error}</small> : null}
+        </div>
+        {websiteUrl
+          ? (
+            <a href={websiteUrl} target="_blank" rel="noopener noreferrer">
+              Open page
+            </a>
+          )
+          : result.website.retryable
+          ? (
+            <button
+              type="button"
+              disabled={retryingWebsite}
+              onClick={onRetryWebsite}
+            >
+              {retryingWebsite ? "Retrying…" : "Retry website"}
+            </button>
+          )
+          : null}
+      </div>
+      <div className={page.resultRow}>
+        <div>
+          <strong>Discord</strong>
+          <span>{publicationStatus(result.discord.status)}</span>
+          {result.discord.error ? <small>{result.discord.error}</small> : null}
+        </div>
+        {discordUrl
+          ? (
+            <a href={discordUrl} target="_blank" rel="noopener noreferrer">
+              Open message
+            </a>
+          )
+          : result.discord.retryable && result.discord.deliveryId
+          ? (
+            <button
+              type="button"
+              disabled={retryingDiscord}
+              onClick={() => onRetryDiscord(result.discord.deliveryId!)}
+            >
+              {retryingDiscord ? "Retrying…" : "Retry Discord"}
+            </button>
+          )
+          : null}
+      </div>
+    </section>
+  );
+}
+
+function publicationStatus(status: PublicationResult["website"]["status"]) {
+  switch (status) {
+    case "published":
+      return "Published";
+    case "already_published":
+      return "Already public";
+    case "sent":
+      return "Sent";
+    case "already_sent":
+      return "Already sent";
+    case "failed":
+      return "Failed";
+    case "unavailable":
+      return "Unavailable";
+    case "not_requested":
+      return "Not requested";
+  }
 }

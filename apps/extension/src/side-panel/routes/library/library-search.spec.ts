@@ -7,6 +7,7 @@ describe("library URL-state codec", () => {
       .toEqual({
         q: "",
         state: undefined,
+        visibility: undefined,
         domain: undefined,
         enrichmentStatus: undefined,
         sort: "newest",
@@ -17,13 +18,14 @@ describe("library URL-state codec", () => {
     const params = librarySearchParams({
       q: "deno",
       state: "inbox",
+      visibility: "public",
       domain: "deno.com",
       enrichmentStatus: "ready",
       sort: "newest",
       page: 1,
     });
     expect(params.toString()).toBe(
-      "q=deno&state=inbox&domain=deno.com&status=ready",
+      "q=deno&state=inbox&visibility=public&domain=deno.com&status=ready",
     );
     expect(parseLibrarySearch(params).q).toBe("deno");
   });

@@ -2,7 +2,7 @@
 import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 const CONFIG_KEY = "extensionConfig";
-export const UI_THEMES = ["dark", "light", "adwaita", "adwaita-dark"] as const;
+export const UI_THEMES = ["system", "botanical", "botanical-dark"] as const;
 export type UiTheme = typeof UI_THEMES[number];
 export type ExtensionConfig = {
   apiBaseUrl: string;
@@ -18,7 +18,7 @@ export async function getConfig(): Promise<ExtensionConfig> {
   const stored = await chrome.storage.local.get(CONFIG_KEY);
   const config = stored[CONFIG_KEY];
   if (!isRecord(config)) {
-    return { apiBaseUrl: DEFAULT_API_BASE_URL, theme: "dark" };
+    return { apiBaseUrl: DEFAULT_API_BASE_URL, theme: "botanical" };
   }
   return {
     apiBaseUrl: normalizeBaseUrl(config.apiBaseUrl),
@@ -63,7 +63,9 @@ export async function saveConfig(config: unknown): Promise<ExtensionConfig> {
 }
 
 export function normalizeTheme(value: unknown): UiTheme {
-  return UI_THEMES.find((theme) => theme === value) ?? "dark";
+  if (value === "light" || value === "adwaita") return "botanical";
+  if (value === "dark" || value === "adwaita-dark") return "botanical-dark";
+  return UI_THEMES.find((theme) => theme === value) ?? "botanical";
 }
 
 export function normalizeAccentColor(value: unknown): string | undefined {

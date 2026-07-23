@@ -3,6 +3,7 @@ import {
   ContractResponseError,
   parseBulkResourceResult,
   parseDeliveryResult,
+  parsePublicationResult,
   parseResourceEnvelope,
   parseResourceListEnvelope,
   parseResourcePageEnvelope,
@@ -35,12 +36,20 @@ const resource = {
 };
 
 Deno.test("resource response parsing validates envelopes and preserves channels", () => {
-  assertEquals(
-    parseResourceEnvelope({
-      data: { ...resource, channels: [{ id: "channel-1", name: "links" }] },
-    }).channels,
-    [{ id: "channel-1", name: "links" }],
-  );
+  const publicPublication = {
+    slug: "post-abcd1234",
+    publishedAt: "2026-07-20T13:00:00Z",
+    url: "https://example.com/en/links/post-abcd1234",
+  };
+  const parsed = parseResourceEnvelope({
+    data: {
+      ...resource,
+      publicPublication,
+      channels: [{ id: "channel-1", name: "links" }],
+    },
+  });
+  assertEquals(parsed.publicPublication, publicPublication);
+  assertEquals(parsed.channels, [{ id: "channel-1", name: "links" }]);
   assertEquals(parseResourceListEnvelope({ data: [resource] }).length, 1);
   assertEquals(
     parseResourcePageEnvelope({
@@ -92,14 +101,60 @@ Deno.test("delivery parsing accepts the contract and maps external URL", () => {
 Deno.test("bulk resource result parsing validates action and ids", () => {
   assertEquals(
     parseBulkResourceResult({
-      data: { action: "archive", affectedIds: [resource.id] },
+      data: { action: "delete", affectedIds: [resource.id] },
     }),
-    { action: "archive", affectedIds: [resource.id] },
+    { action: "delete", affectedIds: [resource.id] },
   );
   assertThrows(
     () =>
       parseBulkResourceResult({
         data: { action: "move", affectedIds: [resource.id] },
+      }),
+    ContractResponseError,
+  );
+});
+
+Deno.test("publication parsing preserves independent target outcomes", () => {
+  assertEquals(
+    parsePublicationResult({
+      data: {
+        website: {
+          status: "published",
+          retryable: false,
+          url: "https://example.com/en/links/post-abcd1234",
+          deliveryId: null,
+          error: null,
+        },
+        discord: {
+          status: "failed",
+          retryable: true,
+          url: null,
+          deliveryId: "019432f0-7c00-7000-8000-000000000004",
+          error: "Discord was temporarily unavailable",
+        },
+      },
+    }),
+    {
+      website: {
+        status: "published",
+        retryable: false,
+        url: "https://example.com/en/links/post-abcd1234",
+      },
+      discord: {
+        status: "failed",
+        retryable: true,
+        deliveryId: "019432f0-7c00-7000-8000-000000000004",
+        error: "Discord was temporarily unavailable",
+      },
+    },
+  );
+  assertThrows(
+    () =>
+      parsePublicationResult({
+        data: {
+          website: { status: "unknown", retryable: false },
+          discord: { status: "not_requested", retryable: false },
+        },
       }),
     ContractResponseError,
   );

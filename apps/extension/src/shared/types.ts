@@ -9,6 +9,11 @@ export const CAPTURE_KINDS = ["page", "selection", "link"] as const;
 export type CaptureKind = typeof CAPTURE_KINDS[number];
 export type CapturePayload = Capture;
 export type ApiResource = Resource & {
+  publicPublication?: {
+    slug: string;
+    publishedAt: string;
+    url: string;
+  } | null;
   channels?: Array<{ id: string; name: string }>;
   enrichment?: {
     draft?: {

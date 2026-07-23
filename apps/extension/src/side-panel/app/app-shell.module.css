@@ -24,6 +24,7 @@
   backdrop-filter: blur(16px);
 }
 .brand {
+  font-family: "Libre Caslon Text", Georgia, serif;
   letter-spacing: -.02em;
   white-space: nowrap;
 }
@@ -57,7 +58,9 @@
   background: var(--active-route-background);
 }
 .main {
-  padding: 16px 14px 28px;
+  width: min(100%, 680px);
+  margin-inline: auto;
+  padding: 22px 18px 38px;
 }
 @media (max-width: 370px) {
   .header {

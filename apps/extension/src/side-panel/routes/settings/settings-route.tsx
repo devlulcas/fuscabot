@@ -129,7 +129,9 @@ export function SettingsRoute() {
             >
               {UI_THEMES.map((theme) => (
                 <option key={theme} value={theme}>
-                  {theme === "adwaita-dark" ? "Adwaita Dark" : titleCase(theme)}
+                  {theme === "botanical-dark"
+                    ? "Botanical Dark"
+                    : titleCase(theme)}
                 </option>
               ))}
             </select>

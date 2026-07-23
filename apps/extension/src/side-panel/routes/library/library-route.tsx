@@ -34,8 +34,8 @@ export function LibraryRoute() {
     queryKey: queryKeys.resourceList({ ...filters }),
     queryFn: ({ signal }) =>
       api.listResources(filters.q, {
-        archived: filters.state ? undefined : false,
         state: filters.state,
+        visibility: filters.visibility,
         domain: filters.domain,
         enrichmentStatus: filters.enrichmentStatus,
         sort: filters.sort,
@@ -49,7 +49,7 @@ export function LibraryRoute() {
     mutationFn: (
       { ids, action }: {
         ids: string[];
-        action: "archive" | "restore" | "delete";
+        action: "delete";
       },
     ) => api.bulkResources(ids, action),
     onSuccess: async (result) => {
@@ -70,8 +70,8 @@ export function LibraryRoute() {
         "inbox",
         "read_later",
         "shared",
-        "archived",
       ]),
+      visibility: optionalEnum(data, "visibility", ["public", "private"]),
       domain: stringValue(data, "domain") || undefined,
       enrichmentStatus: optionalEnum(data, "enrichmentStatus", [
         "preparing",
@@ -86,22 +86,22 @@ export function LibraryRoute() {
   };
   const items = resources.data?.items ?? [];
   const hasFilters = Boolean(
-    filters.q || filters.state || filters.domain || filters.enrichmentStatus,
+    filters.q || filters.state || filters.visibility || filters.domain ||
+      filters.enrichmentStatus,
   );
   const allSelected = items.length > 0 &&
     items.every((item) => selected.has(item.id));
-  const runBulk = (action: "archive" | "restore" | "delete") => {
+  const runBulkDelete = () => {
     const ids = [...selected];
     if (!ids.length) return;
     if (
-      action === "delete" &&
       !confirm(
         `Permanently delete ${ids.length} selected resource${
           ids.length === 1 ? "" : "s"
         }? This cannot be undone.`,
       )
     ) return;
-    bulk.mutate({ ids, action });
+    bulk.mutate({ ids, action: "delete" });
   };
   return (
     <section className={page.stack}>
@@ -126,11 +126,20 @@ export function LibraryRoute() {
         </label>
         <label>
           State<select name="state" defaultValue={filters.state ?? ""}>
-            <option value="">All Active</option>
+            <option value="">All States</option>
             <option value="inbox">Inbox</option>
             <option value="read_later">Read Later</option>
             <option value="shared">Shared</option>
-            <option value="archived">Archived</option>
+          </select>
+        </label>
+        <label>
+          Visibility<select
+            name="visibility"
+            defaultValue={filters.visibility ?? ""}
+          >
+            <option value="">All</option>
+            <option value="public">Public</option>
+            <option value="private">Private</option>
           </select>
         </label>
         <label>
@@ -182,18 +191,8 @@ export function LibraryRoute() {
           <button
             type="button"
             disabled={!selected.size || bulk.isPending}
-            onClick={() =>
-              runBulk(filters.state === "archived" ? "restore" : "archive")}
-          >
-            {filters.state === "archived"
-              ? "Restore Selected"
-              : "Archive Selected"}
-          </button>
-          <button
-            type="button"
             className={page.danger}
-            disabled={!selected.size || bulk.isPending}
-            onClick={() => runBulk("delete")}
+            onClick={runBulkDelete}
           >
             Delete Selected
           </button>
@@ -240,7 +239,16 @@ export function LibraryRoute() {
                     })())}
                 />
                 <div className={page.resourceCopy}>
-                  <strong>{resource.title}</strong>
+                  <div className={page.resourceTitle}>
+                    <strong>{resource.title}</strong>
+                    {resource.publicPublication
+                      ? (
+                        <span className={`${page.status} ${page.public}`}>
+                          Public
+                        </span>
+                      )
+                      : null}
+                  </div>
                   <span className={`${page.muted} ${page.truncate}`}>
                     {safeWebUrl(resource.originalUrl)}
                   </span>
