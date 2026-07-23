@@ -39,7 +39,10 @@ export interface PublicArchiveReader {
 }
 
 export class PostgresPublicArchiveRepository implements PublicArchiveReader {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(
+    private readonly db: AppDatabase,
+    private readonly workspaceId: string,
+  ) {}
 
   async list(
     input: PublicArchiveListInput,
@@ -88,6 +91,7 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
     locale: "en" | "pt-br",
   ): Promise<PublicArchiveItem | null> {
     const rows = await this.db.select().from(resources).where(and(
+      eq(resources.workspaceId, this.workspaceId),
       eq(resources.publicSlug, slug),
       isNotNull(resources.publicPublishedAt),
     )).limit(1);
@@ -102,7 +106,10 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
     }).from(tags).innerJoin(resourceTags, eq(resourceTags.tagId, tags.id))
       .innerJoin(resources, eq(resources.id, resourceTags.resourceId))
       .innerJoin(tagLabels, eq(tagLabels.tagId, tags.id))
-      .where(isNotNull(resources.publicPublishedAt))
+      .where(and(
+        eq(resources.workspaceId, this.workspaceId),
+        isNotNull(resources.publicPublishedAt),
+      ))
       .orderBy(tags.slug);
     return mapTags(rows);
   }
@@ -111,13 +118,19 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
     const rows = await this.db.select({
       slug: resources.publicSlug,
       updatedAt: resources.updatedAt,
-    }).from(resources).where(isNotNull(resources.publicPublishedAt))
+    }).from(resources).where(and(
+      eq(resources.workspaceId, this.workspaceId),
+      isNotNull(resources.publicPublishedAt),
+    ))
       .orderBy(desc(resources.publicPublishedAt));
     return rows.flatMap((row) => row.slug ? [{ slug: row.slug, updatedAt: row.updatedAt }] : []);
   }
 
   private predicates(query?: string, tag?: string) {
-    const predicates = [isNotNull(resources.publicPublishedAt)];
+    const predicates = [
+      eq(resources.workspaceId, this.workspaceId),
+      isNotNull(resources.publicPublishedAt),
+    ];
     const term = query?.trim();
     if (term) {
       const pattern = `%${escapeLike(term)}%`;

@@ -1,5 +1,6 @@
 import { Hono } from "@hono/hono";
 import type { Context, MiddlewareHandler } from "@hono/hono";
+import { raw } from "@hono/hono/html";
 import type { Child } from "@hono/hono/jsx";
 import type { ArchiveLocale, PublicArchiveItem, PublicArchiveReader } from "./archive.ts";
 import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
@@ -12,6 +13,7 @@ export interface UmamiOptions {
   scriptUrl: string;
   websiteId: string;
   domain: string;
+  hostUrl?: string;
 }
 
 export interface PublicWebAppOptions {
@@ -211,45 +213,53 @@ function Document(props: {
 }) {
   const alternate = otherLocale(props.locale);
   return (
-    <html lang={props.locale}>
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#f4f0e5" />
-        <meta name="description" content={props.description} />
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="Fuscabot Archive" />
-        <meta property="og:title" content={props.title} />
-        <meta property="og:description" content={props.description} />
-        <meta property="og:url" content={props.canonical} />
-        <title>{props.title}</title>
-        <link rel="canonical" href={props.canonical} />
-        <link rel="alternate" hreflang={props.locale} href={props.canonical} />
-        <link rel="alternate" hreflang={alternate} href={`${props.origin}${props.alternatePath}`} />
-        <link rel="stylesheet" href={STYLE_PATH} />
-        {props.analytics
-          ? (
-            <script
-              defer
-              src={props.analytics.scriptUrl}
-              data-website-id={props.analytics.websiteId}
-              data-do-not-track="true"
-              data-exclude-search="true"
-              data-exclude-hash="true"
-              data-domains={props.analytics.domain}
-            />
-          )
-          : null}
-      </head>
-      <body>
-        <a class="skip-link" href="#main">{copy[props.locale].skip}</a>
-        <Header locale={props.locale} />
-        {props.children}
-        <footer>
-          <div class="shell">Fuscabot Archive</div>
-        </footer>
-      </body>
-    </html>
+    <>
+      {raw("<!doctype html>")}
+      <html lang={props.locale}>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <meta name="theme-color" content="#f4f0e5" />
+          <meta name="description" content={props.description} />
+          <meta property="og:type" content="website" />
+          <meta property="og:site_name" content="Fuscabot Archive" />
+          <meta property="og:title" content={props.title} />
+          <meta property="og:description" content={props.description} />
+          <meta property="og:url" content={props.canonical} />
+          <title>{props.title}</title>
+          <link rel="canonical" href={props.canonical} />
+          <link rel="alternate" hreflang={props.locale} href={props.canonical} />
+          <link
+            rel="alternate"
+            hreflang={alternate}
+            href={`${props.origin}${props.alternatePath}`}
+          />
+          <link rel="stylesheet" href={STYLE_PATH} />
+          {props.analytics
+            ? (
+              <script
+                defer
+                src={props.analytics.scriptUrl}
+                data-website-id={props.analytics.websiteId}
+                data-do-not-track="true"
+                data-exclude-search="true"
+                data-exclude-hash="true"
+                data-domains={props.analytics.domain}
+                data-host-url={props.analytics.hostUrl}
+              />
+            )
+            : null}
+        </head>
+        <body>
+          <a class="skip-link" href="#main">{copy[props.locale].skip}</a>
+          <Header locale={props.locale} />
+          {props.children}
+          <footer>
+            <div class="shell">Fuscabot Archive</div>
+          </footer>
+        </body>
+      </html>
+    </>
   );
 }
 
@@ -487,10 +497,12 @@ function responsePolicy(analytics?: UmamiOptions): MiddlewareHandler {
   return async (c, next) => {
     await next();
     const analyticsOrigin = analytics ? new URL(analytics.scriptUrl).origin : undefined;
-    const scriptSrc = analyticsOrigin ? ` 'self' ${analyticsOrigin}` : " 'self'";
+    const analyticsHost = analytics?.hostUrl ? new URL(analytics.hostUrl).origin : analyticsOrigin;
+    const scriptSrc = analyticsOrigin ? `'self' ${analyticsOrigin}` : "'self'";
+    const connectSrc = analyticsHost ? `'self' ${analyticsHost}` : "'self'";
     c.header(
       "Content-Security-Policy",
-      `default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src${scriptSrc}; connect-src${scriptSrc}`,
+      `default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src ${scriptSrc}; connect-src ${connectSrc}`,
     );
     c.header("Cross-Origin-Resource-Policy", "same-origin");
     c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
@@ -568,13 +580,20 @@ function validateOrigin(value: string): string {
 function validateUmami(value?: UmamiOptions): UmamiOptions | undefined {
   if (!value) return undefined;
   const script = new URL(value.scriptUrl);
+  const host = value.hostUrl ? new URL(value.hostUrl) : undefined;
   if (
     script.protocol !== "https:" || script.username || script.password || !value.websiteId.trim() ||
-    !/^[a-z0-9.-]+$/i.test(value.domain)
+    !/^[a-z0-9.-]+$/i.test(value.domain) ||
+    (host && (host.protocol !== "https:" || host.username || host.password))
   ) {
     throw new TypeError("Invalid Umami configuration");
   }
-  return { ...value, scriptUrl: script.href, websiteId: value.websiteId.trim() };
+  return {
+    ...value,
+    scriptUrl: script.href,
+    websiteId: value.websiteId.trim(),
+    hostUrl: host?.origin,
+  };
 }
 
 function safeOutboundUrl(value: string): boolean {

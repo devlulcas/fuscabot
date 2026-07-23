@@ -1,8 +1,8 @@
 # Discord Link Library
 
-A private, extension-first library that durably captures links, prepares useful
-context, and publishes reviewed snapshots to Discord. PostgreSQL is the source
-of truth; Discord is an outbound destination.
+An extension-first library that captures and enriches links, publishes reviewed
+snapshots to Discord, and exposes only explicitly published resources through a
+read-only bilingual archive. PostgreSQL is the source of truth.
 
 ## Requirements
 
@@ -24,5 +24,6 @@ deno task build:extension
 ```text
 apps/api          Deno + Hono HTTP API and Drizzle schema
 apps/extension    Vite + React Manifest V3 extension
+apps/web          Hono JSX public archive
 packages/contracts Shared boundary schemas and pure domain rules
 ```

@@ -87,6 +87,7 @@ Deno.test("archive renders semantic escaped content and passes normalized query"
   const body = await response.text();
 
   assertEquals(response.status, 200);
+  assertMatch(body.toLowerCase(), /^<!doctype html>/);
   assertEquals(reader.lastQuery, {
     locale: "en",
     query: "useful",

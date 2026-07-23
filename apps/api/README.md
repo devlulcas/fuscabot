@@ -15,7 +15,9 @@ deno task test
 deno task check
 ```
 
-`GET /health` is intentionally available without a database connection.
+`GET /health` is intentionally available without a database connection. The same process serves the
+public archive at `/`; public pages require a ready database and never infer visibility from Inbox
+or Discord delivery state.
 
 ## Discord connection
 
@@ -35,9 +37,10 @@ https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback
 
 Run `deno task migrate` to apply every numbered migration. The runner records checksums and refuses
 changed migrations. Constraints cover canonical identity, one Read Later channel, active enrichment
-claims, and duplicate delivery protection; a weighted GIN full-text index supports library search.
-Production runs the same advisory-lock/checksum boundary lazily before the first protected API
-request, after the HTTP listener is available.
+claims, and duplicate delivery protection; separate weighted GIN indexes support private library
+search and the allow-listed public archive search projection. Production runs the same
+advisory-lock/checksum boundary lazily before the first protected API request, after the HTTP
+listener is available.
 
 For local access to the managed development timeline, use `deno task --tunnel migrate` or
 `deno task --tunnel dev`.
@@ -54,3 +57,24 @@ a disposable database; Discord messages are outbound snapshots, not backups.
 Discord credentials, the Mistral key, and the session signing secret belong only in API runtime
 environment variables. On Deno Deploy, load them as secrets into the appropriate
 development/production context; never bundle them with the extension.
+
+## Public archive configuration
+
+Production requires the exact public origin:
+
+```text
+PUBLIC_SITE_ORIGIN=https://fuscabot.devlulcas.deno.net
+```
+
+Optional Umami tracking is enabled only when both values are present:
+
+```text
+UMAMI_SCRIPT_URL=https://cloud.umami.is/script.js
+UMAMI_WEBSITE_ID=b7f428a4-b9d3-402d-a8ec-f5ba944f728f
+```
+
+`UMAMI_HOST_URL` may override the collection origin for a self-hosted tracker. Public HTML is
+revalidated on every request with ETags; static fingerprinted assets are immutable. Run
+`deno task migrate` before starting code that expects the publication columns. Existing archived
+records return to the active library; Inbox, Read Later, and Shared continue to derive from delivery
+history.

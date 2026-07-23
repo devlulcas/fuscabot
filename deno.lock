@@ -1757,6 +1757,12 @@
           "npm:zod@4.4.3"
         ]
       },
+      "apps/web": {
+        "dependencies": [
+          "jsr:@hono/hono@^4.8.3",
+          "jsr:@std/assert@^1.0.13"
+        ]
+      },
       "packages/contracts": {
         "dependencies": [
           "jsr:@std/assert@1",

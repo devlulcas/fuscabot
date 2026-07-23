@@ -10,6 +10,7 @@ const migration = await Deno.readTextFile(
 Deno.test("public projection only maps approved resource fields", () => {
   assertStringIncludes(source, "canonicalUrl ?? row.normalizedUrl");
   assertStringIncludes(source, "selectedText: row.selectedQuote");
+  assertStringIncludes(source, "eq(resources.workspaceId, this.workspaceId)");
   for (
     const privateField of [
       "row.personalNote",

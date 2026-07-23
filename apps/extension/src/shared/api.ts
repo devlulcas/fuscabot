@@ -401,7 +401,6 @@ export function parseResourceEnvelope(value: unknown): ApiResource {
     ? {
       enrichment: data.enrichment as ApiResource["enrichment"],
       deliveries: data.deliveries as ApiResource["deliveries"],
-      publicPublication: readPublicPublication(data.publicPublication),
     }
     : {};
   return channels === undefined
@@ -498,21 +497,6 @@ function parsePublicationTarget(value: unknown): PublicationTargetResult {
     ...(typeof value.deliveryId === "string"
       ? { deliveryId: value.deliveryId }
       : {}),
-  };
-}
-
-function readPublicPublication(
-  value: unknown,
-): ApiResource["publicPublication"] {
-  if (value === undefined || value === null) return value;
-  if (
-    !isRecord(value) || typeof value.slug !== "string" ||
-    typeof value.publishedAt !== "string" || typeof value.url !== "string"
-  ) throw new ContractResponseError();
-  return {
-    slug: value.slug,
-    publishedAt: value.publishedAt,
-    url: value.url,
   };
 }
 

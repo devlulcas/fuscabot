@@ -38,5 +38,5 @@ pipeline.
 
 The API routes follow the implementation plan's `/v1` resource shape. The
 extension rotates expired application sessions automatically, polls enrichment,
-keeps manual editing available on failure, and disables publication until a
-valid destination is selected.
+keeps manual editing available on failure, and can publish to the public archive
+without requiring a Discord destination.

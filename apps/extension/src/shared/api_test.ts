@@ -29,7 +29,7 @@ const resource = {
   personalNote: null,
   enrichmentStatus: "preparing",
   enrichmentError: null,
-  archivedAt: null,
+  publicPublication: null,
   tags: [],
   createdAt: "2026-07-20T12:00:00Z",
   updatedAt: "2026-07-20T12:00:00Z",

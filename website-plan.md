@@ -34,8 +34,9 @@ separate, explicit step.
   "Remove from public site" unpublishes without deleting Discord messages or the
   saved resource.
 - Permanent resource deletion also removes its public page.
-- Archive is removed from the product. Existing archived resources migrate to
-  Inbox, and permanent Remove is the remaining destructive lifecycle action.
+- Archive is removed from the product. Existing archived resources return to the
+  active library, with Inbox/Read Later/Shared still derived from delivery
+  history, and permanent Remove is the remaining destructive lifecycle action.
 - Publication requires a non-empty title and a normalized HTTP(S) URL.
   Enrichment, summary, selected text, tags, and images are optional.
 - A public slug is created on first publication from a normalized title plus an
@@ -68,9 +69,10 @@ slug index, publication-order indexes, and a dedicated public search vector
 containing only public fields. Public search must never match or rank on notes,
 descriptions, original URLs, aliases, enrichment data, or other private fields.
 
-Remove `archived_at` only after migrating archived records back to Inbox. Remove
-Archive from schemas, patches, bulk actions, derived states, query parameters,
-and extension controls. Retain atomic bulk deletion.
+Remove `archived_at` only after restoring archived records to the active
+library. Inbox/Read Later/Shared continue to derive from delivery history.
+Remove Archive from schemas, patches, bulk actions, derived states, query
+parameters, and extension controls. Retain atomic bulk deletion.
 
 Authenticated interfaces:
 
