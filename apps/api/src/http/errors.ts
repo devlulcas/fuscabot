@@ -19,7 +19,7 @@ import { MalformedJsonError, PayloadTooLargeError } from "./json_body.ts";
 import { RateLimitExceededError } from "./rate_limit.ts";
 import { DiscordApiError } from "../integrations/discord_client.ts";
 import { MistralClientError } from "../integrations/mistral_client.ts";
-import { logError } from "../observability/log.ts";
+import { logError, logWarn } from "../observability/log.ts";
 
 type ApiErrorCode = ApiError["error"]["code"];
 
@@ -62,6 +62,15 @@ export function handleError(c: Context, cause: unknown) {
     return error(c, cause.status, cause.code, cause.message, undefined, cause.status === 502);
   }
   if (cause instanceof DiscordApiError) {
+    logWarn("discord_dependency_error", {
+      requestId: c.get("requestId"),
+      method: c.req.method,
+      path: c.req.path,
+      operation: cause.operation,
+      upstreamStatus: cause.status || null,
+      outcome: cause.outcome,
+      retryAfterMs: cause.retryAfterMs,
+    });
     return error(
       c,
       cause.status === 429 ? 503 : 502,

@@ -75,4 +75,29 @@ Deno.test("Discord channel and guild reads reject invalid successful shapes", as
     DiscordApiError,
   );
   assertEquals([channelError.outcome, guildError.outcome], ["rejected", "rejected"]);
+  assertEquals(
+    [channelError.operation, guildError.operation],
+    ["list_guild_channels", "get_guild"],
+  );
+});
+
+Deno.test("Discord channel reads accept mixed types with omitted optional fields", async () => {
+  const client = new DiscordClient(
+    "token",
+    (() =>
+      Promise.resolve(Response.json([
+        { id: "category", name: "Resources", type: 4 },
+        { id: "voice", name: "General", type: 2, parent_id: "category" },
+        { id: "text", name: "links", type: 0, parent_id: "category" },
+      ]))) as typeof fetch,
+    "https://discord.test",
+  );
+
+  assertEquals(await client.listGuildTextChannels("guild"), [{
+    id: "text",
+    name: "links",
+    type: 0,
+    parent_id: "category",
+    topic: null,
+  }]);
 });

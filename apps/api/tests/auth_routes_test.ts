@@ -25,7 +25,8 @@ const botFetch: typeof fetch = (input) => {
   if (url.endsWith("/guilds/guild-1/channels")) {
     return Promise.resolve(Response.json([
       { id: "text-1", name: "links", type: 0, parent_id: null, topic: "Useful links" },
-      { id: "forum-1", name: "forum", type: 15, parent_id: null, topic: null },
+      { id: "category-1", name: "Resources", type: 4 },
+      { id: "voice-1", name: "General", type: 2, parent_id: "category-1" },
     ]));
   }
   return Promise.resolve(Response.json({ id: "guild-1", name: "My server", icon: null }));

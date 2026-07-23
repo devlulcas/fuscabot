@@ -14,14 +14,20 @@ export type DiscordFetch = typeof fetch;
 import { fetchWithTimeout, readBoundedJson, UpstreamTimeoutError } from "./http_boundary.ts";
 
 export type DiscordFailureOutcome = "rejected" | "not_sent" | "unknown";
+export type DiscordOperation =
+  | "get_guild"
+  | "list_guild_channels"
+  | "create_message"
+  | "unknown";
 
 const DiscordTextChannelSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
-  type: z.number().int(),
-  parent_id: z.string().nullable(),
-  topic: z.string().nullable(),
+  type: z.literal(0),
+  parent_id: z.string().nullable().optional().default(null),
+  topic: z.string().nullable().optional().default(null),
 });
+const DiscordChannelStubSchema = z.object({ type: z.number().int() }).passthrough();
 const DiscordGuildSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -38,6 +44,7 @@ export class DiscordApiError extends Error {
     readonly status: number,
     readonly retryAfterMs: number | null,
     readonly outcome: DiscordFailureOutcome = "rejected",
+    readonly operation: DiscordOperation = "unknown",
   ) {
     super(message);
     this.name = "DiscordApiError";
@@ -54,17 +61,20 @@ export class DiscordClient {
 
   async listGuildTextChannels(guildId: string): Promise<DiscordTextChannel[]> {
     const body = await this.call<unknown>(`/guilds/${guildId}/channels`);
-    const parsed = z.array(DiscordTextChannelSchema).safeParse(body);
-    if (!parsed.success) throw invalidResponse("rejected");
-    const channels = parsed.data;
-    return channels.filter((channel): channel is DiscordTextChannel => channel.type === 0);
+    const channels = z.array(DiscordChannelStubSchema).safeParse(body);
+    if (!channels.success) throw invalidResponse("rejected", "list_guild_channels");
+    const textChannels = z.array(DiscordTextChannelSchema).safeParse(
+      channels.data.filter((channel) => channel.type === 0),
+    );
+    if (!textChannels.success) throw invalidResponse("rejected", "list_guild_channels");
+    return textChannels.data;
   }
 
   async getGuild(guildId: string): Promise<DiscordGuild> {
     const parsed = DiscordGuildSchema.safeParse(
       await this.call<unknown>(`/guilds/${guildId}`),
     );
-    if (!parsed.success) throw invalidResponse("rejected");
+    if (!parsed.success) throw invalidResponse("rejected", "get_guild");
     return parsed.data;
   }
 
@@ -79,12 +89,13 @@ export class DiscordClient {
         body: JSON.stringify({ ...payload, allowed_mentions: { parse: [] } }),
       }),
     );
-    if (!parsed.success) throw invalidResponse("unknown");
+    if (!parsed.success) throw invalidResponse("unknown", "create_message");
     return parsed.data;
   }
 
   private async call<T>(path: string, init: RequestInit = {}): Promise<T> {
     const isMessageCreate = init.method === "POST" && path.includes("/messages");
+    const operation = discordOperation(path, isMessageCreate);
     let response: Response;
     try {
       response = await fetchWithTimeout(
@@ -99,9 +110,21 @@ export class DiscordClient {
       );
     } catch (cause) {
       if (cause instanceof UpstreamTimeoutError || isMessageCreate) {
-        throw new DiscordApiError("Discord request outcome is unknown", 0, null, "unknown");
+        throw new DiscordApiError(
+          "Discord request outcome is unknown",
+          0,
+          null,
+          "unknown",
+          operation,
+        );
       }
-      throw new DiscordApiError("Discord request failed before completion", 0, null, "not_sent");
+      throw new DiscordApiError(
+        "Discord request failed before completion",
+        0,
+        null,
+        "not_sent",
+        operation,
+      );
     }
     let body: unknown = null;
     try {
@@ -113,6 +136,7 @@ export class DiscordClient {
           response.status,
           null,
           isMessageCreate ? "unknown" : "rejected",
+          operation,
         );
       }
     }
@@ -135,14 +159,31 @@ export class DiscordClient {
         response.status,
         retryAfterMs,
         outcome,
+        operation,
       );
     }
     return body as T;
   }
 }
 
-function invalidResponse(outcome: DiscordFailureOutcome): DiscordApiError {
-  return new DiscordApiError("Discord returned an invalid response", 200, null, outcome);
+function invalidResponse(
+  outcome: DiscordFailureOutcome,
+  operation: DiscordOperation,
+): DiscordApiError {
+  return new DiscordApiError(
+    "Discord returned an invalid response",
+    200,
+    null,
+    outcome,
+    operation,
+  );
+}
+
+function discordOperation(path: string, isMessageCreate: boolean): DiscordOperation {
+  if (isMessageCreate) return "create_message";
+  if (path.endsWith("/channels")) return "list_guild_channels";
+  if (path.startsWith("/guilds/")) return "get_guild";
+  return "unknown";
 }
 
 export type DiscordMessagePayload = ContractDiscordMessagePayload;
