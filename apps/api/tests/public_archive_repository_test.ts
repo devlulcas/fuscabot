@@ -15,6 +15,8 @@ Deno.test("public projection only maps approved resource fields", () => {
   assertStringIncludes(source, "canonicalUrl ?? row.normalizedUrl");
   assertStringIncludes(source, "selectedText: row.selectedQuote");
   assertStringIncludes(source, "eq(resources.workspaceId, this.workspaceId)");
+  assertEquals(source.includes("sql<number>`0`"), false);
+  assertStringIncludes(source, "const searchOrder = term");
   for (
     const privateField of [
       "row.personalNote",

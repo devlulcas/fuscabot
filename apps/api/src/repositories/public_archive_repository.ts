@@ -57,16 +57,16 @@ export class PostgresPublicArchiveRepository implements PublicArchiveReader {
     const pageSize = 20;
     const matchingTag = term ? this.matchingTag(term) : undefined;
     // PostgreSQL tsvector ranking has no Drizzle query-builder equivalent.
-    const tagRank = term
-      ? sql<number>`case when ${exists(matchingTag!)} then 1 else 0 end`
-      : sql<number>`0`;
+    const searchOrder = term
+      ? [
+        desc(sql<number>`case when ${exists(matchingTag!)} then 1 else 0 end`),
+        desc(sql<number>`ts_rank(${sql.identifier("public_search_document")},
+          websearch_to_tsquery('simple', ${term}))`),
+      ]
+      : [];
     const [rows, counts, availableTags] = await Promise.all([
       this.db.select().from(resources).where(and(...predicates)).orderBy(
-        desc(tagRank),
-        term
-          ? desc(sql<number>`ts_rank(${sql.identifier("public_search_document")},
-              websearch_to_tsquery('simple', ${term}))`)
-          : desc(resources.publicPublishedAt),
+        ...searchOrder,
         desc(resources.publicPublishedAt),
         desc(resources.id),
       ).limit(pageSize).offset((page - 1) * pageSize),
