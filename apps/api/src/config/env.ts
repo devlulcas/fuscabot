@@ -11,6 +11,10 @@ const EnvSchema = z.object({
   MISTRAL_API_KEY: z.string().min(1).optional(),
   APP_SESSION_SIGNING_SECRET: z.string().min(32).optional(),
   ALLOWED_EXTENSION_ORIGINS: z.string().optional(),
+  PUBLIC_SITE_ORIGIN: z.string().url().optional(),
+  UMAMI_SCRIPT_URL: z.string().url().optional(),
+  UMAMI_WEBSITE_ID: z.string().uuid().optional(),
+  UMAMI_HOST_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -25,6 +29,7 @@ const RuntimeEnvSchema = EnvSchema.extend({
   APP_SESSION_SIGNING_SECRET: z.string().min(32),
   MISTRAL_API_KEY: z.string().min(1),
   ALLOWED_EXTENSION_ORIGINS: z.string().min(1),
+  PUBLIC_SITE_ORIGIN: z.string().url(),
 }).superRefine((env, context) => {
   for (const origin of env.ALLOWED_EXTENSION_ORIGINS.split(",").map((value) => value.trim())) {
     if (!isAllowedExtensionOrigin(origin)) {
@@ -32,6 +37,34 @@ const RuntimeEnvSchema = EnvSchema.extend({
         code: "custom",
         path: ["ALLOWED_EXTENSION_ORIGINS"],
         message: "Origins must be exact Chrome extension origins or local development origins",
+      });
+    }
+  }
+  if (!isPublicOrigin(env.PUBLIC_SITE_ORIGIN)) {
+    context.addIssue({
+      code: "custom",
+      path: ["PUBLIC_SITE_ORIGIN"],
+      message: "Must be an exact HTTPS origin or a local HTTP development origin",
+    });
+  }
+  const configuredUmami = env.UMAMI_SCRIPT_URL !== undefined ||
+    env.UMAMI_WEBSITE_ID !== undefined || env.UMAMI_HOST_URL !== undefined;
+  if (
+    configuredUmami && (env.UMAMI_SCRIPT_URL === undefined || env.UMAMI_WEBSITE_ID === undefined)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["UMAMI_SCRIPT_URL"],
+      message: "UMAMI_SCRIPT_URL and UMAMI_WEBSITE_ID must be configured together",
+    });
+  }
+  for (const key of ["UMAMI_SCRIPT_URL", "UMAMI_HOST_URL"] as const) {
+    const value = env[key];
+    if (value !== undefined && !isSecureWebUrl(value)) {
+      context.addIssue({
+        code: "custom",
+        path: [key],
+        message: "Must use HTTPS or local HTTP development",
       });
     }
   }
@@ -62,4 +95,22 @@ function isAllowedExtensionOrigin(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isPublicOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.username === "" && url.password === "" &&
+      ["", "/"].includes(url.pathname) && url.search === "" && url.hash === "" &&
+      isSecureWebUrl(value);
+  } catch {
+    return false;
+  }
+}
+
+function isSecureWebUrl(value: string): boolean {
+  const url = new URL(value);
+  return url.protocol === "https:" ||
+    (url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname));
 }

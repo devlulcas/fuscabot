@@ -10,6 +10,7 @@ const runtime = {
   DISCORD_OAUTH_REDIRECT_URI: "https://api.example/v1/auth/discord/callback",
   MISTRAL_API_KEY: "mistral",
   APP_SESSION_SIGNING_SECRET: "a-secure-signing-secret-with-more-than-32-characters",
+  PUBLIC_SITE_ORIGIN: "https://fuscabot.devlulcas.deno.net",
 };
 
 Deno.test("runtime requires exact extension or local development origins", () => {
@@ -34,4 +35,37 @@ Deno.test("runtime requires exact extension or local development origins", () =>
     })).ALLOWED_EXTENSION_ORIGINS,
     "http://localhost:8000",
   );
+});
+
+Deno.test("runtime validates public origin and complete Umami configuration", () => {
+  const base = {
+    ...runtime,
+    ALLOWED_EXTENSION_ORIGINS: "http://localhost:8000",
+  };
+  assertThrows(() =>
+    requireRuntimeEnv(loadEnv({
+      ...base,
+      PUBLIC_SITE_ORIGIN: "https://example.com/archive",
+    }))
+  );
+  assertThrows(() =>
+    requireRuntimeEnv(loadEnv({
+      ...base,
+      UMAMI_SCRIPT_URL: "https://cloud.umami.is/script.js",
+    }))
+  );
+  assertThrows(() =>
+    requireRuntimeEnv(loadEnv({
+      ...base,
+      UMAMI_SCRIPT_URL: "http://analytics.example/script.js",
+      UMAMI_WEBSITE_ID: "b7f428a4-b9d3-402d-a8ec-f5ba944f728f",
+    }))
+  );
+  const configured = requireRuntimeEnv(loadEnv({
+    ...base,
+    UMAMI_SCRIPT_URL: "https://cloud.umami.is/script.js",
+    UMAMI_WEBSITE_ID: "b7f428a4-b9d3-402d-a8ec-f5ba944f728f",
+  }));
+  assertEquals(configured.PUBLIC_SITE_ORIGIN, "https://fuscabot.devlulcas.deno.net");
+  assertEquals(configured.UMAMI_WEBSITE_ID, "b7f428a4-b9d3-402d-a8ec-f5ba944f728f");
 });
