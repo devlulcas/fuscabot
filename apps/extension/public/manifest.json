@@ -13,7 +13,7 @@
   ],
   "host_permissions": [
     "http://localhost:8000/*",
-    "https://fuscabot.devlulcas.deno.net/*"
+    "https://fuscabot.xyz/*"
   ],
   "icons": {
     "16": "icons/icon-16.png",

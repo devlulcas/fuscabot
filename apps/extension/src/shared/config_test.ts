@@ -9,11 +9,11 @@ import { capturePath, cleanOptionalText } from "./types.ts";
 Deno.test("normalizes API origins", () => {
   assertEquals(
     normalizeBaseUrl("https://example.com/"),
-    "https://fuscabot.devlulcas.deno.net",
+    "https://fuscabot.xyz",
   );
   assertEquals(
     normalizeBaseUrl("https://api.fuscabot.dev"),
-    "https://fuscabot.devlulcas.deno.net",
+    "https://fuscabot.xyz",
   );
   assertEquals(
     normalizeBaseUrl("http://localhost:8000/"),
@@ -21,19 +21,19 @@ Deno.test("normalizes API origins", () => {
   );
   assertEquals(
     normalizeBaseUrl("javascript:alert(1)"),
-    "https://fuscabot.devlulcas.deno.net",
+    "https://fuscabot.xyz",
   );
   assertEquals(
     normalizeBaseUrl("http://example.com"),
-    "https://fuscabot.devlulcas.deno.net",
+    "https://fuscabot.xyz",
   );
   assertEquals(
     normalizeBaseUrl("https://user:secret@example.com"),
-    "https://fuscabot.devlulcas.deno.net",
+    "https://fuscabot.xyz",
   );
   assertEquals(
     normalizeBaseUrl("https://example.com/api?token=x"),
-    "https://fuscabot.devlulcas.deno.net",
+    "https://fuscabot.xyz",
   );
 });
 Deno.test("cleans optional capture text", () => {

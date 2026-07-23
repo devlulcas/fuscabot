@@ -19,7 +19,7 @@ import type { ResourceQuery, ResourceRepository } from "./resource_repository.ts
 export class PostgresResourceRepository implements ResourceRepository {
   constructor(
     private readonly db: AppDatabase,
-    private readonly publicSiteOrigin = "https://fuscabot.devlulcas.deno.net",
+    private readonly publicSiteOrigin = "https://fuscabot.xyz",
   ) {}
 
   async findById(workspaceId: string, id: string): Promise<Resource | null> {

@@ -4,7 +4,7 @@ import type {
   ResourcePatch,
 } from "../../../../packages/contracts/mod.ts";
 
-export const DEFAULT_API_BASE_URL = "https://fuscabot.devlulcas.deno.net";
+export const DEFAULT_API_BASE_URL = "https://fuscabot.xyz";
 export const CAPTURE_KINDS = ["page", "selection", "link"] as const;
 export type CaptureKind = typeof CAPTURE_KINDS[number];
 export type CapturePayload = Capture;

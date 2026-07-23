@@ -37,7 +37,7 @@ function app() {
     auth: new AuthService({
       clientId: "client-id",
       clientSecret: "client-secret",
-      redirectUri: "https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback",
+      redirectUri: "https://fuscabot.xyz/v1/auth/discord/callback",
       ownerDiscordUserId: "owner-1",
       signingSecret: "a-secure-signing-secret-with-more-than-32-characters",
     }, authFetch),

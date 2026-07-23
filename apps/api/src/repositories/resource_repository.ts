@@ -34,7 +34,7 @@ export class InMemoryResourceRepository implements ResourceRepository {
   #resources = new Map<string, Resource>();
   #publicSlugs = new Map<string, string>();
   constructor(
-    private readonly publicSiteOrigin = "https://fuscabot.devlulcas.deno.net",
+    private readonly publicSiteOrigin = "https://fuscabot.xyz",
   ) {}
 
   findById(workspaceId: string, id: string) {

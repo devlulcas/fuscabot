@@ -10,7 +10,7 @@ const runtime = {
   DISCORD_OAUTH_REDIRECT_URI: "https://api.example/v1/auth/discord/callback",
   MISTRAL_API_KEY: "mistral",
   APP_SESSION_SIGNING_SECRET: "a-secure-signing-secret-with-more-than-32-characters",
-  PUBLIC_SITE_ORIGIN: "https://fuscabot.devlulcas.deno.net",
+  PUBLIC_SITE_ORIGIN: "https://fuscabot.xyz",
 };
 
 Deno.test("runtime requires exact extension or local development origins", () => {
@@ -66,6 +66,6 @@ Deno.test("runtime validates public origin and complete Umami configuration", ()
     UMAMI_SCRIPT_URL: "https://cloud.umami.is/script.js",
     UMAMI_WEBSITE_ID: "b7f428a4-b9d3-402d-a8ec-f5ba944f728f",
   }));
-  assertEquals(configured.PUBLIC_SITE_ORIGIN, "https://fuscabot.devlulcas.deno.net");
+  assertEquals(configured.PUBLIC_SITE_ORIGIN, "https://fuscabot.xyz");
   assertEquals(configured.UMAMI_WEBSITE_ID, "b7f428a4-b9d3-402d-a8ec-f5ba944f728f");
 });

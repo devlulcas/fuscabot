@@ -4,7 +4,7 @@ import { AuthError, AuthService } from "../src/services/auth_service.ts";
 const config = {
   clientId: "1528786564874768565",
   clientSecret: "discord-secret",
-  redirectUri: "https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback",
+  redirectUri: "https://fuscabot.xyz/v1/auth/discord/callback",
   ownerDiscordUserId: "owner-1",
   signingSecret: "a-secure-signing-secret-with-more-than-32-characters",
   extensionRedirectOrigins: [

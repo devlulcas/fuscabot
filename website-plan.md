@@ -1,7 +1,7 @@
 # Fuscabot Archive implementation plan
 
 Repository: `devlulcas/fuscabot`\
-Production origin: `https://fuscabot.devlulcas.deno.net`
+Production origin: `https://fuscabot.xyz`
 
 ## Outcome
 
@@ -185,7 +185,7 @@ Render Umami's deferred automatic tracker with:
 - `data-do-not-track="true"`;
 - `data-exclude-search="true"`;
 - `data-exclude-hash="true"`;
-- `data-domains="fuscabot.devlulcas.deno.net"`.
+- `data-domains="fuscabot.xyz"`.
 
 Allow `https://cloud.umami.is` in `script-src` and `connect-src` only when both
 configuration values validate. Automatic analytics may receive the localized

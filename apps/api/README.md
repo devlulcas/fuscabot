@@ -30,7 +30,7 @@ for Discord start/callback and session refresh.
 The configured Discord OAuth callback remains:
 
 ```text
-https://fuscabot.devlulcas.deno.net/v1/auth/discord/callback
+https://fuscabot.xyz/v1/auth/discord/callback
 ```
 
 ## Database
@@ -63,7 +63,7 @@ development/production context; never bundle them with the extension.
 Production requires the exact public origin:
 
 ```text
-PUBLIC_SITE_ORIGIN=https://fuscabot.devlulcas.deno.net
+PUBLIC_SITE_ORIGIN=https://fuscabot.xyz
 ```
 
 Optional Umami tracking is enabled only when both values are present:
