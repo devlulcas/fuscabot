@@ -33,7 +33,7 @@ const resource: Resource & { workspaceId: string } = {
   personalNote: "Note",
   enrichmentStatus: "ready",
   enrichmentError: null,
-  archivedAt: null,
+  publicPublication: null,
   tags: [{
     slug: "typescript",
     labels: [{ language: "en", name: "TypeScript" }],

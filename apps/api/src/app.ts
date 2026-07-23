@@ -1,7 +1,7 @@
 import { type Context, Hono } from "@hono/hono";
 import { z } from "zod";
 import type { DiscordClient } from "./integrations/discord_client.ts";
-import { BulkResourceActionSchema } from "@fuscabot/contracts";
+import { BulkResourceActionSchema, PublicationRequestSchema } from "@fuscabot/contracts";
 import { CaptureSchema, ResourcePatchSchema } from "./domain/resource.ts";
 import { error, handleError } from "./http/errors.ts";
 import { assertDeclaredJsonSize, DEFAULT_MAX_JSON_BYTES, readJsonBody } from "./http/json_body.ts";
@@ -16,6 +16,7 @@ import { InMemoryResourceRepository } from "./repositories/resource_repository.t
 import type { AuthService, SessionClaims } from "./services/auth_service.ts";
 import { ResourceService } from "./services/resource_service.ts";
 import { logInfo } from "./observability/log.ts";
+import type { PublicationCoordinator } from "./services/publication_coordinator.ts";
 
 export type ChannelRecord = {
   id: string;
@@ -83,6 +84,7 @@ export type AppDependencies = {
   deliveries?: DeliveryCoordinator;
   enrichment?: EnrichmentCoordinator;
   tags?: TagCoordinator;
+  publications?: PublicationCoordinator;
   allowedOrigins?: string[];
   requireAuth?: boolean;
   maxJsonBytes?: number;
@@ -277,11 +279,11 @@ export function createApp(
   app.get("/v1/resources", async (c) => {
     const query = z.object({
       search: z.string().optional(),
-      archived: z.enum(["true", "false"]).transform((v) => v === "true").optional(),
       domain: z.string().trim().min(1).optional(),
       enrichmentStatus: z.enum(["preparing", "ready", "failed"]).optional(),
       tag: z.string().trim().min(1).optional(),
-      state: z.enum(["inbox", "read_later", "shared", "archived"]).optional(),
+      state: z.enum(["inbox", "read_later", "shared"]).optional(),
+      visibility: z.enum(["public", "private"]).optional(),
       sort: z.enum(["newest", "oldest", "updated"]).default("newest"),
       limit: z.coerce.number().int().min(1).max(100).default(25),
       offset: z.coerce.number().int().min(0).default(0),
@@ -333,6 +335,29 @@ export function createApp(
         ? c.body(null, 204)
         : error(c, 404, "NOT_FOUND", "Resource not found"),
   );
+  app.post("/v1/resources/:id/publication", async (c) => {
+    if (!deps.publications) {
+      return error(c, 503, "DEPENDENCY_ERROR", "Publication is unavailable");
+    }
+    const input = PublicationRequestSchema.parse(
+      await readJsonBody(c, { maxBytes: deps.maxJsonBytes, emptyValue: {} }),
+    );
+    return c.json({
+      data: await deps.publications.publish(
+        c.get("session").sub,
+        c.req.param("id"),
+        input.channelId,
+      ),
+    });
+  });
+  app.delete("/v1/resources/:id/publication", async (c) => {
+    if (!deps.publications) {
+      return error(c, 503, "DEPENDENCY_ERROR", "Publication is unavailable");
+    }
+    return c.json({
+      data: await deps.publications.unpublish(c.get("session").sub, c.req.param("id")),
+    });
+  });
   app.post("/v1/resources/:id/enrichment/retry", async (c) => {
     if (!deps.enrichment) return error(c, 503, "DEPENDENCY_ERROR", "Enrichment is unavailable");
     return c.json({ data: await deps.enrichment.retry(c.get("session").sub, c.req.param("id")) });
@@ -414,10 +439,7 @@ function secureResponse(response: Response, requestId: string, path: string): vo
   response.headers.set("x-request-id", requestId);
   response.headers.set("x-content-type-options", "nosniff");
   response.headers.set("referrer-policy", "no-referrer");
-  if (
-    path === "/v1/auth/discord/callback" || path === "/v1/auth/refresh" ||
-    path === "/v1/auth/session" || path === "/v1/auth/logout"
-  ) response.headers.set("cache-control", "no-store");
+  if (path.startsWith("/v1/")) response.headers.set("cache-control", "no-store");
 }
 
 async function consumeRateLimit(

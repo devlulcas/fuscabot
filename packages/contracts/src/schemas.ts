@@ -50,7 +50,6 @@ export const ResourcePatchSchema = z.object({
   personalNote: z.string().max(10_000).nullable().optional(),
   selectedQuote: z.string().max(10_000).nullable().optional(),
   outputLanguage: LanguageSchema.optional(),
-  archived: z.boolean().optional(),
   tagSlugs: z.array(nonBlank.max(80)).max(20).optional(),
 }).strict();
 export type ResourcePatch = z.infer<typeof ResourcePatchSchema>;
@@ -64,7 +63,7 @@ export const BulkResourceActionSchema = z.object({
       });
     }
   }),
-  action: z.enum(["archive", "restore", "delete"]),
+  action: z.literal("delete"),
 }).strict();
 export type BulkResourceAction = z.infer<typeof BulkResourceActionSchema>;
 
@@ -139,12 +138,46 @@ export const ResourceSchema = z.object({
   personalNote: nullableText,
   enrichmentStatus: EnrichmentStatusSchema,
   enrichmentError: nullableText,
-  archivedAt: z.iso.datetime({ offset: true }).nullable(),
+  publicPublication: z.object({
+    slug: nonBlank.max(180),
+    publishedAt: z.iso.datetime({ offset: true }),
+    url: httpUrl,
+  }).nullable(),
   tags: z.array(ResourceTagSchema),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
 export type Resource = z.infer<typeof ResourceSchema>;
+
+export const PublicationRequestSchema = z.object({
+  channelId: z.uuid().optional(),
+}).strict();
+export type PublicationRequest = z.infer<typeof PublicationRequestSchema>;
+
+export const PublicationStatusSchema = z.enum([
+  "published",
+  "already_published",
+  "sent",
+  "already_sent",
+  "failed",
+  "unavailable",
+  "not_requested",
+]);
+export type PublicationStatus = z.infer<typeof PublicationStatusSchema>;
+
+const PublicationTargetResultSchema = z.object({
+  status: PublicationStatusSchema,
+  retryable: z.boolean(),
+  url: httpUrl.nullable(),
+  deliveryId: z.uuid().nullable(),
+  error: nonBlank.max(200).nullable(),
+});
+
+export const PublicationResultSchema = z.object({
+  website: PublicationTargetResultSchema,
+  discord: PublicationTargetResultSchema,
+});
+export type PublicationResult = z.infer<typeof PublicationResultSchema>;
 
 export const DeliveryStatusSchema = z.enum([
   "pending",

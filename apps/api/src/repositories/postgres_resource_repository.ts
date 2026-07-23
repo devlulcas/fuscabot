@@ -17,7 +17,10 @@ import type { Resource, ResourcePatch } from "../domain/resource.ts";
 import type { ResourceQuery, ResourceRepository } from "./resource_repository.ts";
 
 export class PostgresResourceRepository implements ResourceRepository {
-  constructor(private readonly db: AppDatabase) {}
+  constructor(
+    private readonly db: AppDatabase,
+    private readonly publicSiteOrigin = "https://fuscabot.devlulcas.deno.net",
+  ) {}
 
   async findById(workspaceId: string, id: string): Promise<Resource | null> {
     const rows = await this.load(
@@ -49,11 +52,8 @@ export class PostgresResourceRepository implements ResourceRepository {
 
   async list(workspaceId: string, query: ResourceQuery): Promise<Resource[]> {
     const predicates = [eq(resources.workspaceId, workspaceId)];
-    if (query.archived !== undefined) {
-      predicates.push(
-        query.archived ? isNotNull(resources.archivedAt) : isNull(resources.archivedAt),
-      );
-    }
+    if (query.visibility === "public") predicates.push(isNotNull(resources.publicPublishedAt));
+    if (query.visibility === "private") predicates.push(isNull(resources.publicPublishedAt));
     if (query.domain) predicates.push(eq(resources.sourceDomain, query.domain));
     if (query.enrichmentStatus) {
       predicates.push(eq(resources.enrichmentStatus, query.enrichmentStatus));
@@ -68,9 +68,7 @@ export class PostgresResourceRepository implements ResourceRepository {
           and (ft.slug = ${query.tag} or ftl.name = ${query.tag} or fta.alias_normalized = ${query.tag})
       )`);
     }
-    if (query.state === "archived") predicates.push(isNotNull(resources.archivedAt));
     if (query.state === "inbox") {
-      predicates.push(isNull(resources.archivedAt));
       predicates.push(sql<boolean>`not exists (
         select 1 from ${deliveries} sd
         where sd.resource_id = ${resources.id} and sd.status = 'sent'
@@ -118,6 +116,29 @@ export class PostgresResourceRepository implements ResourceRepository {
     const rows = await this.db.select().from(resources).where(and(...predicates)).orderBy(order)
       .limit(query.limit).offset(query.offset);
     return await this.hydrate(rows);
+  }
+
+  async publish(workspaceId: string, id: string, slug: string): Promise<Resource | null> {
+    const [row] = await this.db.update(resources).set({
+      publicSlug: sql`coalesce(${resources.publicSlug}, ${slug})`,
+      publicPublishedAt: sql`coalesce(${resources.publicPublishedAt}, now())`,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(resources.workspaceId, workspaceId),
+      eq(resources.id, id),
+    )).returning({ id: resources.id });
+    return row ? await this.findById(workspaceId, row.id) : null;
+  }
+
+  async unpublish(workspaceId: string, id: string): Promise<Resource | null> {
+    const [row] = await this.db.update(resources).set({
+      publicPublishedAt: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(resources.workspaceId, workspaceId),
+      eq(resources.id, id),
+    )).returning({ id: resources.id });
+    return row ? await this.findById(workspaceId, row.id) : null;
   }
 
   async update(workspaceId: string, id: string, patch: ResourcePatch): Promise<Resource | null> {
@@ -191,14 +212,6 @@ export class PostgresResourceRepository implements ResourceRepository {
           eq(resources.workspaceId, workspaceId),
           inArray(resources.id, ids),
         ));
-      } else {
-        await tx.update(resources).set({
-          archivedAt: action === "archive" ? new Date() : null,
-          updatedAt: new Date(),
-        }).where(and(
-          eq(resources.workspaceId, workspaceId),
-          inArray(resources.id, ids),
-        ));
       }
       return [...ids];
     });
@@ -228,6 +241,7 @@ export class PostgresResourceRepository implements ResourceRepository {
     return rows.map((row) =>
       mapResource(
         row,
+        this.publicSiteOrigin,
         links.filter((link) => link.resourceId === row.id).map(
           (link) => ({
             slug: link.slug,
@@ -272,7 +286,8 @@ function toInsert(resource: Resource): typeof resources.$inferInsert {
     personalNote: resource.personalNote,
     enrichmentStatus: resource.enrichmentStatus,
     enrichmentError: resource.enrichmentError,
-    archivedAt: date(resource.archivedAt),
+    publicSlug: resource.publicPublication?.slug ?? null,
+    publicPublishedAt: date(resource.publicPublication?.publishedAt ?? null),
     createdAt: new Date(resource.createdAt),
     updatedAt: new Date(resource.updatedAt),
   };
@@ -285,17 +300,28 @@ function toPatch(patch: ResourcePatch): Partial<typeof resources.$inferInsert> {
     ...(patch.personalNote === undefined ? {} : { personalNote: patch.personalNote }),
     ...(patch.selectedQuote === undefined ? {} : { selectedQuote: patch.selectedQuote }),
     ...(patch.outputLanguage === undefined ? {} : { outputLanguage: patch.outputLanguage }),
-    ...(patch.archived === undefined ? {} : { archivedAt: patch.archived ? new Date() : null }),
   };
 }
 
-function mapResource(row: typeof resources.$inferSelect, resourceTags: Resource["tags"]): Resource {
+function mapResource(
+  row: typeof resources.$inferSelect,
+  publicSiteOrigin: string,
+  resourceTags: Resource["tags"],
+): Resource {
   return {
     ...row,
     outputLanguage: row.outputLanguage as "pt-BR" | "en",
     enrichmentStatus: row.enrichmentStatus as "preparing" | "ready" | "failed",
     publishedAtSource: iso(row.publishedAtSource),
-    archivedAt: iso(row.archivedAt),
+    publicPublication: row.publicSlug && row.publicPublishedAt
+      ? {
+        slug: row.publicSlug,
+        publishedAt: row.publicPublishedAt.toISOString(),
+        url: `${publicSiteOrigin}/${
+          row.outputLanguage === "pt-BR" ? "pt-br" : "en"
+        }/links/${row.publicSlug}`,
+      }
+      : null,
     tags: resourceTags,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

@@ -24,7 +24,7 @@ const resource: Resource = {
   personalNote: "Use this when revisiting the bot architecture.",
   enrichmentStatus: "ready",
   enrichmentError: null,
-  archivedAt: null,
+  publicPublication: null,
   tags: ["typescript", "browser-extension"].map((slug) => ({
     slug,
     labels: [{ language: "en" as const, name: slug }],

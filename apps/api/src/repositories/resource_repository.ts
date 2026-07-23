@@ -4,11 +4,11 @@ import type { Resource, ResourcePatch } from "../domain/resource.ts";
 
 export type ResourceQuery = {
   search?: string;
-  archived?: boolean;
   domain?: string;
   enrichmentStatus?: "preparing" | "ready" | "failed";
   tag?: string;
-  state?: "inbox" | "read_later" | "shared" | "archived";
+  state?: "inbox" | "read_later" | "shared";
+  visibility?: "public" | "private";
   sort?: "newest" | "oldest" | "updated";
   limit: number;
   offset: number;
@@ -20,6 +20,8 @@ export interface ResourceRepository {
   create(resource: Resource): Promise<Resource>;
   list(workspaceId: string, query: ResourceQuery): Promise<Resource[]>;
   update(workspaceId: string, id: string, patch: ResourcePatch): Promise<Resource | null>;
+  publish(workspaceId: string, id: string, slug: string): Promise<Resource | null>;
+  unpublish(workspaceId: string, id: string): Promise<Resource | null>;
   delete(workspaceId: string, id: string): Promise<boolean>;
   bulkAction(
     workspaceId: string,
@@ -30,6 +32,10 @@ export interface ResourceRepository {
 
 export class InMemoryResourceRepository implements ResourceRepository {
   #resources = new Map<string, Resource>();
+  #publicSlugs = new Map<string, string>();
+  constructor(
+    private readonly publicSiteOrigin = "https://fuscabot.devlulcas.deno.net",
+  ) {}
 
   findById(workspaceId: string, id: string) {
     const resource = this.#resources.get(id);
@@ -49,7 +55,10 @@ export class InMemoryResourceRepository implements ResourceRepository {
   list(workspaceId: string, query: ResourceQuery) {
     const search = query.search?.toLocaleLowerCase();
     const rows = [...this.#resources.values()].filter((r) => r.workspaceId === workspaceId)
-      .filter((r) => query.archived === undefined || Boolean(r.archivedAt) === query.archived)
+      .filter((r) =>
+        !query.visibility ||
+        (query.visibility === "public") === (r.publicPublication !== null)
+      )
       .filter((r) => !query.domain || r.sourceDomain === query.domain)
       .filter((r) => !query.enrichmentStatus || r.enrichmentStatus === query.enrichmentStatus)
       .filter((r) =>
@@ -70,7 +79,7 @@ export class InMemoryResourceRepository implements ResourceRepository {
   update(workspaceId: string, id: string, patch: ResourcePatch) {
     const current = this.#resources.get(id);
     if (!current || current.workspaceId !== workspaceId) return Promise.resolve(null);
-    const { archived, tagSlugs, ...fields } = patch;
+    const { tagSlugs, ...fields } = patch;
     const nextTags = tagSlugs === undefined
       ? current.tags
       : [...new Set(tagSlugs.map(tagSlug).filter(Boolean))].map((slug) => ({
@@ -86,11 +95,37 @@ export class InMemoryResourceRepository implements ResourceRepository {
       ...current,
       ...fields,
       tags: nextTags,
-      archivedAt: archived === undefined
-        ? current.archivedAt
-        : archived
-        ? new Date().toISOString()
-        : null,
+      updatedAt: new Date().toISOString(),
+    };
+    this.#resources.set(id, updated);
+    return Promise.resolve(updated);
+  }
+  publish(workspaceId: string, id: string, slug: string) {
+    const current = this.#resources.get(id);
+    if (!current || current.workspaceId !== workspaceId) return Promise.resolve(null);
+    const publishedAt = current.publicPublication?.publishedAt ?? new Date().toISOString();
+    const persistedSlug = current.publicPublication?.slug ?? this.#publicSlugs.get(id) ?? slug;
+    this.#publicSlugs.set(id, persistedSlug);
+    const updated = {
+      ...current,
+      publicPublication: {
+        slug: persistedSlug,
+        publishedAt,
+        url: `${this.publicSiteOrigin}/${
+          current.outputLanguage === "pt-BR" ? "pt-br" : "en"
+        }/links/${persistedSlug}`,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    this.#resources.set(id, updated);
+    return Promise.resolve(updated);
+  }
+  unpublish(workspaceId: string, id: string) {
+    const current = this.#resources.get(id);
+    if (!current || current.workspaceId !== workspaceId) return Promise.resolve(null);
+    const updated = {
+      ...current,
+      publicPublication: null,
       updatedAt: new Date().toISOString(),
     };
     this.#resources.set(id, updated);
@@ -98,26 +133,18 @@ export class InMemoryResourceRepository implements ResourceRepository {
   }
   delete(workspaceId: string, id: string) {
     const current = this.#resources.get(id);
-    return Promise.resolve(
-      current?.workspaceId === workspaceId ? this.#resources.delete(id) : false,
-    );
+    if (current?.workspaceId !== workspaceId) return Promise.resolve(false);
+    this.#publicSlugs.delete(id);
+    return Promise.resolve(this.#resources.delete(id));
   }
-  bulkAction(workspaceId: string, ids: string[], action: BulkResourceAction["action"]) {
+  bulkAction(workspaceId: string, ids: string[], _action: BulkResourceAction["action"]) {
     const resources = ids.map((id) => this.#resources.get(id));
     if (resources.some((resource) => !resource || resource.workspaceId !== workspaceId)) {
       return Promise.resolve(null);
     }
-    const now = new Date().toISOString();
     for (const resource of resources as Resource[]) {
-      if (action === "delete") {
-        this.#resources.delete(resource.id);
-      } else {
-        this.#resources.set(resource.id, {
-          ...resource,
-          archivedAt: action === "archive" ? now : null,
-          updatedAt: now,
-        });
-      }
+      this.#resources.delete(resource.id);
+      this.#publicSlugs.delete(resource.id);
     }
     return Promise.resolve([...ids]);
   }

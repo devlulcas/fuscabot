@@ -12,7 +12,7 @@ import {
 Deno.test("bulk resource actions require unique UUIDs", () => {
   const id = "01980000-7000-8000-8000-000000000001";
   assert(
-    BulkResourceActionSchema.safeParse({ ids: [id], action: "archive" })
+    BulkResourceActionSchema.safeParse({ ids: [id], action: "delete" })
       .success,
   );
   assertFalse(
@@ -20,7 +20,7 @@ Deno.test("bulk resource actions require unique UUIDs", () => {
       .success,
   );
   assertFalse(
-    BulkResourceActionSchema.safeParse({ ids: [], action: "restore" }).success,
+    BulkResourceActionSchema.safeParse({ ids: [], action: "delete" }).success,
   );
 });
 

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { DeliverySnapshot } from "../../../../packages/contracts/mod.ts";
 import type { AppDatabase } from "../db/client.ts";
 import { channels, deliveries, discordConnections, resources } from "../db/schema.ts";
@@ -43,17 +43,29 @@ export class PostgresDurableDeliveryRepository {
     retryOf: string | null = null,
   ) {
     try {
-      const [row] = await this.db.insert(deliveries).values({
-        resourceId,
-        channelId,
-        destinationType: "discord_channel",
-        deliveryKind: kind,
-        messageSnapshot: structuredClone(snapshot),
-        status: "pending",
-        retryOfDeliveryId: retryOf,
-      }).returning();
-      if (!row) throw new Error("Pending delivery creation returned no row");
-      return map(row, "", "");
+      return await this.db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`${resourceId}:${channelId}:${kind}`}))`,
+        );
+        const [active] = await tx.select({ id: deliveries.id }).from(deliveries).where(and(
+          eq(deliveries.resourceId, resourceId),
+          eq(deliveries.channelId, channelId),
+          eq(deliveries.deliveryKind, kind),
+          inArray(deliveries.status, ["pending", "sent", "unknown"]),
+        )).limit(1);
+        if (active) throw new DeliveryConflictError("A delivery is already active");
+        const [row] = await tx.insert(deliveries).values({
+          resourceId,
+          channelId,
+          destinationType: "discord_channel",
+          deliveryKind: kind,
+          messageSnapshot: structuredClone(snapshot),
+          status: "pending",
+          retryOfDeliveryId: retryOf,
+        }).returning();
+        if (!row) throw new Error("Pending delivery creation returned no row");
+        return map(row, "", "");
+      });
     } catch (error) {
       if (isUnique(error)) throw new DeliveryConflictError("A delivery is already active");
       throw error;

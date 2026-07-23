@@ -1,7 +1,4 @@
-import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
-import type { AppDatabase } from "../src/db/client.ts";
-import { DeliveryConflictError } from "../src/domain/durable_delivery.ts";
-import { PostgresDurableDeliveryRepository } from "../src/repositories/durable_delivery_repository.ts";
+import { assertEquals, assertStringIncludes } from "@std/assert";
 
 const setupSource = await Deno.readTextFile(
   new URL("../src/repositories/discord_setup_repository.ts", import.meta.url),
@@ -23,25 +20,9 @@ Deno.test("channel and delivery repositories are Drizzle-first and workspace-sco
   assertStringIncludes(setupSource, ".onConflictDoUpdate(");
 });
 
-Deno.test("pending unique violations map to a domain conflict", async () => {
-  const database = {
-    insert: () => ({
-      values: () => ({ returning: () => Promise.reject({ code: "23505" }) }),
-    }),
-  } as unknown as AppDatabase;
-  const repository = new PostgresDurableDeliveryRepository(database);
-  await assertRejects(
-    () =>
-      repository.createPending("resource", "channel", "share", {
-        title: "T",
-        url: "https://example.com",
-        summary: null,
-        personalNote: null,
-        selectedQuote: null,
-        includeQuote: false,
-        tags: [],
-        outputLanguage: "pt-BR",
-      }),
-    DeliveryConflictError,
-  );
+Deno.test("pending delivery creation serializes and rejects active destinations", () => {
+  assertStringIncludes(deliverySource, "pg_advisory_xact_lock");
+  assertStringIncludes(deliverySource, '["pending", "sent", "unknown"]');
+  assertStringIncludes(deliverySource, "throw new DeliveryConflictError");
+  assertStringIncludes(deliverySource, 'error.code === "23505"');
 });

@@ -3,6 +3,8 @@ import { ApiErrorSchema, ResourceSchema } from "@fuscabot/contracts";
 import { createApp } from "../src/app.ts";
 import { InMemoryResourceRepository } from "../src/repositories/resource_repository.ts";
 import { ResourceService } from "../src/services/resource_service.ts";
+import { RuntimePublicationCoordinator } from "../src/services/publication_coordinator.ts";
+import type { AuthService } from "../src/services/auth_service.ts";
 
 const capture = {
   captureId: "019432f0-7c00-7000-8000-000000000001",
@@ -99,7 +101,6 @@ Deno.test("CRUD and validation error envelope", async () => {
     method: "PATCH",
     body: JSON.stringify({
       personalNote: "Read this",
-      archived: true,
       tagSlugs: ["New Tag", "new-tag"],
     }),
     headers: { "content-type": "application/json" },
@@ -129,7 +130,7 @@ Deno.test("CRUD and validation error envelope", async () => {
   assertEquals(error.error.code, "VALIDATION_ERROR");
 });
 
-Deno.test("bulk resource actions archive, restore, and delete atomically", async () => {
+Deno.test("bulk resource deletion is atomic", async () => {
   const instance = app();
   const second = {
     ...capture,
@@ -146,16 +147,12 @@ Deno.test("bulk resource actions archive, restore, and delete atomically", async
       201,
     );
   }
-  const bulk = (ids: string[], action: "archive" | "restore" | "delete") =>
+  const bulk = (ids: string[], action: "delete") =>
     instance.request("/v1/resources/bulk-actions", {
       method: "POST",
       body: JSON.stringify({ ids, action }),
       headers: { "content-type": "application/json" },
     });
-  const archived = await bulk([capture.captureId, second.captureId], "archive");
-  assertEquals(archived.status, 200);
-  assertEquals((await archived.json()).data.affectedIds, [capture.captureId, second.captureId]);
-
   const missing = await bulk(
     [capture.captureId, "019432f0-7c00-7000-8000-000000000099"],
     "delete",
@@ -163,7 +160,6 @@ Deno.test("bulk resource actions archive, restore, and delete atomically", async
   assertEquals(missing.status, 404);
   assertEquals((await instance.request(`/v1/resources/${capture.captureId}`)).status, 200);
 
-  assertEquals((await bulk([capture.captureId], "restore")).status, 200);
   assertEquals((await bulk([capture.captureId, second.captureId], "delete")).status, 200);
   assertEquals((await instance.request(`/v1/resources/${capture.captureId}`)).status, 404);
 });
@@ -225,4 +221,59 @@ Deno.test("CORS reflects only configured extension origins and preserves cache v
   assertEquals(preflight.status, 204);
   assertEquals(preflight.headers.get("access-control-allow-origin"), allowedOrigin);
   assertEquals(Boolean(preflight.headers.get("x-request-id")), true);
+});
+
+Deno.test("publication routes expose independent results and unpublish the resource", async () => {
+  const resources = new ResourceService(
+    new InMemoryResourceRepository("https://archive.example"),
+  );
+  const ownerId = "discord-owner";
+  const auth = {
+    verifySession: () =>
+      Promise.resolve({
+        sub: ownerId,
+        sid: "019432f0-7c00-7000-8000-000000000099",
+        guildIds: [],
+        exp: Date.now() + 60_000,
+      }),
+  } as unknown as AuthService;
+  const instance = createApp({
+    resources,
+    auth,
+    publications: new RuntimePublicationCoordinator(ownerId, resources),
+  });
+  await instance.request("/v1/resources/captures", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(capture),
+  });
+  const published = await instance.request(`/v1/resources/${capture.captureId}/publication`, {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test",
+      "content-type": "application/json",
+    },
+    body: "{}",
+  });
+  assertEquals(published.status, 200);
+  assertEquals((await published.json()).data.website.status, "published");
+  assertEquals(published.headers.get("cache-control"), "no-store");
+
+  const publicRows = await instance.request("/v1/resources?visibility=public", {
+    headers: { authorization: "Bearer test" },
+  });
+  assertEquals((await publicRows.json()).data.length, 1);
+
+  const unpublished = await instance.request(
+    `/v1/resources/${capture.captureId}/publication`,
+    {
+      method: "DELETE",
+      headers: { authorization: "Bearer test" },
+    },
+  );
+  assertEquals(unpublished.status, 200);
+  assertEquals((await unpublished.json()).data.publicPublication, null);
 });

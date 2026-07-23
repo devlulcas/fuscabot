@@ -99,7 +99,8 @@ export const resources = pgTable(
     personalNote: text("personal_note"),
     enrichmentStatus: text("enrichment_status").notNull().default("preparing"),
     enrichmentError: text("enrichment_error"),
-    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    publicSlug: text("public_slug"),
+    publicPublishedAt: timestamp("public_published_at", { withTimezone: true }),
     ...timestamps,
   },
   (
@@ -108,6 +109,8 @@ export const resources = pgTable(
     uniqueIndex("resources_workspace_canonical_uidx").on(t.workspaceId, t.canonicalUrlKey),
     index("resources_workspace_created_idx").on(t.workspaceId, t.createdAt),
     index("resources_enrichment_idx").on(t.workspaceId, t.enrichmentStatus),
+    uniqueIndex("resources_public_slug_uidx").on(t.publicSlug),
+    index("resources_public_published_idx").on(t.publicPublishedAt, t.id),
   ],
 );
 export const tags = pgTable("tags", {
