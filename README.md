@@ -18,6 +18,7 @@ read-only bilingual archive. PostgreSQL is the source of truth.
 ```sh
 deno task check
 deno task dev:api
+deno task build:web
 deno task build:extension
 deno task db:generate
 deno task db:migrate

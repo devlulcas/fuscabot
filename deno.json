@@ -9,12 +9,13 @@
   "deploy": {
     "org": "devlulcas",
     "app": "fuscabot",
+    "build": "deno task build:web",
+    "predeploy": "deno task predeploy",
     "runtime": {
       "type": "dynamic",
       "entrypoint": "./apps/api/main.ts",
       "cwd": "."
-    },
-    "predeploy": "deno task predeploy"
+    }
   },
   "tasks": {
     "check": "deno task build:web && deno task fmt:check && deno task lint && deno task typecheck && deno task test",
@@ -30,7 +31,7 @@
     "db:check": "deno task --cwd apps/api db:check",
     "db:migrate": "deno task --cwd apps/api migrate",
     "migrate": "deno task --cwd apps/api migrate",
-    "predeploy": "deno task build:web && deno task migrate"
+    "predeploy": "deno task migrate"
   },
   "fmt": {
     "exclude": [

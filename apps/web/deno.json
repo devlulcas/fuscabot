@@ -7,7 +7,7 @@
   "tasks": {
     "build": "deno bundle --config deno.client.json --platform browser --minify --output src/client.bundle.js src/client.tsx",
     "check": "deno task build && deno fmt --check && deno lint && deno check mod.ts src/app_test.ts && deno check --config deno.client.json src/client.tsx && deno test --allow-read=public",
-    "test": "deno test --allow-read=public"
+    "test": "deno task build && deno test --allow-read=public"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
