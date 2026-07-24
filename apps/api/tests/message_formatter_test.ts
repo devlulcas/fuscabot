@@ -85,6 +85,47 @@ Deno.test("published deliveries link the source and Portuguese Fuscabot page tog
   );
 });
 
+Deno.test("YouTube deliveries expose a clean canonical URL for Discord to unfurl", () => {
+  const snapshot = formatDiscordSnapshot({
+    ...resource,
+    originalUrl: "https://youtu.be/dQw4w9WgXcQ?si=private-share-token&t=1m30s",
+    normalizedUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    canonicalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    canonicalUrlKey: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    sourceDomain: "youtube.com",
+  }, "share");
+
+  assertStringIncludes(
+    snapshot.payload.content,
+    "\n\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  );
+  assertEquals(snapshot.payload.content.includes("t=1m30s"), false);
+  assertEquals(snapshot.payload.content.includes("private-share-token"), false);
+  assertEquals(snapshot.payload.content.includes("[youtube.com]"), false);
+});
+
+Deno.test("published YouTube deliveries keep the archive link off the unfurl line", () => {
+  const snapshot = formatDiscordSnapshot({
+    ...resource,
+    originalUrl: "https://youtu.be/dQw4w9WgXcQ?t=42",
+    normalizedUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    canonicalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    canonicalUrlKey: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    sourceDomain: "youtube.com",
+    publicPublication: {
+      slug: "a-video-a1b2c3d4",
+      publishedAt: "2026-07-21T14:35:00Z",
+      url: "https://fuscabot.xyz/en/links/a-video-a1b2c3d4",
+    },
+  }, "share");
+
+  assertStringIncludes(
+    snapshot.payload.content,
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ\n" +
+      "[veja em fuscabot.xyz]",
+  );
+});
+
 Deno.test("sparse delivery omits empty optional sections", () => {
   const sparse = formatDiscordSnapshot({
     ...resource,

@@ -24,11 +24,14 @@
   backdrop-filter: blur(16px);
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: "Libre Caslon Text", Georgia, serif;
   letter-spacing: -.02em;
   white-space: nowrap;
 }
-.brand span {
+.brand svg {
   color: var(--accent-2);
 }
 .header nav {

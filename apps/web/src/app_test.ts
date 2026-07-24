@@ -23,13 +23,14 @@ const item: PublicArchiveItem = {
 
 class FakeReader implements PublicArchiveReader {
   lastQuery?: PublicArchiveListQuery;
+  listItem: PublicArchiveItem = item;
   currentItem: PublicArchiveItem | null = item;
   total = 1;
 
   list(query: PublicArchiveListQuery) {
     this.lastQuery = query;
     return Promise.resolve({
-      items: this.total ? [item] : [],
+      items: this.total ? [this.listItem] : [],
       total: this.total,
       tags: [{ slug: "design", label: query.locale === "en" ? "Design" : "Projeto" }],
     });
@@ -199,7 +200,7 @@ Deno.test("detail renders public projection and safe outbound analytics attribut
   assertMatch(body, /data-umami-event="outbound-link"/);
   assertMatch(body, /data-umami-event-source-domain="example\.com"/);
   assertMatch(body, /<a class="back-link" href="\/en\/">/);
-  assertMatch(body, /<span class="back-link__icon" aria-hidden="true">←<\/span>/);
+  assertMatch(body, /<span class="back-link__icon" aria-hidden="true"><svg/);
   assertMatch(body, /<dl class="detail__dates meta" data-local-date-pair="true">/);
   assertMatch(body, /<dt>Published<\/dt>/);
   assertMatch(body, /<dt>Updated<\/dt>/);
@@ -207,6 +208,39 @@ Deno.test("detail renders public projection and safe outbound analytics attribut
   assertMatch(body, /data-local-date-role="updated"/);
   assertMatch(body, /datetime="2026-06-01T12:00:00.000Z"/);
   assertNotMatch(body, /personalNote|originalUrl|workspaceId/);
+});
+
+Deno.test("YouTube links render a derived preview with the shared SVG play path", async () => {
+  const { app: web, reader } = app();
+  const youtubeItem = {
+    ...item,
+    title: "A useful video",
+    sourceDomain: "youtube.com",
+    outboundUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  };
+  reader.listItem = youtubeItem;
+  reader.currentItem = youtubeItem;
+
+  for (
+    const path of [
+      "/en/",
+      `/en/links/${youtubeItem.slug}`,
+    ]
+  ) {
+    const response = await web.request(path);
+    const body = await response.text();
+    assertMatch(body, /class="video-thumbnail/);
+    assertMatch(body, /src="https:\/\/i\.ytimg\.com\/vi\/dQw4w9WgXcQ\/hqdefault\.jpg"/);
+    assertMatch(
+      body,
+      /M240,128a15\.74,15\.74,0,0,1-7\.6,13\.51L88\.32,229\.65/,
+    );
+    assertNotMatch(body, /<iframe/);
+    assertMatch(
+      response.headers.get("content-security-policy") ?? "",
+      /img-src 'self' https:\/\/i\.ytimg\.com/,
+    );
+  }
 });
 
 Deno.test("detail hides the UTC fallback update row when publication and update share a date", async () => {

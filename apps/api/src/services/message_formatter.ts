@@ -4,6 +4,7 @@ import type {
   DiscordMessagePayload,
   LegacyDeliverySnapshot,
 } from "@fuscabot/contracts";
+import { canonicalYouTubeUrl } from "@fuscabot/contracts";
 import type { Resource } from "../domain/resource.ts";
 
 const MESSAGE_LIMIT = 2_000;
@@ -24,12 +25,14 @@ export function formatDiscordSnapshot(
   const title = truncate(resource.title, 256);
   const sourceDomain = truncate(resource.sourceDomain, 256);
   const safeDestination = destinationLabel ? truncate(destinationLabel, 100) : null;
+  const youtubeUrl = canonicalYouTubeUrl(resource.normalizedUrl);
 
   const payload: DiscordMessagePayload = {
     content: markdownMessage({
       title,
-      url: resource.originalUrl,
+      url: youtubeUrl ?? resource.originalUrl,
       linkLabel: sourceDomain,
+      unfurl: youtubeUrl !== null,
       summary: resource.summary,
       selectedQuote: resource.selectedQuote,
       personalNote: resource.personalNote,
@@ -66,6 +69,7 @@ function legacyPayload(value: LegacyDeliverySnapshot): DiscordMessagePayload {
       title: value.title,
       url: value.url,
       linkLabel: new URL(value.url).hostname,
+      unfurl: false,
       summary: value.summary,
       selectedQuote: value.includeQuote ? value.selectedQuote : null,
       personalNote: value.personalNote,
@@ -80,6 +84,7 @@ type MarkdownMessageInput = {
   title: string;
   url: string;
   linkLabel: string;
+  unfurl: boolean;
   summary: string | null;
   selectedQuote: string | null;
   personalNote: string | null;
@@ -89,9 +94,11 @@ type MarkdownMessageInput = {
 
 function markdownMessage(input: MarkdownMessageInput): string {
   const title = `### ${truncate(singleLine(input.title), 256)}`;
-  const sourceLink = `[${input.linkLabel}](${markdownUrl(input.url)})`;
+  const sourceLink = input.unfurl ? input.url : `[${input.linkLabel}](${markdownUrl(input.url)})`;
   const links = input.publicUrl
-    ? `${sourceLink} • [veja em fuscabot.xyz](${markdownUrl(input.publicUrl)})`
+    ? input.unfurl
+      ? `${sourceLink}\n[veja em fuscabot.xyz](${markdownUrl(input.publicUrl)})`
+      : `${sourceLink} • [veja em fuscabot.xyz](${markdownUrl(input.publicUrl)})`
     : sourceLink;
   const optionalCount = [
     input.summary,

@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { DiamondIcon } from "../components/icons/icons.tsx";
 import styles from "./app-shell.module.css";
 
 const links = [
@@ -15,7 +16,7 @@ export function AppShell() {
       <a className={styles.skipLink} href="#main">Skip to content</a>
       <header className={styles.header}>
         <strong className={styles.brand}>
-          <span aria-hidden="true">◆</span> Fuscabot
+          <DiamondIcon /> Fuscabot
         </strong>
         <nav aria-label="Main">
           {links.map(([to, label]) => (

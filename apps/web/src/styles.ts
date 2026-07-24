@@ -1,4 +1,4 @@
-export const STYLE_PATH = "/assets/archive-15aeac25.css";
+export const STYLE_PATH = "/assets/archive-080986ce.css";
 export const DARK_ARTWORK_PATH = "/assets/artwork/landscape-with-windmill-monochrome-fd649d8d.webp";
 
 export const ARCHIVE_CSS = String.raw`
@@ -86,7 +86,25 @@ button { padding-inline: 1.2rem; border: 1px solid var(--ink); cursor: pointer; 
 button:hover { background: var(--ink); color: var(--paper); }
 .results { list-style: none; padding: 0; margin: 0; }
 .card { display: grid; grid-template-columns: 9rem 1fr; gap: clamp(1rem, 4vw, 4rem); padding-block: 2rem; border-bottom: 1px solid var(--line); }
+.card--video { grid-template-columns: 9rem minmax(12rem, 18rem) 1fr; gap: clamp(1rem, 3vw, 2.5rem); }
 .card__body { min-width: 0; }
+.media-label {
+  margin: 0 0 .45rem; color: var(--rose); letter-spacing: .08em; text-transform: uppercase;
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .68rem;
+}
+.video-thumbnail {
+  position: relative; display: block; align-self: start; overflow: hidden;
+  aspect-ratio: 16 / 9; border: 1px solid var(--line); background: var(--ink);
+}
+.video-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.video-thumbnail span {
+  position: absolute; inset: 50% auto auto 50%; display: grid; width: 3rem; height: 2.15rem;
+  place-items: center; border-radius: .45rem; color: #fff; background: rgb(0 0 0 / 72%);
+  transform: translate(-50%, -50%);
+  transition: background-color .18s ease, transform .18s ease;
+}
+.video-thumbnail span svg { width: 1.15rem; height: 1.15rem; }
+.video-thumbnail:hover span { background: #c00; transform: translate(-50%, -50%) scale(1.06); }
 .card__title a {
   text-decoration: none;
   background-image: linear-gradient(var(--focus), var(--focus));
@@ -103,6 +121,7 @@ button:hover { background: var(--ink); color: var(--paper); }
   color: var(--ink); font-size: .85rem; line-height: 1; text-decoration: none;
   transition: border-color .18s ease, background-color .18s ease, color .18s ease, transform .18s ease;
 }
+.card__source-link svg, .back-link__icon svg { width: .9rem; height: .9rem; }
 .card__source-link:hover, .back-link:hover .back-link__icon {
   border-color: var(--ink); background: var(--ink); color: var(--paper);
 }
@@ -136,11 +155,13 @@ button:hover { background: var(--ink); color: var(--paper); }
 .detail__dates > div { display: flex; align-items: baseline; gap: .5rem; }
 .detail__dates dt { color: var(--ink); }
 .detail__dates dd { margin: 0; }
+.detail__video { width: min(100%, 42rem); margin-bottom: 2rem; }
 blockquote { margin: 2rem 0; padding: .25rem 0 .25rem 1.3rem; border-left: .2rem solid var(--rose); font-size: 1.15rem; overflow-wrap: anywhere; }
 .source-link {
-  display: inline-block; margin-top: 2rem; padding: .65rem 1rem; border: 1px solid var(--ink);
+  display: inline-flex; align-items: center; gap: .35rem; margin-top: 2rem; padding: .65rem 1rem; border: 1px solid var(--ink);
   text-decoration: none; transition: background-color .18s ease, color .18s ease, transform .18s ease;
 }
+.source-link svg { width: .95rem; height: .95rem; }
 .source-link:hover { background: var(--ink); color: var(--paper); }
 footer {
   margin-top: auto; color: var(--muted);
@@ -183,6 +204,10 @@ footer {
 }
 .footer__links a { text-decoration: none; }
 .footer__links a:hover { text-decoration: underline; }
+.icon-link { display: inline-flex; align-items: center; gap: .3rem; }
+.icon-link svg { width: .9rem; height: .9rem; }
+.pagination a { display: inline-flex; align-items: center; gap: .35rem; }
+.pagination a svg { width: .9rem; height: .9rem; }
 .tag:hover, .source-link:hover { transform: translateY(-.1rem); }
 @view-transition { navigation: auto; }
 ::view-transition-group(site-header), ::view-transition-group(site-footer) {
@@ -199,6 +224,7 @@ footer {
 @media (max-width: 44rem) {
   .filters { grid-template-columns: 1fr; }
   .card { grid-template-columns: 1fr; gap: .5rem; }
+  .card--video { grid-template-columns: 1fr; }
   .masthead__inner { align-items: center; }
   .masthead__actions { gap: .65rem; }
   .locale-nav span { display: none; }

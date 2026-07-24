@@ -1,5 +1,6 @@
 import { render, startViewTransition, useEffect, useState } from "@hono/hono/jsx/dom";
 import { type ArchiveDateLocale, calendarDateKey, formatArchiveDate } from "./dates.ts";
+import { MoonIcon, SunIcon } from "./icons.tsx";
 
 type Theme = "light" | "dark";
 
@@ -61,16 +62,11 @@ function ThemeControl(
           title={labels[value]}
           onClick={() => selectTheme(value)}
         >
-          <span aria-hidden="true">{themeIcon(value)}</span>
+          {value === "light" ? <SunIcon /> : <MoonIcon />}
         </button>
       ))}
     </div>
   );
-}
-
-function themeIcon(theme: Theme): string {
-  if (theme === "light") return "☀";
-  return "☾";
 }
 
 function isTheme(value: string | null): value is Theme {

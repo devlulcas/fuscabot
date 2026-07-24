@@ -88,6 +88,50 @@
   color: var(--quote-ink);
   font-size: 12px;
 }
+.videoPreview,
+.resourceMedia {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--subtle-background);
+}
+.videoPreview img,
+.resourceMedia img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.videoPreview span,
+.resourceMedia span {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: white;
+  background: rgb(0 0 0 / 72%);
+  transform: translate(-50%, -50%);
+}
+.videoPreview span {
+  width: 40px;
+  height: 30px;
+}
+.videoPreview span svg {
+  width: 18px;
+  height: 18px;
+}
+.videoPreview {
+  aspect-ratio: 16 / 9;
+}
+.source > .muted {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 3px;
+}
 .form {
   display: grid;
   gap: 16px;
@@ -270,19 +314,15 @@
     box-shadow .12s ease,
     transform .12s ease;
 }
-.autoFillAction::after {
-  content: "→";
-  font-size: 14px;
-  line-height: 1;
+.autoFillAction svg {
+  width: 14px;
+  height: 14px;
   transition: transform .12s ease;
 }
 .autoFillAction:disabled {
   opacity: .5;
   cursor: wait;
   box-shadow: none;
-}
-.autoFillAction:disabled::after {
-  content: "…";
 }
 .search {
   display: grid;
@@ -306,6 +346,26 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px 10px;
   content-visibility: auto;
+}
+.resourceWithMedia {
+  grid-template-columns: auto 96px minmax(0, 1fr);
+}
+.resourceMedia {
+  width: 96px;
+  height: 54px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.resourceMedia span {
+  width: 28px;
+  height: 22px;
+}
+.resourceMedia span svg {
+  width: 12px;
+  height: 12px;
+}
+.resourceWithMedia .resourceActions {
+  grid-column: 3;
 }
 .resourceCopy {
   display: grid;
@@ -526,7 +586,7 @@
     box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 38%, transparent);
     transform: translateY(-1px);
   }
-  .autoFillAction:hover:not(:disabled)::after {
+  .autoFillAction:hover:not(:disabled) svg {
     transform: translateX(2px);
   }
   .details summary:hover {

@@ -1,6 +1,6 @@
 import CLIENT_JS from "./client.bundle.js" with { type: "text" };
 
-export const CLIENT_PATH = "/assets/archive-client-ced7ae5a.js";
+export const CLIENT_PATH = "/assets/archive-client-91ab8d7a.js";
 export const THEME_BOOT_PATH = "/assets/archive-theme-d46ed188.js";
 export { CLIENT_JS };
 

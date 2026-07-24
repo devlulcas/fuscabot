@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../../shared/api.ts";
+import {
+  canonicalYouTubeUrl,
+  youtubeThumbnailUrl,
+} from "../../../shared/types.ts";
 import { safeWebUrl } from "../../../shared/ui_security.ts";
+import { PlayIcon } from "../../components/icons/icons.tsx";
 import {
   InlineNotice,
   PageError,
@@ -220,56 +225,87 @@ export function LibraryRoute() {
         : items.length
         ? (
           <div className={page.list}>
-            {items.map((resource) => (
-              <article
-                className={`${page.card} ${page.resource}`}
-                key={resource.id}
-              >
-                <input
-                  type="checkbox"
-                  aria-label={`Select ${resource.title}`}
-                  checked={selected.has(resource.id)}
-                  disabled={bulk.isPending}
-                  onChange={(event) =>
-                    setSelected((() => {
-                      const next = new Set(selected);
-                      if (event.target.checked) next.add(resource.id);
-                      else next.delete(resource.id);
-                      return next;
-                    })())}
-                />
-                <div className={page.resourceCopy}>
-                  <div className={page.resourceTitle}>
-                    <strong>{resource.title}</strong>
-                    {resource.publicPublication
-                      ? (
-                        <span className={`${page.status} ${page.public}`}>
-                          Public
+            {items.map((resource) => {
+              const youtubeUrl = canonicalYouTubeUrl(resource.normalizedUrl);
+              const thumbnailUrl = youtubeThumbnailUrl(resource.normalizedUrl);
+              return (
+                <article
+                  className={`${page.card} ${page.resource} ${
+                    thumbnailUrl ? page.resourceWithMedia : ""
+                  }`}
+                  key={resource.id}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${resource.title}`}
+                    checked={selected.has(resource.id)}
+                    disabled={bulk.isPending}
+                    onChange={(event) =>
+                      setSelected((() => {
+                        const next = new Set(selected);
+                        if (event.target.checked) next.add(resource.id);
+                        else next.delete(resource.id);
+                        return next;
+                      })())}
+                  />
+                  {youtubeUrl && thumbnailUrl
+                    ? (
+                      <a
+                        className={page.resourceMedia}
+                        href={youtubeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Play ${resource.title} on YouTube`}
+                      >
+                        <img
+                          src={thumbnailUrl}
+                          alt=""
+                          width="96"
+                          height="54"
+                          loading="lazy"
+                        />
+                        <span aria-hidden="true">
+                          <PlayIcon />
                         </span>
-                      )
-                      : null}
+                      </a>
+                    )
+                    : null}
+                  <div className={page.resourceCopy}>
+                    <div className={page.resourceTitle}>
+                      <strong>{resource.title}</strong>
+                      {youtubeUrl
+                        ? <span className={page.status}>YouTube</span>
+                        : null}
+                      {resource.publicPublication
+                        ? (
+                          <span className={`${page.status} ${page.public}`}>
+                            Public
+                          </span>
+                        )
+                        : null}
+                    </div>
+                    <span className={`${page.muted} ${page.truncate}`}>
+                      {safeWebUrl(resource.originalUrl)}
+                    </span>
                   </div>
-                  <span className={`${page.muted} ${page.truncate}`}>
-                    {safeWebUrl(resource.originalUrl)}
-                  </span>
-                </div>
-                <div className={page.resourceActions}>
-                  <a
-                    href={safeWebUrl(resource.originalUrl) ?? "about:blank"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Open Source
-                  </a>
-                  <Link
-                    className={`${page.buttonLink} ${page.compact}`}
-                    to={`/capture/${resource.id}`}
-                  >
-                    Review
-                  </Link>
-                </div>
-              </article>
-            ))}
+                  <div className={page.resourceActions}>
+                    <a
+                      href={safeWebUrl(resource.originalUrl) ?? "about:blank"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open Source
+                    </a>
+                    <Link
+                      className={`${page.buttonLink} ${page.compact}`}
+                      to={`/capture/${resource.id}`}
+                    >
+                      Review
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )
         : (

@@ -3,12 +3,21 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, type PublicationResult } from "../../../shared/api.ts";
 import { savePendingCapture } from "../../../shared/pending-capture.ts";
-import type { CapturePayload } from "../../../shared/types.ts";
+import {
+  canonicalYouTubeUrl,
+  type CapturePayload,
+  youtubeThumbnailUrl,
+} from "../../../shared/types.ts";
 import {
   safeDiscordMessageUrl,
   safeWebUrl,
 } from "../../../shared/ui_security.ts";
 import { UnsavedChanges } from "../../components/unsaved-changes/unsaved-changes.tsx";
+import {
+  ArrowRightIcon,
+  ArrowUpRightIcon,
+  PlayIcon,
+} from "../../components/icons/icons.tsx";
 import {
   InlineNotice,
   PageError,
@@ -288,6 +297,8 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
     unpublish.isPending || retryWebsite.isPending || retryDiscord.isPending ||
     remove.isPending;
   const suggestion = item.enrichment?.draft?.channelSuggestion;
+  const youtubeUrl = canonicalYouTubeUrl(item.normalizedUrl);
+  const youtubeThumbnail = youtubeThumbnailUrl(item.normalizedUrl);
   const selectedTags = [
     ...new Set([
       ...item.tags.map((tag) => tag.slug),
@@ -315,6 +326,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           <h1>Review Draft</h1>
         </div>
         <div className={page.badges}>
+          {youtubeUrl ? <span className={page.status}>YouTube</span> : null}
           {item.publicPublication
             ? <span className={`${page.status} ${page.public}`}>Public</span>
             : null}
@@ -332,6 +344,27 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
         </div>
       </div>
       <article className={page.source}>
+        {youtubeUrl && youtubeThumbnail
+          ? (
+            <a
+              className={page.videoPreview}
+              href={youtubeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Play ${item.title} on YouTube`}
+            >
+              <img
+                src={youtubeThumbnail}
+                alt=""
+                width="480"
+                height="270"
+              />
+              <span aria-hidden="true">
+                <PlayIcon />
+              </span>
+            </a>
+          )
+          : null}
         <strong>{item.title}</strong>
         <a
           className={page.muted}
@@ -339,7 +372,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
           target="_blank"
           rel="noopener noreferrer"
         >
-          {item.sourceDomain} ↗
+          {item.sourceDomain} <ArrowUpRightIcon />
         </a>
         {item.selectedQuote
           ? <blockquote>“{item.selectedQuote}”</blockquote>
@@ -356,7 +389,11 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
               disabled={retry.isPending}
               onClick={() => retry.mutate()}
             >
-              {retry.isPending ? "Auto-filling…" : "Auto-fill & Go"}
+              {retry.isPending ? "Auto-filling…" : (
+                <>
+                  Auto-fill & Go <ArrowRightIcon />
+                </>
+              )}
             </button>
           </InlineNotice>
         )

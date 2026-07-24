@@ -1,3 +1,4 @@
+import { youtubeThumbnailUrl } from "@fuscabot/contracts";
 import { Hono } from "@hono/hono";
 import type { Context, MiddlewareHandler } from "@hono/hono";
 import { serveStatic } from "@hono/hono/deno";
@@ -7,6 +8,7 @@ import { fromFileUrl } from "@std/path";
 import type { ArchiveLocale, PublicArchiveItem, PublicArchiveReader } from "./archive.ts";
 import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
 import { calendarDateKey, formatArchiveDate } from "./dates.ts";
+import { ArrowLeftIcon, ArrowRightIcon, ArrowUpRightIcon, PlayIcon } from "./icons.tsx";
 import { ARCHIVE_CSS, DARK_ARTWORK_PATH, STYLE_PATH } from "./styles.ts";
 
 const PAGE_SIZE = 20 as const;
@@ -104,6 +106,8 @@ const copy = {
     website: "Website",
     artworkAlt: "A windmill beside a canal and wooden bridge",
     socialImageAlt: "Fuscabot Archive — A public collection of useful links",
+    youtubeVideo: "YouTube video",
+    playYouTube: "Play on YouTube",
   },
   "pt-br": {
     language: "Português",
@@ -136,6 +140,8 @@ const copy = {
     website: "Site",
     artworkAlt: "Um moinho ao lado de um canal e uma ponte de madeira",
     socialImageAlt: "Fuscabot Archive — A public collection of useful links",
+    youtubeVideo: "Vídeo do YouTube",
+    playYouTube: "Assistir no YouTube",
   },
 } as const;
 
@@ -377,16 +383,18 @@ function Document(props: {
                 <span translate="no">Fuscabot Archive</span>
                 <nav class="footer__links" aria-label={copy[props.locale].footerLinks}>
                   <a
+                    class="icon-link"
                     href="https://github.com/devlulcas"
                     rel="noopener noreferrer external"
                   >
-                    GitHub ↗
+                    GitHub <ArrowUpRightIcon />
                   </a>
                   <a
+                    class="icon-link"
                     href="https://www.lucasalvesrego.com/"
                     rel="noopener noreferrer external"
                   >
-                    {copy[props.locale].website} ↗
+                    {copy[props.locale].website} <ArrowUpRightIcon />
                   </a>
                 </nav>
               </div>
@@ -506,14 +514,40 @@ function ArchivePage(props: {
 
 function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArchiveItem }) {
   const text = copy[locale];
+  const thumbnailUrl = youtubeThumbnailUrl(item.outboundUrl);
   return (
-    <li class="card">
+    <li class={`card${thumbnailUrl ? " card--video" : ""}`}>
       <p class="meta">
         <time datetime={item.publishedAt.toISOString()} data-local-date>
           {formatArchiveDate(item.publishedAt, locale, "UTC")}
         </time>
       </p>
+      {thumbnailUrl
+        ? (
+          <a
+            class="video-thumbnail"
+            href={item.outboundUrl}
+            aria-label={`${text.playYouTube}: ${item.title}`}
+            rel="noopener noreferrer external"
+            data-umami-event="outbound-link"
+            data-umami-event-source-domain={item.sourceDomain}
+          >
+            <img
+              src={thumbnailUrl}
+              alt=""
+              width="480"
+              height="360"
+              loading="lazy"
+              decoding="async"
+            />
+            <span aria-hidden="true">
+              <PlayIcon />
+            </span>
+          </a>
+        )
+        : null}
       <article class="card__body">
+        {thumbnailUrl ? <p class="media-label">{text.youtubeVideo}</p> : null}
         <h2 class="card__title">
           <a href={`/${locale}/links/${encodeURIComponent(item.slug)}`}>{item.title}</a>
         </h2>
@@ -528,7 +562,7 @@ function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArch
             data-umami-event="outbound-link"
             data-umami-event-source-domain={item.sourceDomain}
           >
-            ↗
+            <ArrowUpRightIcon />
           </a>
         </p>
         <TagList locale={locale} tags={item.tags} />
@@ -539,11 +573,14 @@ function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArch
 
 function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchiveItem }) {
   const text = copy[locale];
+  const thumbnailUrl = youtubeThumbnailUrl(item.outboundUrl);
   return (
     <main id="main" class="shell">
       <p>
         <a class="back-link" href={`/${locale}/`}>
-          <span class="back-link__icon" aria-hidden="true">←</span>
+          <span class="back-link__icon" aria-hidden="true">
+            <ArrowLeftIcon />
+          </span>
           <span>{text.back}</span>
         </a>
       </p>
@@ -579,6 +616,29 @@ function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchi
             </dd>
           </div>
         </dl>
+        {thumbnailUrl
+          ? (
+            <a
+              class="video-thumbnail detail__video"
+              href={item.outboundUrl}
+              aria-label={`${text.playYouTube}: ${item.title}`}
+              rel="noopener noreferrer external"
+              data-umami-event="outbound-link"
+              data-umami-event-source-domain={item.sourceDomain}
+            >
+              <img
+                src={thumbnailUrl}
+                alt=""
+                width="480"
+                height="360"
+                decoding="async"
+              />
+              <span aria-hidden="true">
+                <PlayIcon />
+              </span>
+            </a>
+          )
+          : null}
         {item.summary ? <p class="subtitle">{item.summary}</p> : null}
         {item.selectedText ? <blockquote>{item.selectedText}</blockquote> : null}
         <TagList locale={locale} tags={item.tags} />
@@ -589,7 +649,7 @@ function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchi
           data-umami-event="outbound-link"
           data-umami-event-source-domain={item.sourceDomain}
         >
-          {text.open} ↗
+          {text.open} <ArrowUpRightIcon />
         </a>
       </article>
     </main>
@@ -629,7 +689,7 @@ function Pagination(props: {
       {props.page > 1
         ? (
           <a rel="prev" href={pageUrl(props.locale, props.page - 1, props.query, props.tag)}>
-            ← {text.newer}
+            <ArrowLeftIcon /> {text.newer}
           </a>
         )
         : <span />}
@@ -637,7 +697,7 @@ function Pagination(props: {
       {props.page < props.totalPages
         ? (
           <a rel="next" href={pageUrl(props.locale, props.page + 1, props.query, props.tag)}>
-            {text.older} →
+            {text.older} <ArrowRightIcon />
           </a>
         )
         : <span />}
@@ -672,7 +732,9 @@ function renderError(
         <h1>{title}</h1>
         <p>{body}</p>
         <p>
-          <a href={`/${locale}/`}>← {copy[locale].back}</a>
+          <a class="icon-link" href={`/${locale}/`}>
+            <ArrowLeftIcon /> {copy[locale].back}
+          </a>
         </p>
       </main>
     </Document>,
@@ -688,7 +750,7 @@ function responsePolicy(analytics?: UmamiOptions): MiddlewareHandler {
     const connectSrc = analyticsHost ? `'self' ${analyticsHost}` : "'self'";
     c.header(
       "Content-Security-Policy",
-      `default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; img-src 'self'; style-src 'self'; font-src 'self'; script-src ${scriptSrc}; connect-src ${connectSrc}`,
+      `default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; img-src 'self' https://i.ytimg.com; style-src 'self'; font-src 'self'; script-src ${scriptSrc}; connect-src ${connectSrc}`,
     );
     c.header("Cross-Origin-Resource-Policy", "same-origin");
     c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
