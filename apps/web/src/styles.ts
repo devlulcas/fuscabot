@@ -1,4 +1,4 @@
-export const STYLE_PATH = "/assets/archive-a342a4e9.css";
+export const STYLE_PATH = "/assets/archive-c93a9bd5.css";
 
 export const ARCHIVE_CSS = String.raw`
 :root {
@@ -96,6 +96,17 @@ button:hover { background: var(--ink); color: var(--paper); }
 .card__title a:hover { background-size: 100% .08em; }
 .summary { max-width: 46rem; color: var(--muted); text-wrap: pretty; }
 .meta { color: var(--muted); overflow-wrap: anywhere; }
+.card__source { display: flex; align-items: center; gap: .4rem; }
+.card__source-link {
+  display: inline-grid; place-items: center; flex: 0 0 auto;
+  width: 1.55rem; height: 1.55rem; border: 1px solid var(--line);
+  color: var(--ink); font-size: .85rem; line-height: 1; text-decoration: none;
+  transition: border-color .18s ease, background-color .18s ease, color .18s ease, transform .18s ease;
+}
+.card__source-link:hover {
+  border-color: var(--ink); background: var(--ink); color: var(--paper);
+  transform: translate(.08rem, -.08rem);
+}
 .tags { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
 .tag {
   border: 1px solid var(--line); padding: .2rem .45rem; text-decoration: none;

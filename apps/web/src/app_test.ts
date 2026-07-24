@@ -113,6 +113,11 @@ Deno.test("archive renders semantic escaped content and passes normalized query"
   assertMatch(body, /loading="lazy"/);
   assertMatch(body, /A useful &lt;link&gt;/);
   assertNotMatch(body, /A useful <link>/);
+  assertMatch(body, /class="card__source-link"/);
+  assertMatch(body, /aria-label="Visit original source: example\.com"/);
+  assertMatch(body, /href="https:\/\/example\.com\/path"/);
+  assertMatch(body, /data-umami-event="outbound-link"/);
+  assertMatch(body, /data-umami-event-source-domain="example\.com"/);
   assertMatch(
     body,
     /rel="canonical" href="https:\/\/fuscabot\.example\/en\/\?q=useful&amp;tag=design"/,

@@ -497,6 +497,7 @@ function ArchivePage(props: {
 }
 
 function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArchiveItem }) {
+  const text = copy[locale];
   return (
     <li class="card">
       <p class="meta">
@@ -509,7 +510,19 @@ function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArch
           <a href={`/${locale}/links/${encodeURIComponent(item.slug)}`}>{item.title}</a>
         </h2>
         {item.summary ? <p class="summary">{item.summary}</p> : null}
-        <p class="meta">{item.sourceDomain}</p>
+        <p class="meta card__source">
+          <span>{item.sourceDomain}</span>
+          <a
+            class="card__source-link"
+            href={item.outboundUrl}
+            aria-label={`${text.open}: ${item.sourceDomain}`}
+            rel="noopener noreferrer external"
+            data-umami-event="outbound-link"
+            data-umami-event-source-domain={item.sourceDomain}
+          >
+            ↗
+          </a>
+        </p>
         <TagList locale={locale} tags={item.tags} />
       </article>
     </li>
