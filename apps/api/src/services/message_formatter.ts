@@ -34,6 +34,7 @@ export function formatDiscordSnapshot(
       selectedQuote: resource.selectedQuote,
       personalNote: resource.personalNote,
       tags: resource.tags.map((tag) => tag.slug).slice(0, 8),
+      publicUrl: portuguesePublicationUrl(resource),
     }),
     allowed_mentions: { parse: [] },
   };
@@ -69,6 +70,7 @@ function legacyPayload(value: LegacyDeliverySnapshot): DiscordMessagePayload {
       selectedQuote: value.includeQuote ? value.selectedQuote : null,
       personalNote: value.personalNote,
       tags: value.tags,
+      publicUrl: null,
     }),
     allowed_mentions: { parse: [] },
   };
@@ -82,11 +84,15 @@ type MarkdownMessageInput = {
   selectedQuote: string | null;
   personalNote: string | null;
   tags: string[];
+  publicUrl: string | null;
 };
 
 function markdownMessage(input: MarkdownMessageInput): string {
   const title = `### ${truncate(singleLine(input.title), 256)}`;
-  const link = `[${input.linkLabel}](${markdownUrl(input.url)})`;
+  const sourceLink = `[${input.linkLabel}](${markdownUrl(input.url)})`;
+  const links = input.publicUrl
+    ? `${sourceLink} • [veja em fuscabot.xyz](${markdownUrl(input.publicUrl)})`
+    : sourceLink;
   const optionalCount = [
     input.summary,
     input.selectedQuote,
@@ -94,7 +100,7 @@ function markdownMessage(input: MarkdownMessageInput): string {
     input.tags.length ? "tags" : null,
   ].filter(Boolean).length;
   const budget = optionalCount
-    ? Math.max(0, Math.floor((MESSAGE_LIMIT - title.length - link.length - 4) / optionalCount) - 4)
+    ? Math.max(0, Math.floor((MESSAGE_LIMIT - title.length - links.length - 4) / optionalCount) - 4)
     : 0;
   const sections = [title];
 
@@ -115,8 +121,17 @@ function markdownMessage(input: MarkdownMessageInput): string {
     }
     if (tagLines.length) sections.push(`Tags:\n${tagLines.join("\n")}`);
   }
-  sections.push(link);
+  sections.push(links);
   return truncate(sections.join("\n\n"), MESSAGE_LIMIT);
+}
+
+function portuguesePublicationUrl(resource: Resource): string | null {
+  if (!resource.publicPublication) return null;
+  const url = new URL(resource.publicPublication.url);
+  url.pathname = `/pt-br/links/${encodeURIComponent(resource.publicPublication.slug)}`;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }
 
 function singleLine(value: string): string {

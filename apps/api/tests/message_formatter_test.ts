@@ -67,6 +67,24 @@ Deno.test("Read Later uses the same rich content as a normal share", () => {
   assertEquals(readLater.personalNote, resource.personalNote);
 });
 
+Deno.test("published deliveries link the source and Portuguese Fuscabot page together", () => {
+  const snapshot = formatDiscordSnapshot({
+    ...resource,
+    publicPublication: {
+      slug: "a-practical-deno-architecture-a1b2c3d4",
+      publishedAt: "2026-07-21T14:35:00Z",
+      url: "https://fuscabot.xyz/en/links/a-practical-deno-architecture-a1b2c3d4",
+    },
+  }, "share");
+
+  assertStringIncludes(
+    snapshot.payload.content,
+    "[example.com](https://example.com/articles/deno) • " +
+      "[veja em fuscabot.xyz](https://fuscabot.xyz/pt-br/links/" +
+      "a-practical-deno-architecture-a1b2c3d4)",
+  );
+});
+
 Deno.test("sparse delivery omits empty optional sections", () => {
   const sparse = formatDiscordSnapshot({
     ...resource,
