@@ -199,6 +199,19 @@ Deno.test("detail renders public projection and safe outbound analytics attribut
   assertNotMatch(body, /personalNote|originalUrl|workspaceId/);
 });
 
+Deno.test("detail omits updated metadata when publication and update share a date", async () => {
+  const { app: web, reader } = app();
+  reader.currentItem = {
+    ...item,
+    updatedAt: new Date("2026-06-01T23:59:59Z"),
+  };
+
+  const body = await (await web.request(`/en/links/${item.slug}`)).text();
+
+  assertMatch(body, /<dt>Published<\/dt>/);
+  assertNotMatch(body, /<dt>Updated<\/dt>/);
+});
+
 Deno.test("detail treats missing, malformed, and unsafe records as the same generic 404", async () => {
   const { app: web, reader } = app();
   reader.currentItem = null;

@@ -535,14 +535,18 @@ function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchi
               </time>
             </dd>
           </div>
-          <div>
-            <dt>{text.updated}</dt>
-            <dd>
-              <time datetime={item.updatedAt.toISOString()}>
-                {formatDate(item.updatedAt, locale)}
-              </time>
-            </dd>
-          </div>
+          {!isSameUtcDate(item.publishedAt, item.updatedAt)
+            ? (
+              <div>
+                <dt>{text.updated}</dt>
+                <dd>
+                  <time datetime={item.updatedAt.toISOString()}>
+                    {formatDate(item.updatedAt, locale)}
+                  </time>
+                </dd>
+              </div>
+            )
+            : null}
         </dl>
         {item.summary ? <p class="subtitle">{item.summary}</p> : null}
         {item.selectedText ? <blockquote>{item.selectedText}</blockquote> : null}
@@ -784,6 +788,12 @@ function formatDate(value: Date, locale: ArchiveLocale): string {
     dateStyle: "medium",
     timeZone: "UTC",
   }).format(value);
+}
+
+function isSameUtcDate(left: Date, right: Date): boolean {
+  return left.getUTCFullYear() === right.getUTCFullYear() &&
+    left.getUTCMonth() === right.getUTCMonth() &&
+    left.getUTCDate() === right.getUTCDate();
 }
 
 function metaDescription(value: string): string {
