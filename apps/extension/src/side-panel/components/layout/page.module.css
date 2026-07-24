@@ -123,6 +123,81 @@
   resize: vertical;
   line-height: 1.35;
 }
+@supports (appearance: base-select) {
+  .form select,
+  .form select::picker(select) {
+    appearance: base-select;
+  }
+  .form select {
+    padding: 8px 9px;
+    border: 1px solid var(--line);
+    background: var(--surface-background);
+    cursor: pointer;
+    transition: border-color .16s ease, background-color .16s ease;
+  }
+  .form select:hover,
+  .form select:open {
+    border-color: var(--accent);
+    background: var(--nav-hover);
+  }
+  .form select::picker-icon {
+    color: var(--muted);
+    transition: rotate .16s ease;
+  }
+  .form select:open::picker-icon {
+    rotate: 180deg;
+  }
+  .form select::picker(select) {
+    max-height: min(280px, 60vh);
+    margin-block-start: 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--surface-background);
+    box-shadow: 0 10px 28px #1d211c24;
+    opacity: 0;
+    transform: translateY(-3px);
+    transition:
+      opacity .14s ease,
+      transform .14s ease,
+      display .14s allow-discrete,
+      overlay .14s allow-discrete;
+  }
+  .form select:open::picker(select) {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .form select option {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 8px 10px;
+    color: var(--ink);
+    background: var(--surface-background);
+    cursor: pointer;
+  }
+  .form select option:hover,
+  .form select option:focus {
+    background: var(--nav-hover);
+  }
+  .form select option:checked {
+    color: var(--accent-2);
+    background: var(--active-route-background);
+    font-weight: 700;
+  }
+  .form select option::checkmark {
+    order: 1;
+    margin-inline-start: auto;
+    color: var(--accent);
+  }
+  @starting-style {
+    .form select:open::picker(select) {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+  }
+}
 .actions {
   display: flex;
   flex-wrap: wrap;

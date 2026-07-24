@@ -1,4 +1,4 @@
-export const STYLE_PATH = "/assets/archive-db65fe3e.css";
+export const STYLE_PATH = "/assets/archive-a342a4e9.css";
 
 export const ARCHIVE_CSS = String.raw`
 :root {
@@ -63,7 +63,10 @@ main { padding-block: clamp(2.5rem, 7vw, 6rem); view-transition-name: page-conte
 .hero { max-width: 50rem; margin-bottom: clamp(2.5rem, 6vw, 5rem); }
 h1 { margin: 0 0 1rem; font-size: clamp(2.7rem, 8vw, 6rem); line-height: .98; letter-spacing: -.035em; }
 h2 { margin: 0; font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.2; }
-.subtitle { color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.3rem); max-width: 42rem; }
+.subtitle {
+  color: var(--muted); font-size: clamp(1.05rem, 2vw, 1.3rem); max-width: 42rem;
+  text-wrap: pretty;
+}
 .eyebrow, .meta, .result-count, label, .tag, .pagination {
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .75rem;
 }
@@ -91,7 +94,7 @@ button:hover { background: var(--ink); color: var(--paper); }
   transition: color .18s ease, background-size .24s ease;
 }
 .card__title a:hover { background-size: 100% .08em; }
-.summary { max-width: 46rem; color: var(--muted); }
+.summary { max-width: 46rem; color: var(--muted); text-wrap: pretty; }
 .meta { color: var(--muted); overflow-wrap: anywhere; }
 .tags { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1rem; }
 .tag {
@@ -101,8 +104,19 @@ button:hover { background: var(--ink); color: var(--paper); }
 .tag:hover { border-color: var(--sage); }
 .pagination { display: flex; justify-content: space-between; gap: 1rem; padding-block: 2rem; }
 .empty, .error { padding-block: 3rem; border-bottom: 1px solid var(--line); }
-.detail { display: grid; grid-template-columns: minmax(0, 2fr) minmax(12rem, .7fr); gap: clamp(2rem, 7vw, 7rem); }
-.detail h1 { font-size: clamp(2.5rem, 6vw, 5rem); overflow-wrap: anywhere; }
+.detail { max-width: 52rem; }
+.detail h1 {
+  margin-bottom: 1.2rem; font-size: clamp(2.5rem, 6vw, 5rem); line-height: 1.03;
+  text-wrap: balance; overflow-wrap: anywhere;
+}
+.detail__dates {
+  display: flex; flex-wrap: wrap; gap: .45rem clamp(1.25rem, 4vw, 2.5rem);
+  margin: 0 0 clamp(1.5rem, 4vw, 2.25rem); padding-block: .7rem;
+  border-block: 1px solid var(--line);
+}
+.detail__dates > div { display: flex; align-items: baseline; gap: .5rem; }
+.detail__dates dt { color: var(--ink); }
+.detail__dates dd { margin: 0; }
 blockquote { margin: 2rem 0; padding: .25rem 0 .25rem 1.3rem; border-left: .2rem solid var(--rose); font-size: 1.15rem; overflow-wrap: anywhere; }
 .source-link {
   display: inline-block; margin-top: 2rem; padding: .65rem 1rem; border: 1px solid var(--ink);
@@ -154,7 +168,7 @@ footer {
   from { opacity: 0; transform: translateY(.65rem); }
 }
 @media (max-width: 44rem) {
-  .filters, .detail { grid-template-columns: 1fr; }
+  .filters { grid-template-columns: 1fr; }
   .card { grid-template-columns: 1fr; gap: .5rem; }
   .masthead__inner { align-items: center; }
   .masthead__actions { gap: .65rem; }

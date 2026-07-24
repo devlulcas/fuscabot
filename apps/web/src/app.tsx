@@ -85,7 +85,6 @@ const copy = {
     open: "Visit original source",
     published: "Published",
     updated: "Updated",
-    source: "Source",
     back: "Return to the archive",
     notFoundTitle: "Page not found",
     notFoundBody: "This page is unavailable or is no longer public.",
@@ -118,7 +117,6 @@ const copy = {
     open: "Visitar fonte original",
     published: "Publicado",
     updated: "Atualizado",
-    source: "Fonte",
     back: "Voltar ao arquivo",
     notFoundTitle: "Página não encontrada",
     notFoundBody: "Esta página não está disponível ou deixou de ser pública.",
@@ -526,38 +524,38 @@ function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchi
         <a href={`/${locale}/`}>← {text.back}</a>
       </p>
       <article class="detail">
-        <div>
-          <p class="eyebrow">{item.sourceDomain}</p>
-          <h1>{item.title}</h1>
-          {item.summary ? <p class="subtitle">{item.summary}</p> : null}
-          {item.selectedText ? <blockquote>{item.selectedText}</blockquote> : null}
-          <TagList locale={locale} tags={item.tags} />
-          <a
-            class="source-link"
-            href={item.outboundUrl}
-            rel="noopener noreferrer external"
-            data-umami-event="outbound-link"
-            data-umami-event-source-domain={item.sourceDomain}
-          >
-            {text.open} ↗
-          </a>
-        </div>
-        <dl class="meta">
-          <dt>{text.source}</dt>
-          <dd>{item.sourceDomain}</dd>
-          <dt>{text.published}</dt>
-          <dd>
-            <time datetime={item.publishedAt.toISOString()}>
-              {formatDate(item.publishedAt, locale)}
-            </time>
-          </dd>
-          <dt>{text.updated}</dt>
-          <dd>
-            <time datetime={item.updatedAt.toISOString()}>
-              {formatDate(item.updatedAt, locale)}
-            </time>
-          </dd>
+        <p class="eyebrow">{item.sourceDomain}</p>
+        <h1>{item.title}</h1>
+        <dl class="detail__dates meta">
+          <div>
+            <dt>{text.published}</dt>
+            <dd>
+              <time datetime={item.publishedAt.toISOString()}>
+                {formatDate(item.publishedAt, locale)}
+              </time>
+            </dd>
+          </div>
+          <div>
+            <dt>{text.updated}</dt>
+            <dd>
+              <time datetime={item.updatedAt.toISOString()}>
+                {formatDate(item.updatedAt, locale)}
+              </time>
+            </dd>
+          </div>
         </dl>
+        {item.summary ? <p class="subtitle">{item.summary}</p> : null}
+        {item.selectedText ? <blockquote>{item.selectedText}</blockquote> : null}
+        <TagList locale={locale} tags={item.tags} />
+        <a
+          class="source-link"
+          href={item.outboundUrl}
+          rel="noopener noreferrer external"
+          data-umami-event="outbound-link"
+          data-umami-event-source-domain={item.sourceDomain}
+        >
+          {text.open} ↗
+        </a>
       </article>
     </main>
   );

@@ -193,6 +193,9 @@ Deno.test("detail renders public projection and safe outbound analytics attribut
   assertMatch(body, /rel="noopener noreferrer external"/);
   assertMatch(body, /data-umami-event="outbound-link"/);
   assertMatch(body, /data-umami-event-source-domain="example\.com"/);
+  assertMatch(body, /<dl class="detail__dates meta">/);
+  assertMatch(body, /<dt>Published<\/dt>/);
+  assertMatch(body, /<dt>Updated<\/dt>/);
   assertNotMatch(body, /personalNote|originalUrl|workspaceId/);
 });
 
@@ -258,6 +261,9 @@ Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies",
   assertMatch(stylesheet, /min-height: 100dvh/);
   assertMatch(stylesheet, /margin-top: auto/);
   assertMatch(stylesheet, /padding-block: clamp\(1\.8rem, 4vw, 2\.8rem\)/);
+  assertMatch(stylesheet, /text-wrap: balance/);
+  assertMatch(stylesheet, /text-wrap: pretty/);
+  assertMatch(stylesheet, /\.detail__dates/);
 
   for (const path of [THEME_BOOT_PATH, CLIENT_PATH]) {
     const asset = await web.request(path);
