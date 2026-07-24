@@ -6,7 +6,7 @@ import type { Child } from "@hono/hono/jsx";
 import { fromFileUrl } from "@std/path";
 import type { ArchiveLocale, PublicArchiveItem, PublicArchiveReader } from "./archive.ts";
 import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
-import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
+import { ARCHIVE_CSS, DARK_ARTWORK_PATH, STYLE_PATH } from "./styles.ts";
 
 const PAGE_SIZE = 20 as const;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -16,6 +16,12 @@ export const ARTWORK_PATH =
 const ARTWORK_FILE = fromFileUrl(
   new URL(
     "../public/artwork/landscape-with-windmill-anthonie-erkelens-0dfeab43.webp",
+    import.meta.url,
+  ),
+);
+const DARK_ARTWORK_FILE = fromFileUrl(
+  new URL(
+    "../public/artwork/landscape-with-windmill-monochrome-fd649d8d.webp",
     import.meta.url,
   ),
 );
@@ -155,6 +161,7 @@ export function createPublicWebApp(options: PublicWebAppOptions): Hono {
       "Cache-Control": "public, max-age=31536000, immutable",
     }));
   app.get(ARTWORK_PATH, immutableStaticAsset(ARTWORK_FILE));
+  app.get(DARK_ARTWORK_PATH, immutableStaticAsset(DARK_ARTWORK_FILE));
   app.get(SOCIAL_IMAGE_PATH, immutableStaticAsset(SOCIAL_IMAGE_FILE));
   for (const [path, file] of FAVICON_ASSETS) {
     app.get(path, staticAsset(file, "public, max-age=86400"));

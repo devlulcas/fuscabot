@@ -1,4 +1,5 @@
-export const STYLE_PATH = "/assets/archive-c93a9bd5.css";
+export const STYLE_PATH = "/assets/archive-2f11b600.css";
+export const DARK_ARTWORK_PATH = "/assets/artwork/landscape-with-windmill-monochrome-fd649d8d.webp";
 
 export const ARCHIVE_CSS = String.raw`
 :root {
@@ -12,7 +13,6 @@ export const ARCHIVE_CSS = String.raw`
   --ochre: #b48645;
   --line: #c8c5b8;
   --focus: #3f5944;
-  --artwork-filter: none;
   --measure: 72rem;
   font-family: "Source Serif 4", Georgia, serif;
 }
@@ -140,10 +140,20 @@ footer {
 .artwork {
   width: min(100%, 100rem); margin: clamp(4rem, 10vw, 9rem) auto 0;
 }
-.artwork__visual { overflow: hidden; background: var(--paper); }
+.artwork__visual {
+  position: relative; isolation: isolate; overflow: hidden; background: var(--paper);
+}
+.artwork__visual::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-position: center bottom; background-repeat: no-repeat; background-size: cover;
+  opacity: 0; filter: invert(1) contrast(.9); mix-blend-mode: screen;
+  transition: opacity .3s ease;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 20%) 12%, #000 38%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 20%) 12%, #000 38%);
+}
 .artwork__image {
   display: block; width: 100%; height: min(72dvh, 52rem); object-fit: cover;
-  object-position: center bottom; filter: var(--artwork-filter);
+  object-position: center bottom; transition: opacity .3s ease;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 20%) 12%, #000 38%);
   mask-image: linear-gradient(to bottom, transparent 0%, rgb(0 0 0 / 20%) 12%, #000 38%);
 }
@@ -189,7 +199,10 @@ footer {
 :root[data-theme="dark"] {
   color-scheme: dark; --paper: #20231f; --paper-raised: #292d28; --ink: #eee9dc;
   --muted: #b4b7ac; --line: #51564d; --focus: #b9c9ad;
-  --artwork-filter: invert(1);
+}
+:root[data-theme="dark"] .artwork__image { opacity: 0; }
+:root[data-theme="dark"] .artwork__visual::after {
+  background-image: url("${DARK_ARTWORK_PATH}"); opacity: .68;
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

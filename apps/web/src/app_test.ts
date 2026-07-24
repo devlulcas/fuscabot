@@ -7,7 +7,7 @@ import type {
   PublicArchiveReader,
 } from "./archive.ts";
 import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
-import { ARCHIVE_CSS, STYLE_PATH } from "./styles.ts";
+import { ARCHIVE_CSS, DARK_ARTWORK_PATH, STYLE_PATH } from "./styles.ts";
 
 const item: PublicArchiveItem = {
   slug: "useful-link-a1b2c3d4",
@@ -277,7 +277,9 @@ Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies",
   assertMatch(stylesheet, /prefers-reduced-motion/);
   assertMatch(stylesheet, /@view-transition/);
   assertMatch(stylesheet, /:root\[data-theme="dark"\]/);
-  assertMatch(stylesheet, /--artwork-filter: invert\(1\)/);
+  assertMatch(stylesheet, /mix-blend-mode: screen/);
+  assertMatch(stylesheet, /filter: invert\(1\) contrast\(\.9\)/);
+  assertMatch(stylesheet, new RegExp(DARK_ARTWORK_PATH.replaceAll("/", "\\/")));
   assertNotMatch(stylesheet, /prefers-color-scheme/);
   assertMatch(stylesheet, /min-height: 100dvh/);
   assertMatch(stylesheet, /margin-top: auto/);
@@ -305,6 +307,15 @@ Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies",
   assertEquals(artwork.headers.get("cache-control"), "public, max-age=31536000, immutable");
   assertMatch(artwork.headers.get("content-type") ?? "", /image\/webp/);
   assert((await artwork.arrayBuffer()).byteLength > 500_000);
+
+  const darkArtwork = await web.request(DARK_ARTWORK_PATH);
+  assertEquals(darkArtwork.status, 200);
+  assertEquals(
+    darkArtwork.headers.get("cache-control"),
+    "public, max-age=31536000, immutable",
+  );
+  assertMatch(darkArtwork.headers.get("content-type") ?? "", /image\/webp/);
+  assert((await darkArtwork.arrayBuffer()).byteLength > 700_000);
 
   const socialImage = await web.request(SOCIAL_IMAGE_PATH);
   assertEquals(socialImage.status, 200);
