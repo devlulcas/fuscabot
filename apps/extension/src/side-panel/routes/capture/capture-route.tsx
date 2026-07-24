@@ -352,6 +352,7 @@ function ResourceEditor({ resourceId }: { resourceId: string }) {
             Auto-fill the summary, tags, and destination when you’re ready.{" "}
             <button
               type="button"
+              className={page.autoFillAction}
               disabled={retry.isPending}
               onClick={() => retry.mutate()}
             >
