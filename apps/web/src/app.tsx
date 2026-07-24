@@ -6,6 +6,7 @@ import type { Child } from "@hono/hono/jsx";
 import { fromFileUrl } from "@std/path";
 import type { ArchiveLocale, PublicArchiveItem, PublicArchiveReader } from "./archive.ts";
 import { CLIENT_JS, CLIENT_PATH, THEME_BOOT_JS, THEME_BOOT_PATH } from "./client_assets.ts";
+import { calendarDateKey, formatArchiveDate } from "./dates.ts";
 import { ARCHIVE_CSS, DARK_ARTWORK_PATH, STYLE_PATH } from "./styles.ts";
 
 const PAGE_SIZE = 20 as const;
@@ -508,8 +509,8 @@ function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArch
   return (
     <li class="card">
       <p class="meta">
-        <time datetime={item.publishedAt.toISOString()}>
-          {formatDate(item.publishedAt, locale)}
+        <time datetime={item.publishedAt.toISOString()} data-local-date>
+          {formatArchiveDate(item.publishedAt, locale, "UTC")}
         </time>
       </p>
       <article class="card__body">
@@ -549,27 +550,34 @@ function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchi
       <article class="detail">
         <p class="eyebrow">{item.sourceDomain}</p>
         <h1>{item.title}</h1>
-        <dl class="detail__dates meta">
+        <dl class="detail__dates meta" data-local-date-pair>
           <div>
             <dt>{text.published}</dt>
             <dd>
-              <time datetime={item.publishedAt.toISOString()}>
-                {formatDate(item.publishedAt, locale)}
+              <time
+                datetime={item.publishedAt.toISOString()}
+                data-local-date
+                data-local-date-role="published"
+              >
+                {formatArchiveDate(item.publishedAt, locale, "UTC")}
               </time>
             </dd>
           </div>
-          {!isSameUtcDate(item.publishedAt, item.updatedAt)
-            ? (
-              <div>
-                <dt>{text.updated}</dt>
-                <dd>
-                  <time datetime={item.updatedAt.toISOString()}>
-                    {formatDate(item.updatedAt, locale)}
-                  </time>
-                </dd>
-              </div>
-            )
-            : null}
+          <div
+            data-updated-date
+            hidden={isSameCalendarDate(item.publishedAt, item.updatedAt, "UTC")}
+          >
+            <dt>{text.updated}</dt>
+            <dd>
+              <time
+                datetime={item.updatedAt.toISOString()}
+                data-local-date
+                data-local-date-role="updated"
+              >
+                {formatArchiveDate(item.updatedAt, locale, "UTC")}
+              </time>
+            </dd>
+          </div>
         </dl>
         {item.summary ? <p class="subtitle">{item.summary}</p> : null}
         {item.selectedText ? <blockquote>{item.selectedText}</blockquote> : null}
@@ -812,17 +820,8 @@ function otherLocale(locale: ArchiveLocale): ArchiveLocale {
   return locale === "en" ? "pt-br" : "en";
 }
 
-function formatDate(value: Date, locale: ArchiveLocale): string {
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "pt-BR", {
-    dateStyle: "medium",
-    timeZone: "UTC",
-  }).format(value);
-}
-
-function isSameUtcDate(left: Date, right: Date): boolean {
-  return left.getUTCFullYear() === right.getUTCFullYear() &&
-    left.getUTCMonth() === right.getUTCMonth() &&
-    left.getUTCDate() === right.getUTCDate();
+function isSameCalendarDate(left: Date, right: Date, timeZone: string): boolean {
+  return calendarDateKey(left, timeZone) === calendarDateKey(right, timeZone);
 }
 
 function metaDescription(value: string): string {

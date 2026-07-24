@@ -14,6 +14,7 @@ const channel: StoredChannel = {
   isActiveForRouting: true,
   isReadLater: true,
   availability: "available",
+  lastSyncedAt: null,
 };
 Deno.test("setup coordinator enforces an active Read Later channel", async () => {
   const calls: unknown[] = [];

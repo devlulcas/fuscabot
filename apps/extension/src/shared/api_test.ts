@@ -48,7 +48,12 @@ Deno.test("resource response parsing validates envelopes and preserves channels"
       channels: [{ id: "channel-1", name: "links" }],
     },
   });
-  assertEquals(parsed.publicPublication, publicPublication);
+  assertEquals(parsed.publicPublication, {
+    ...publicPublication,
+    publishedAt: "2026-07-20T13:00:00.000Z",
+  });
+  assertEquals(parsed.createdAt, "2026-07-20T12:00:00.000Z");
+  assertEquals(parsed.updatedAt, "2026-07-20T12:00:00.000Z");
   assertEquals(parsed.channels, [{ id: "channel-1", name: "links" }]);
   assertEquals(parseResourceListEnvelope({ data: [resource] }).length, 1);
   assertEquals(

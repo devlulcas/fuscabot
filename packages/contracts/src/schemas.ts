@@ -8,6 +8,10 @@ const httpUrl = z.url().refine((value) => {
     url.username === "" && url.password === "";
 }, "Expected an HTTP(S) URL without credentials");
 
+export const UtcDateTimeSchema = z.iso.datetime({ offset: true }).transform((
+  value,
+) => new Date(value).toISOString());
+
 export const LanguageSchema = z.enum(["pt-BR", "en"]);
 export type Language = z.infer<typeof LanguageSchema>;
 
@@ -19,7 +23,7 @@ export const CaptureMetadataSchema = z.object({
   description: nullableText.default(null),
   siteName: nullableText.default(null),
   author: nullableText.default(null),
-  publishedAt: z.iso.datetime({ offset: true }).nullable().default(null),
+  publishedAt: UtcDateTimeSchema.nullable().default(null),
   imageUrl: httpUrl.nullable().default(null),
   sourceLanguage: nonBlank.nullable().default(null),
 });
@@ -131,7 +135,7 @@ export const ResourceSchema = z.object({
   description: nullableText,
   siteName: nullableText,
   author: nullableText,
-  publishedAtSource: z.iso.datetime({ offset: true }).nullable(),
+  publishedAtSource: UtcDateTimeSchema.nullable(),
   imageUrl: httpUrl.nullable(),
   selectedQuote: nullableText,
   summary: nullableText,
@@ -140,12 +144,12 @@ export const ResourceSchema = z.object({
   enrichmentError: nullableText,
   publicPublication: z.object({
     slug: nonBlank.max(180),
-    publishedAt: z.iso.datetime({ offset: true }),
+    publishedAt: UtcDateTimeSchema,
     url: httpUrl,
   }).nullable(),
   tags: z.array(ResourceTagSchema),
-  createdAt: z.iso.datetime({ offset: true }),
-  updatedAt: z.iso.datetime({ offset: true }),
+  createdAt: UtcDateTimeSchema,
+  updatedAt: UtcDateTimeSchema,
 });
 export type Resource = z.infer<typeof ResourceSchema>;
 
@@ -210,7 +214,7 @@ export type LegacyDeliverySnapshot = z.infer<
 export const DeliverySnapshotV2Schema = LegacyDeliverySnapshotSchema.extend({
   version: z.literal(2),
   sourceDomain: nonBlank.max(256),
-  capturedAt: z.iso.datetime({ offset: true }),
+  capturedAt: UtcDateTimeSchema,
   destinationLabel: nonBlank.max(100).nullable(),
   payload: DiscordMessagePayloadSchema,
 });
@@ -233,8 +237,8 @@ export const DeliverySchema = z.object({
   externalUrl: httpUrl.nullable(),
   status: DeliveryStatusSchema,
   error: nullableText,
-  sentAt: z.iso.datetime({ offset: true }).nullable(),
-  createdAt: z.iso.datetime({ offset: true }),
+  sentAt: UtcDateTimeSchema.nullable(),
+  createdAt: UtcDateTimeSchema,
 });
 export type Delivery = z.infer<typeof DeliverySchema>;
 

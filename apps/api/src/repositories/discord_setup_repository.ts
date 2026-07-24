@@ -173,5 +173,6 @@ function mapChannel(row: typeof channels.$inferSelect): StoredChannel {
     isActiveForRouting: row.isActiveForRouting,
     isReadLater: row.isReadLater,
     availability: row.availability,
+    lastSyncedAt: row.lastSyncedAt,
   };
 }

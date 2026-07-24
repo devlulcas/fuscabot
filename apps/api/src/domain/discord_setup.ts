@@ -17,6 +17,7 @@ export type StoredChannel = ImportedTextChannel & {
   isActiveForRouting: ChannelRow["isActiveForRouting"];
   isReadLater: ChannelRow["isReadLater"];
   availability: ChannelRow["availability"];
+  lastSyncedAt: ChannelRow["lastSyncedAt"];
 };
 
 export type ChannelPatch = {

@@ -7,7 +7,21 @@ import {
   DeliverySnapshotV2Schema,
   EnrichmentDraftSchema,
   ResourceSchema,
+  UtcDateTimeSchema,
 } from "./schemas.ts";
+
+Deno.test("UTC datetime contracts normalize explicit offsets", () => {
+  assertEquals(
+    UtcDateTimeSchema.parse("2026-07-23T09:30:00-03:00"),
+    "2026-07-23T12:30:00.000Z",
+  );
+  assertEquals(
+    UtcDateTimeSchema.parse("2026-07-23T12:30:00Z"),
+    "2026-07-23T12:30:00.000Z",
+  );
+  assertFalse(UtcDateTimeSchema.safeParse("2026-07-23T12:30:00").success);
+  assertFalse(UtcDateTimeSchema.safeParse("not-a-date").success);
+});
 
 Deno.test("bulk resource actions require unique UUIDs", () => {
   const id = "01980000-7000-8000-8000-000000000001";
@@ -32,6 +46,19 @@ Deno.test("capture defaults optional metadata safely", () => {
   });
   assertEquals(capture.selectedQuote, null);
   assertEquals(capture.metadata.canonicalUrl, null);
+});
+
+Deno.test("capture metadata timestamps are canonical UTC", () => {
+  const capture = CaptureSchema.parse({
+    captureId: "01980000-7000-8000-8000-000000000001",
+    url: "https://example.com/article",
+    title: "An article",
+    metadata: {
+      publishedAt: "2026-07-23T09:30:00-03:00",
+    },
+  });
+
+  assertEquals(capture.metadata.publishedAt, "2026-07-23T12:30:00.000Z");
 });
 
 Deno.test("resource and capture contracts reject non-web and credential URLs", () => {

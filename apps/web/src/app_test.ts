@@ -200,13 +200,16 @@ Deno.test("detail renders public projection and safe outbound analytics attribut
   assertMatch(body, /data-umami-event-source-domain="example\.com"/);
   assertMatch(body, /<a class="back-link" href="\/en\/">/);
   assertMatch(body, /<span class="back-link__icon" aria-hidden="true">←<\/span>/);
-  assertMatch(body, /<dl class="detail__dates meta">/);
+  assertMatch(body, /<dl class="detail__dates meta" data-local-date-pair="true">/);
   assertMatch(body, /<dt>Published<\/dt>/);
   assertMatch(body, /<dt>Updated<\/dt>/);
+  assertMatch(body, /data-local-date-role="published"/);
+  assertMatch(body, /data-local-date-role="updated"/);
+  assertMatch(body, /datetime="2026-06-01T12:00:00.000Z"/);
   assertNotMatch(body, /personalNote|originalUrl|workspaceId/);
 });
 
-Deno.test("detail omits updated metadata when publication and update share a date", async () => {
+Deno.test("detail hides the UTC fallback update row when publication and update share a date", async () => {
   const { app: web, reader } = app();
   reader.currentItem = {
     ...item,
@@ -216,7 +219,8 @@ Deno.test("detail omits updated metadata when publication and update share a dat
   const body = await (await web.request(`/en/links/${item.slug}`)).text();
 
   assertMatch(body, /<dt>Published<\/dt>/);
-  assertNotMatch(body, /<dt>Updated<\/dt>/);
+  assertMatch(body, /data-updated-date[^>]*hidden/);
+  assertMatch(body, /<dt>Updated<\/dt>/);
 });
 
 Deno.test("detail treats missing, malformed, and unsafe records as the same generic 404", async () => {

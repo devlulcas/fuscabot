@@ -5,12 +5,14 @@ import type { ResourceRepository } from "../src/repositories/resource_repository
 import type { DiscordSetupCoordinator } from "../src/services/discord_setup_coordinator.ts";
 import type { DurableDeliveryCoordinator } from "../src/services/durable_delivery_coordinator.ts";
 import {
+  RuntimeChannelCoordinator,
   RuntimeDeliveryCoordinator,
   RuntimeEnrichmentCoordinator,
 } from "../src/services/runtime_coordinators.ts";
 import { EnrichmentPreparingError } from "../src/domain/durable_delivery.ts";
 import type { EnrichmentInput } from "../src/domain/enrichment.ts";
 import type { EnrichmentService } from "../src/services/enrichment_service.ts";
+import type { DiscordClient } from "../src/integrations/discord_client.ts";
 
 const resource: Resource & { workspaceId: string } = {
   id: "019432f0-7c00-7000-8000-000000000001",
@@ -44,6 +46,37 @@ const resource: Resource & { workspaceId: string } = {
   updatedAt: "2026-07-21T12:00:00Z",
 };
 
+Deno.test("runtime channel records expose canonical UTC synchronization timestamps", async () => {
+  const channel: StoredChannel = {
+    id: "019432f0-7c00-7000-8000-000000000003",
+    workspaceId: resource.workspaceId,
+    discordChannelId: "discord-channel",
+    name: "saved-links",
+    parentDiscordChannelId: null,
+    parentName: null,
+    topic: null,
+    routingDescription: null,
+    isActiveForRouting: true,
+    isReadLater: true,
+    availability: "available",
+    lastSyncedAt: new Date("2026-07-23T09:30:00-03:00"),
+  };
+  const setup = {
+    list: () => Promise.resolve([channel]),
+  } as unknown as DiscordSetupCoordinator;
+  const coordinator = new RuntimeChannelCoordinator(
+    "owner",
+    resource.workspaceId,
+    setup,
+    {} as DiscordClient,
+  );
+
+  assertEquals(
+    (await coordinator.list("owner"))[0]?.lastSyncedAt,
+    "2026-07-23T12:30:00.000Z",
+  );
+});
+
 Deno.test("runtime delivery snapshots explicit and Read Later channel names", async () => {
   const channel: StoredChannel = {
     id: "019432f0-7c00-7000-8000-000000000003",
@@ -57,6 +90,7 @@ Deno.test("runtime delivery snapshots explicit and Read Later channel names", as
     isActiveForRouting: true,
     isReadLater: true,
     availability: "available",
+    lastSyncedAt: null,
   };
   const captured: DeliverySnapshot[] = [];
   const resources = {

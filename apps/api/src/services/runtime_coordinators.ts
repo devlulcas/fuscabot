@@ -210,6 +210,6 @@ function toChannelRecord(channel: StoredChannel): ChannelRecord {
     isActiveForRouting: channel.isActiveForRouting,
     isReadLater: channel.isReadLater,
     availability: channel.availability,
-    lastSyncedAt: null,
+    lastSyncedAt: channel.lastSyncedAt?.toISOString() ?? null,
   };
 }
