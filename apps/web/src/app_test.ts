@@ -198,6 +198,8 @@ Deno.test("detail renders public projection and safe outbound analytics attribut
   assertMatch(body, /rel="noopener noreferrer external"/);
   assertMatch(body, /data-umami-event="outbound-link"/);
   assertMatch(body, /data-umami-event-source-domain="example\.com"/);
+  assertMatch(body, /<a class="back-link" href="\/en\/">/);
+  assertMatch(body, /<span class="back-link__icon" aria-hidden="true">←<\/span>/);
   assertMatch(body, /<dl class="detail__dates meta">/);
   assertMatch(body, /<dt>Published<\/dt>/);
   assertMatch(body, /<dt>Updated<\/dt>/);

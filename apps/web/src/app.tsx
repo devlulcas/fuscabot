@@ -541,7 +541,10 @@ function DetailPage({ locale, item }: { locale: ArchiveLocale; item: PublicArchi
   return (
     <main id="main" class="shell">
       <p>
-        <a href={`/${locale}/`}>← {text.back}</a>
+        <a class="back-link" href={`/${locale}/`}>
+          <span class="back-link__icon" aria-hidden="true">←</span>
+          <span>{text.back}</span>
+        </a>
       </p>
       <article class="detail">
         <p class="eyebrow">{item.sourceDomain}</p>
