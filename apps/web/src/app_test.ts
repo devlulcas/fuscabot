@@ -245,7 +245,10 @@ Deno.test("analytics is absent by default and constrained when configured", asyn
   assertMatch(tracked, /data-do-not-track="true"/);
   assertMatch(tracked, /data-exclude-search="true"/);
   assertMatch(tracked, /data-domains="fuscabot\.example"/);
-  assertMatch(response.headers.get("content-security-policy") ?? "", /https:\/\/cloud\.umami\.is/);
+  const policy = response.headers.get("content-security-policy") ?? "";
+  assertMatch(policy, /manifest-src 'self'/);
+  assertMatch(policy, /script-src 'self' https:\/\/cloud\.umami\.is/);
+  assertMatch(policy, /connect-src 'self' https:\/\/gateway\.umami\.is/);
 });
 
 Deno.test("robots, sitemap, and fingerprinted assets have appropriate policies", async () => {

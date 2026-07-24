@@ -652,12 +652,12 @@ function responsePolicy(analytics?: UmamiOptions): MiddlewareHandler {
   return async (c, next) => {
     await next();
     const analyticsOrigin = analytics ? new URL(analytics.scriptUrl).origin : undefined;
-    const analyticsHost = analytics?.hostUrl ? new URL(analytics.hostUrl).origin : analyticsOrigin;
+    const analyticsHost = analytics ? umamiCollectionOrigin(analytics) : undefined;
     const scriptSrc = analyticsOrigin ? `'self' ${analyticsOrigin}` : "'self'";
     const connectSrc = analyticsHost ? `'self' ${analyticsHost}` : "'self'";
     c.header(
       "Content-Security-Policy",
-      `default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; style-src 'self'; font-src 'self'; script-src ${scriptSrc}; connect-src ${connectSrc}`,
+      `default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; img-src 'self'; style-src 'self'; font-src 'self'; script-src ${scriptSrc}; connect-src ${connectSrc}`,
     );
     c.header("Cross-Origin-Resource-Policy", "same-origin");
     c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
@@ -677,6 +677,12 @@ function responsePolicy(analytics?: UmamiOptions): MiddlewareHandler {
       }
     }
   };
+}
+
+function umamiCollectionOrigin(analytics: UmamiOptions): string {
+  if (analytics.hostUrl) return new URL(analytics.hostUrl).origin;
+  const scriptOrigin = new URL(analytics.scriptUrl).origin;
+  return scriptOrigin === "https://cloud.umami.is" ? "https://gateway.umami.is" : scriptOrigin;
 }
 
 function parseListQuery(url: string):
