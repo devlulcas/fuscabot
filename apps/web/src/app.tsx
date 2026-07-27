@@ -516,38 +516,13 @@ function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArch
   const text = copy[locale];
   const thumbnailUrl = youtubeThumbnailUrl(item.outboundUrl);
   return (
-    <li class={`card${thumbnailUrl ? " card--video" : ""}`}>
+    <li class="card">
       <p class="meta">
         <time datetime={item.publishedAt.toISOString()} data-local-date>
           {formatArchiveDate(item.publishedAt, locale, "UTC")}
         </time>
       </p>
-      {thumbnailUrl
-        ? (
-          <a
-            class="video-thumbnail"
-            href={item.outboundUrl}
-            aria-label={`${text.playYouTube}: ${item.title}`}
-            rel="noopener noreferrer external"
-            data-umami-event="outbound-link"
-            data-umami-event-source-domain={item.sourceDomain}
-          >
-            <img
-              src={thumbnailUrl}
-              alt=""
-              width="480"
-              height="360"
-              loading="lazy"
-              decoding="async"
-            />
-            <span aria-hidden="true">
-              <PlayIcon />
-            </span>
-          </a>
-        )
-        : null}
       <article class="card__body">
-        {thumbnailUrl ? <p class="media-label">{text.youtubeVideo}</p> : null}
         <h2 class="card__title">
           <a href={`/${locale}/links/${encodeURIComponent(item.slug)}`}>{item.title}</a>
         </h2>
@@ -565,6 +540,33 @@ function ArchiveCard({ locale, item }: { locale: ArchiveLocale; item: PublicArch
             <ArrowUpRightIcon />
           </a>
         </p>
+        {thumbnailUrl
+          ? (
+            <div class="card__video">
+              <p class="media-label">{text.youtubeVideo}</p>
+              <a
+                class="video-thumbnail"
+                href={item.outboundUrl}
+                aria-label={`${text.playYouTube}: ${item.title}`}
+                rel="noopener noreferrer external"
+                data-umami-event="outbound-link"
+                data-umami-event-source-domain={item.sourceDomain}
+              >
+                <img
+                  src={thumbnailUrl}
+                  alt=""
+                  width="480"
+                  height="360"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span aria-hidden="true">
+                  <PlayIcon />
+                </span>
+              </a>
+            </div>
+          )
+          : null}
         <TagList locale={locale} tags={item.tags} />
       </article>
     </li>

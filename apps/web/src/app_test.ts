@@ -231,6 +231,9 @@ Deno.test("YouTube links render a derived preview with the shared SVG play path"
     const body = await response.text();
     assertMatch(body, /class="video-thumbnail/);
     assertMatch(body, /src="https:\/\/i\.ytimg\.com\/vi\/dQw4w9WgXcQ\/hqdefault\.jpg"/);
+    if (path === "/en/") {
+      assert(body.indexOf('class="card__source-link"') < body.indexOf('class="card__video"'));
+    }
     assertMatch(
       body,
       /M240,128a15\.74,15\.74,0,0,1-7\.6,13\.51L88\.32,229\.65/,

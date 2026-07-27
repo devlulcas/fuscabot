@@ -1,4 +1,4 @@
-export const STYLE_PATH = "/assets/archive-080986ce.css";
+export const STYLE_PATH = "/assets/archive-50513ac2.css";
 export const DARK_ARTWORK_PATH = "/assets/artwork/landscape-with-windmill-monochrome-fd649d8d.webp";
 
 export const ARCHIVE_CSS = String.raw`
@@ -86,8 +86,8 @@ button { padding-inline: 1.2rem; border: 1px solid var(--ink); cursor: pointer; 
 button:hover { background: var(--ink); color: var(--paper); }
 .results { list-style: none; padding: 0; margin: 0; }
 .card { display: grid; grid-template-columns: 9rem 1fr; gap: clamp(1rem, 4vw, 4rem); padding-block: 2rem; border-bottom: 1px solid var(--line); }
-.card--video { grid-template-columns: 9rem minmax(12rem, 18rem) 1fr; gap: clamp(1rem, 3vw, 2.5rem); }
 .card__body { min-width: 0; }
+.card__video { width: min(100%, 18rem); margin-block: 1.25rem; }
 .media-label {
   margin: 0 0 .45rem; color: var(--rose); letter-spacing: .08em; text-transform: uppercase;
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: .68rem;
@@ -224,7 +224,6 @@ footer {
 @media (max-width: 44rem) {
   .filters { grid-template-columns: 1fr; }
   .card { grid-template-columns: 1fr; gap: .5rem; }
-  .card--video { grid-template-columns: 1fr; }
   .masthead__inner { align-items: center; }
   .masthead__actions { gap: .65rem; }
   .locale-nav span { display: none; }
