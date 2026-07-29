@@ -1,7 +1,10 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@hono/hono@4.8.3": "4.8.3",
     "jsr:@hono/hono@^4.8.3": "4.12.31",
+    "jsr:@hono/zod-validator@0.9": "0.9.0",
+    "jsr:@hono/zod-validator@0.9.0": "0.9.0",
     "jsr:@std/assert@1": "1.0.19",
     "jsr:@std/assert@^1.0.13": "1.0.19",
     "jsr:@std/cli@1.0.32": "1.0.32",
@@ -41,7 +44,8 @@
     "npm:typescript@7.0.2": "7.0.2",
     "npm:vite@7": "7.3.6",
     "npm:vitest@4": "4.1.10_jsdom@27.4.0_vite@7.3.6",
-    "npm:zod@4.4.3": "4.4.3"
+    "npm:zod@4.4.3": "4.4.3",
+    "npm:zod@^4.2.1": "4.4.3"
   },
   "jsr": {
     "@deno/deploy@0.0.9904": {
@@ -61,6 +65,13 @@
     },
     "@hono/hono@4.12.31": {
       "integrity": "6a31d6811a4e217ab7c59655e68f881372c39e191ace73e4aeed02fc1227185d"
+    },
+    "@hono/zod-validator@0.9.0": {
+      "integrity": "32b1f3b4bea3d6e5c3aa427eea711fae470c767fe9b511a10ae8edd0f703bab9",
+      "dependencies": [
+        "jsr:@hono/hono@^4.8.3",
+        "npm:zod@^4.2.1"
+      ]
     },
     "@std/assert@1.0.19": {
       "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
@@ -2086,6 +2097,7 @@
       "apps/api": {
         "dependencies": [
           "jsr:@hono/hono@^4.8.3",
+          "jsr:@hono/zod-validator@0.9",
           "jsr:@std/assert@^1.0.13",
           "jsr:@zod/zod@4",
           "npm:@tanstack/ai-mistral@0.2.2",

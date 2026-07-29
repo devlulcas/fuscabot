@@ -2,7 +2,7 @@ import { Hono } from "@hono/hono";
 import { z } from "zod";
 import type { AppDependencies, AppEnv } from "../app_types.ts";
 import { error } from "../http/errors.ts";
-import { readJsonBody } from "../http/json_body.ts";
+import { IdParamSchema, zValidator } from "../http/validation.ts";
 
 const TagInputSchema = z.object({
   slug: z.string().trim().min(1).max(80),
@@ -10,36 +10,45 @@ const TagInputSchema = z.object({
   portuguese: z.string().trim().min(1).max(80),
   aliases: z.array(z.string().trim().min(1).max(80)).max(30).default([]),
 });
+const TagSearchQuerySchema = z.object({ search: z.string().optional() });
+const TagMergeSchema = z.object({ targetId: z.uuid() });
 
 export function createTagRoutes(deps: AppDependencies) {
   return new Hono<AppEnv>()
-    .get("/", async (c) => {
+    .get("/", zValidator("query", TagSearchQuerySchema), async (c) => {
       if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
-      return c.json({ data: await deps.tags.list(c.get("session").sub, c.req.query("search")) });
+      const { search } = c.req.valid("query");
+      return c.json({ data: await deps.tags.list(c.get("session").sub, search) }, 200);
     })
-    .post("/", async (c) => {
+    .post("/", zValidator("json", TagInputSchema), async (c) => {
       if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
-      const input = TagInputSchema.parse(
-        await readJsonBody(c, { maxBytes: deps.maxJsonBytes }),
-      );
+      const input = c.req.valid("json");
       return c.json({ data: await deps.tags.create(c.get("session").sub, input) }, 201);
     })
-    .post("/:id/merge", async (c) => {
-      if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
-      const { targetId } = z.object({ targetId: z.uuid() }).parse(
-        await readJsonBody(c, { maxBytes: deps.maxJsonBytes }),
-      );
-      return c.json({
-        data: await deps.tags.merge(c.get("session").sub, c.req.param("id"), targetId),
-      });
-    })
-    .patch("/:id", async (c) => {
-      if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
-      const input = TagInputSchema.parse(
-        await readJsonBody(c, { maxBytes: deps.maxJsonBytes }),
-      );
-      return c.json({
-        data: await deps.tags.update(c.get("session").sub, c.req.param("id"), input),
-      });
-    });
+    .post(
+      "/:id/merge",
+      zValidator("param", IdParamSchema),
+      zValidator("json", TagMergeSchema),
+      async (c) => {
+        if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
+        const { id } = c.req.valid("param");
+        const { targetId } = c.req.valid("json");
+        return c.json({
+          data: await deps.tags.merge(c.get("session").sub, id, targetId),
+        }, 200);
+      },
+    )
+    .patch(
+      "/:id",
+      zValidator("param", IdParamSchema),
+      zValidator("json", TagInputSchema),
+      async (c) => {
+        if (!deps.tags) return error(c, 503, "DEPENDENCY_ERROR", "Tag storage is unavailable");
+        const { id } = c.req.valid("param");
+        const input = c.req.valid("json");
+        return c.json({
+          data: await deps.tags.update(c.get("session").sub, id, input),
+        }, 200);
+      },
+    );
 }

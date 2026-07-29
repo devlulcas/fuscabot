@@ -1,4 +1,5 @@
 import { Hono } from "@hono/hono";
+import { bodyLimit } from "@hono/hono/body-limit";
 import type {
   AppDependencies,
   AppEnv,
@@ -9,6 +10,7 @@ import type {
   TagCoordinator,
 } from "./app_types.ts";
 import { error, handleError } from "./http/errors.ts";
+import { DEFAULT_MAX_JSON_BYTES } from "./http/json_body.ts";
 import {
   authenticate,
   authenticatedRateLimit,
@@ -43,16 +45,25 @@ export function createApp(
   app.get("/health", (c) => c.json({ status: "ok" }));
   app.get("/healthz", (c) => c.json({ status: "ok" }));
 
+  app.use(
+    "/v1/*",
+    bodyLimit({
+      maxSize: deps.maxJsonBytes ?? DEFAULT_MAX_JSON_BYTES,
+      onError: (c) => error(c, 413, "PAYLOAD_TOO_LARGE", "Request body is too large"),
+    }),
+  );
   app.use("/v1/*", authenticate(deps));
   app.use("/v1/*", authenticatedRateLimit(deps));
 
-  app.route("/v1/auth", createAuthRoutes(deps));
-  app.route("/v1", createDiscordRoutes(deps));
-  app.route("/v1/resources", createResourceRoutes(deps));
-  app.route("/v1/deliveries", createDeliveryRoutes(deps));
-  app.route("/v1/tags", createTagRoutes(deps));
+  const routes = app
+    .route("/v1/auth", createAuthRoutes(deps))
+    .route("/v1", createDiscordRoutes(deps))
+    .route("/v1/resources", createResourceRoutes(deps))
+    .route("/v1/deliveries", createDeliveryRoutes(deps))
+    .route("/v1/tags", createTagRoutes(deps));
 
-  return app;
+  return routes;
 }
 
 export const app = createApp();
+export type AppType = typeof app;

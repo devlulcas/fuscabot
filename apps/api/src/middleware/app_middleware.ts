@@ -1,7 +1,6 @@
 import type { MiddlewareHandler } from "@hono/hono";
 import type { AppDependencies, AppEnv } from "../app_types.ts";
 import { error, handleError } from "../http/errors.ts";
-import { assertDeclaredJsonSize, DEFAULT_MAX_JSON_BYTES } from "../http/json_body.ts";
 import {
   DEFAULT_RATE_LIMIT_POLICIES,
   RateLimitExceededError,
@@ -20,7 +19,6 @@ export function requestLifecycle(deps: AppDependencies): MiddlewareHandler<AppEn
     const allowed = origin && deps.allowedOrigins?.includes(origin);
     let response: Response;
     try {
-      assertDeclaredJsonSize(c, deps.maxJsonBytes ?? DEFAULT_MAX_JSON_BYTES);
       if (c.req.method !== "OPTIONS" && deps.rateLimits && isPublicAuthPath(c.req.path)) {
         await consumeRateLimit(
           deps.rateLimits,

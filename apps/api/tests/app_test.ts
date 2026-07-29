@@ -130,6 +130,21 @@ Deno.test("CRUD and validation error envelope", async () => {
   assertEquals(error.error.code, "VALIDATION_ERROR");
 });
 
+Deno.test("query and path validators reject invalid route inputs", async () => {
+  const instance = app();
+  const invalidParam = await instance.request("/v1/resources/not-a-uuid");
+  assertEquals(invalidParam.status, 400);
+  assertEquals(ApiErrorSchema.parse(await invalidParam.json()).error.code, "VALIDATION_ERROR");
+
+  const invalidQuery = await instance.request("/v1/resources?limit=101");
+  assertEquals(invalidQuery.status, 400);
+  assertEquals(ApiErrorSchema.parse(await invalidQuery.json()).error.code, "VALIDATION_ERROR");
+
+  const defaults = await (await instance.request("/v1/resources")).json();
+  assertEquals(defaults.meta.limit, 25);
+  assertEquals(defaults.meta.offset, 0);
+});
+
 Deno.test("bulk resource deletion is atomic", async () => {
   const instance = app();
   const second = {

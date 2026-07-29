@@ -1,3 +1,4 @@
+import { HTTPException } from "@hono/hono/http-exception";
 import type { Context } from "@hono/hono";
 import type { ApiError } from "@fuscabot/contracts";
 import { ZodError } from "zod";
@@ -15,7 +16,6 @@ import {
   ResourceNotFoundError,
 } from "../services/resource_service.ts";
 import { TagNotFoundError } from "../services/tag_coordinator.ts";
-import { MalformedJsonError, PayloadTooLargeError } from "./json_body.ts";
 import { RateLimitExceededError } from "./rate_limit.ts";
 import { DiscordApiError } from "../integrations/discord_client.ts";
 import { MistralClientError } from "../integrations/mistral_client.ts";
@@ -48,10 +48,13 @@ export function handleError(c: Context, cause: unknown) {
   if (cause instanceof ZodError) {
     return error(c, 400, "VALIDATION_ERROR", "Request validation failed", cause.flatten());
   }
-  if (cause instanceof PayloadTooLargeError) {
-    return error(c, 413, "PAYLOAD_TOO_LARGE", "Request body is too large");
+  if (cause instanceof SyntaxError) {
+    return error(c, 400, "VALIDATION_ERROR", "Request body must be valid JSON");
   }
-  if (cause instanceof MalformedJsonError) {
+  if (
+    cause instanceof HTTPException && cause.status === 400 &&
+    cause.message === "Malformed JSON in request body"
+  ) {
     return error(c, 400, "VALIDATION_ERROR", "Request body must be valid JSON");
   }
   if (cause instanceof RateLimitExceededError) {

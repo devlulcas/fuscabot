@@ -2,24 +2,29 @@ import { Hono } from "@hono/hono";
 import { z } from "zod";
 import type { AppDependencies, AppEnv } from "../app_types.ts";
 import { error } from "../http/errors.ts";
-import { readJsonBody } from "../http/json_body.ts";
+import { zValidator } from "../http/validation.ts";
+
+const ExtensionRedirectQuerySchema = z.object({ extension_redirect: z.url() });
+const CallbackQuerySchema = z.object({ code: z.string().min(1), state: z.string().min(1) });
+const RefreshBodySchema = z.object({
+  sessionId: z.uuid(),
+  refreshToken: z.string().min(32),
+});
 
 export function createAuthRoutes(deps: AppDependencies) {
   return new Hono<AppEnv>()
-    .get("/discord/start", async (c) => {
+    .get("/discord/start", zValidator("query", ExtensionRedirectQuerySchema), async (c) => {
       if (!deps.auth) {
         return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
       }
-      const query = z.object({ extension_redirect: z.url() }).parse(c.req.query());
+      const query = c.req.valid("query");
       return c.redirect(await deps.auth.authorizationUrl(query.extension_redirect));
     })
-    .get("/discord/callback", async (c) => {
+    .get("/discord/callback", zValidator("query", CallbackQuerySchema), async (c) => {
       if (!deps.auth) {
         return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
       }
-      const query = z.object({ code: z.string().min(1), state: z.string().min(1) }).parse(
-        c.req.query(),
-      );
+      const query = c.req.valid("query");
       const result = await deps.auth.complete(query.code, query.state);
       const destination = new URL(result.extensionRedirect);
       destination.hash = new URLSearchParams({
@@ -29,15 +34,12 @@ export function createAuthRoutes(deps: AppDependencies) {
       }).toString();
       return c.redirect(destination.href);
     })
-    .post("/refresh", async (c) => {
+    .post("/refresh", zValidator("json", RefreshBodySchema), async (c) => {
       if (!deps.auth) {
         return error(c, 503, "DEPENDENCY_ERROR", "Authentication is not configured");
       }
-      const body = z.object({
-        sessionId: z.uuid(),
-        refreshToken: z.string().min(32),
-      }).parse(await readJsonBody(c, { maxBytes: deps.maxJsonBytes }));
-      return c.json({ data: await deps.auth.refresh(body.sessionId, body.refreshToken) });
+      const body = c.req.valid("json");
+      return c.json({ data: await deps.auth.refresh(body.sessionId, body.refreshToken) }, 200);
     })
     .post("/logout", async (c) => {
       if (!deps.auth) {
@@ -54,6 +56,6 @@ export function createAuthRoutes(deps: AppDependencies) {
           guildIds: session.guildIds,
           expiresAt: new Date(session.exp).toISOString(),
         },
-      });
+      }, 200);
     });
 }
