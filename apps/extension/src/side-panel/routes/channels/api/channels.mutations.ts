@@ -1,12 +1,15 @@
+import { parseResponse } from "@hono/hono/client";
 import {
   mutationOptions,
   type QueryClient,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api, type DiscordChannel } from "../../../../shared/api.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 import { getConfig, saveConfig } from "../../../../shared/config.ts";
 import { channelQueryKeys } from "./channels.queries.ts";
+import { selectSyncedChannels } from "./channels.select.ts";
+import type { DiscordChannel } from "./channels.select.ts";
 import type { ChannelPatch } from "../model/channel-types.ts";
 
 export function syncChannelsMutationOptions(
@@ -15,7 +18,11 @@ export function syncChannelsMutationOptions(
 ) {
   return mutationOptions({
     mutationFn: async (guildId: string) => {
-      const rows = await api.syncChannels(guildId);
+      const rows = selectSyncedChannels(
+        await parseResponse(
+          apiClient.v1.discord.channels.sync.$post({ json: { guildId } }),
+        ),
+      );
       await saveConfig({ ...await getConfig(), selectedGuildId: guildId });
       return rows;
     },
@@ -29,8 +36,13 @@ export function syncChannelsMutationOptions(
 
 export function updateChannelMutationOptions() {
   return mutationOptions({
-    mutationFn: ({ id, patch }: { id: string; patch: ChannelPatch }) =>
-      api.updateChannel(id, patch),
+    mutationFn: async ({ id, patch }: { id: string; patch: ChannelPatch }) =>
+      (await parseResponse(
+        apiClient.v1.channels[":id"].$patch({
+          param: { id },
+          json: patch,
+        }),
+      )).data,
   });
 }
 

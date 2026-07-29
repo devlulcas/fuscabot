@@ -1,23 +1,30 @@
+import { parseResponse } from "@hono/hono/client";
 import {
   mutationOptions,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { api } from "../../../../shared/api.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 import { tagQueryKeys } from "./tags.queries.ts";
 import type { TagInput } from "../model/tag-types.ts";
 import { resourceQueryKeys } from "../../library/api/resources.queries.ts";
 
 export function createTagMutationOptions() {
   return mutationOptions({
-    mutationFn: api.createTag,
+    mutationFn: async (input: TagInput) =>
+      (await parseResponse(apiClient.v1.tags.$post({ json: input }))).data,
   });
 }
 
 export function updateTagMutationOptions() {
   return mutationOptions({
-    mutationFn: ({ id, input }: { id: string; input: TagInput }) =>
-      api.updateTag(id, input),
+    mutationFn: async ({ id, input }: { id: string; input: TagInput }) =>
+      (await parseResponse(
+        apiClient.v1.tags[":id"].$patch({
+          param: { id },
+          json: input,
+        }),
+      )).data,
   });
 }
 
@@ -25,7 +32,13 @@ export function mergeTagMutationOptions() {
   return mutationOptions({
     mutationFn: (
       { sourceId, targetId }: { sourceId: string; targetId: string },
-    ) => api.mergeTag(sourceId, targetId),
+    ) =>
+      parseResponse(
+        apiClient.v1.tags[":id"].merge.$post({
+          param: { id: sourceId },
+          json: { targetId },
+        }),
+      ).then(({ data }) => data),
   });
 }
 

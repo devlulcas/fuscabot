@@ -1,6 +1,8 @@
+import { parseResponse } from "@hono/hono/client";
 import { queryOptions } from "@tanstack/react-query";
-import { api } from "../../../../shared/api.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 import type { LibraryFilters } from "../model/library-search.ts";
+import { selectResourcePage } from "./resources.select.ts";
 
 export const resourceQueryKeys = {
   root: ["resources"] as const,
@@ -18,16 +20,21 @@ export function resourceListQueryOptions(filters: LibraryFilters) {
   return queryOptions({
     queryKey: resourceQueryKeys.list({ ...filters }),
     queryFn: ({ signal }) =>
-      api.listResources(filters.q, {
-        state: filters.state,
-        visibility: filters.visibility,
-        domain: filters.domain,
-        enrichmentStatus: filters.enrichmentStatus,
-        sort: filters.sort,
-        limit: RESOURCE_PAGE_SIZE,
-        offset: (filters.page - 1) * RESOURCE_PAGE_SIZE,
-        signal,
-      }),
+      parseResponse(
+        apiClient.v1.resources.$get({
+          query: {
+            search: filters.q,
+            state: filters.state,
+            visibility: filters.visibility,
+            domain: filters.domain,
+            enrichmentStatus: filters.enrichmentStatus,
+            sort: filters.sort,
+            limit: String(RESOURCE_PAGE_SIZE),
+            offset: String((filters.page - 1) * RESOURCE_PAGE_SIZE),
+          },
+        }, { init: { signal } }),
+      ),
+    select: selectResourcePage,
     staleTime: resourcesStaleTime,
   });
 }
@@ -35,7 +42,14 @@ export function resourceListQueryOptions(filters: LibraryFilters) {
 export function resourceQueryOptions(id: string, enabled = true) {
   return queryOptions({
     queryKey: resourceQueryKeys.detail(id),
-    queryFn: ({ signal }) => api.getResource(id, signal),
+    queryFn: ({ signal }) =>
+      parseResponse(
+        apiClient.v1.resources[":id"].$get(
+          { param: { id } },
+          { init: { signal } },
+        ),
+      ),
+    select: ({ data }) => data,
     enabled,
     staleTime: resourcesStaleTime,
     refetchInterval: false,

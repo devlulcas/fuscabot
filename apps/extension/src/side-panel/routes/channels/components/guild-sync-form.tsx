@@ -1,4 +1,4 @@
-import type { DiscordGuild } from "../../../../shared/api.ts";
+import type { DiscordGuild } from "../api/channels.select.ts";
 import type { ExtensionConfig } from "../../../../shared/config.ts";
 import { Button } from "../../../components/actions/button.tsx";
 import { Form } from "../../../components/form/form.tsx";

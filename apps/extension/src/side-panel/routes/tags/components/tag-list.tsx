@@ -1,4 +1,4 @@
-import type { CanonicalTag } from "../../../../shared/api.ts";
+import type { CanonicalTag } from "../api/tags.select.ts";
 import { InlineNotice } from "../../../components/page-status/page-status.tsx";
 import { List } from "../../../components/list/list.tsx";
 import { TagForm } from "./tag-form.tsx";

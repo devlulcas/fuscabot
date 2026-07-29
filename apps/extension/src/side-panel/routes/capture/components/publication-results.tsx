@@ -1,4 +1,4 @@
-import type { PublicationResult } from "../../../../shared/api.ts";
+import type { PublicationResult } from "../api/captures.select.ts";
 import {
   safeDiscordMessageUrl,
   safeWebUrl,

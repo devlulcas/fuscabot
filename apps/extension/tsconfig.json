@@ -5,6 +5,18 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
+    "paths": {
+      "@fuscabot/api": ["../api/mod.ts"],
+      "@fuscabot/contracts": ["../../packages/contracts/mod.ts"],
+      "@hono/hono": ["../../node_modules/hono/dist/types/index.d.ts"],
+      "@hono/hono/*": [
+        "../../node_modules/hono/dist/types/*",
+        "../../node_modules/hono/dist/types/middleware/*/index.d.ts"
+      ],
+      "@hono/zod-validator": [
+        "../../node_modules/@hono/zod-validator/dist/index.d.ts"
+      ]
+    },
     "strict": true,
     "target": "ES2022",
     "types": ["vite/client", "@types/react", "@types/react-dom"],

@@ -1,5 +1,6 @@
+import { parseResponse } from "@hono/hono/client";
 import { queryOptions } from "@tanstack/react-query";
-import { api } from "../../../../shared/api.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 
 export const channelQueryKeys = {
   guilds: ["discord", "guilds"] as const,
@@ -11,7 +12,11 @@ export const channelsStaleTime = 30 * 60 * 1_000;
 export function guildsQueryOptions() {
   return queryOptions({
     queryKey: channelQueryKeys.guilds,
-    queryFn: ({ signal }) => api.guilds(signal),
+    queryFn: ({ signal }) =>
+      parseResponse(
+        apiClient.v1.setup.discord.guilds.$get(undefined, { init: { signal } }),
+      ),
+    select: ({ data }) => data,
     staleTime: channelsStaleTime,
   });
 }
@@ -19,7 +24,11 @@ export function guildsQueryOptions() {
 export function channelsQueryOptions() {
   return queryOptions({
     queryKey: channelQueryKeys.channels,
-    queryFn: ({ signal }) => api.channels(signal),
+    queryFn: ({ signal }) =>
+      parseResponse(
+        apiClient.v1.channels.$get(undefined, { init: { signal } }),
+      ),
+    select: ({ data }) => data,
     staleTime: channelsStaleTime,
   });
 }

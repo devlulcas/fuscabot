@@ -1,5 +1,7 @@
 import { Hono } from "@hono/hono";
 import { bodyLimit } from "@hono/hono/body-limit";
+import type { ApplyGlobalResponse } from "@hono/hono/client";
+import type { ApiError } from "@fuscabot/contracts";
 import type {
   AppDependencies,
   AppEnv,
@@ -66,4 +68,18 @@ export function createApp(
 }
 
 export const app = createApp();
-export type AppType = typeof app;
+
+type GlobalErrorResponses = {
+  400: { json: ApiError };
+  401: { json: ApiError };
+  403: { json: ApiError };
+  404: { json: ApiError };
+  409: { json: ApiError };
+  413: { json: ApiError };
+  429: { json: ApiError };
+  500: { json: ApiError };
+  502: { json: ApiError };
+  503: { json: ApiError };
+};
+
+export type AppType = ApplyGlobalResponse<typeof app, GlobalErrorResponses>;

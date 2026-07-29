@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { applyAppearance } from "./model/appearance.ts";
-import { UnsavedChanges } from "../../components/unsaved-changes/unsaved-changes.tsx";
 import {
   InlineNotice,
   PageError,
@@ -13,7 +12,6 @@ import {
   settingsQueryKeys,
 } from "./api/settings.queries.ts";
 import { AppearanceSettings } from "./components/appearance-settings.tsx";
-import { ApiSettings } from "./components/api-settings.tsx";
 import { DiscordAccountSettings } from "./components/discord-account-settings.tsx";
 import { useSettingsMutations } from "./api/settings.mutations.ts";
 import { PageStack } from "../../components/layout/page-stack.tsx";
@@ -27,9 +25,8 @@ export function SettingsRoute() {
     enabled: Boolean(config.data?.accessToken),
     retry: false,
   });
-  const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
-  const actions = useSettingsMutations(setDirty, setMessage);
+  const actions = useSettingsMutations(setMessage);
   if (config.isPending) return <PageLoading label="Loading settings…" />;
   if (config.isError) {
     return (
@@ -61,12 +58,6 @@ export function SettingsRoute() {
         onResetAccent={() =>
           actions.saveAppearance.mutate({ ...current, accentColor: undefined })}
       />
-      <ApiSettings
-        apiBaseUrl={current.apiBaseUrl}
-        saving={actions.saveApi.isPending}
-        onDirty={() => setDirty(true)}
-        onSave={(base) => actions.saveApi.mutate(base)}
-      />
       <DiscordAccountSettings
         session={session}
         connecting={actions.connect.isPending}
@@ -75,16 +66,15 @@ export function SettingsRoute() {
         onLogout={() => actions.logout.mutate()}
       />
       {message ? <InlineNotice>{message}</InlineNotice> : null}
-      {actions.saveAppearance.error || actions.saveApi.error ||
-          actions.connect.error || actions.logout.error
+      {actions.saveAppearance.error || actions.connect.error ||
+          actions.logout.error
         ? (
           <InlineNotice error>
-            {(actions.saveAppearance.error ?? actions.saveApi.error ??
-              actions.connect.error ?? actions.logout.error)?.message}
+            {(actions.saveAppearance.error ?? actions.connect.error ??
+              actions.logout.error)?.message}
           </InlineNotice>
         )
         : null}
-      <UnsavedChanges when={dirty && !actions.saveApi.isPending} />
     </PageStack>
   );
 }

@@ -1,5 +1,5 @@
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { DiscordSession } from "../../../../shared/api.ts";
+import type { DiscordSession } from "../../channels/api/channels.select.ts";
 import { InlineNotice } from "../../../components/page-status/page-status.tsx";
 import { Actions } from "../../../components/actions/actions.tsx";
 import { Button } from "../../../components/actions/button.tsx";

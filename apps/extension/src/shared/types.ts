@@ -1,8 +1,8 @@
 import type {
   Capture,
-  Resource,
   ResourcePatch,
 } from "../../../../packages/contracts/mod.ts";
+export type { ApiResource } from "../side-panel/routes/library/api/resources.select.ts";
 export {
   canonicalYouTubeUrl,
   youtubeThumbnailUrl,
@@ -12,28 +12,7 @@ export const DEFAULT_API_BASE_URL = "https://fuscabot.xyz";
 export const CAPTURE_KINDS = ["page", "selection", "link"] as const;
 export type CaptureKind = typeof CAPTURE_KINDS[number];
 export type CapturePayload = Capture;
-export type ApiResource = Resource & {
-  channels?: Array<{ id: string; name: string }>;
-  enrichment?: {
-    draft?: {
-      channelSuggestion?: {
-        channelId: string | null;
-        confidence: "high" | "medium" | "low";
-        reason: string;
-      };
-      includeQuoteInDelivery?: boolean;
-      suggestedTagSlugs?: string[];
-    } | null;
-  } | null;
-  deliveries?: Array<
-    { id: string; status: string; externalUrl?: string | null }
-  >;
-};
 export type UpdateResourcePayload = ResourcePatch;
-export type EnrichmentResult = {
-  status: "preparing" | "ready" | "failed";
-  error?: string | null;
-};
 
 export function isCaptureKind(value: unknown): value is CaptureKind {
   return typeof value === "string" &&

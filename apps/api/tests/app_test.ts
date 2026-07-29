@@ -57,8 +57,8 @@ Deno.test("capture persists and responds without waiting for enrichment", async 
         await resources.patch(resourceId, { summary: "Prepared by AI" });
         prepared = true;
       },
-      retry: () => Promise.resolve(undefined),
-      get: () => Promise.resolve(undefined),
+      retry: () => Promise.resolve(undefined as never),
+      get: () => Promise.resolve(undefined as never),
     },
   });
   const response = await instance.request("/v1/resources/captures", {

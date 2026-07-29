@@ -1,6 +1,7 @@
+import { parseResponse } from "@hono/hono/client";
 import { queryOptions } from "@tanstack/react-query";
-import { api } from "../../../../shared/api.ts";
 import { getConfig } from "../../../../shared/config.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 
 export const settingsQueryKeys = {
   config: ["config"] as const,
@@ -21,7 +22,11 @@ export function configQueryOptions() {
 export function sessionQueryOptions() {
   return queryOptions({
     queryKey: settingsQueryKeys.session,
-    queryFn: ({ signal }) => api.session(signal),
+    queryFn: ({ signal }) =>
+      parseResponse(
+        apiClient.v1.auth.session.$get(undefined, { init: { signal } }),
+      ),
+    select: ({ data }) => data,
     staleTime: settingsSessionStaleTime,
   });
 }

@@ -1,5 +1,6 @@
 import { extractPageMetadata } from "./metadata.ts";
-import { api } from "./shared/api.ts";
+import { parseResponse } from "@hono/hono/client";
+import { apiClient } from "./shared/hono-client.ts";
 import { createCapturePayload } from "./shared/capture.ts";
 import { savePendingCapture } from "./shared/pending-capture.ts";
 import { type CaptureKind, capturePath } from "./shared/types.ts";
@@ -79,15 +80,19 @@ async function captureFromContextMenu(
     if (metadata === undefined) throw new Error("Could not read page metadata");
     await savePendingCapture({ captureId, state: "preparing" });
     await notifyCapture(captureId);
-    const resource = await api.createCapture(createCapturePayload({
-      captureId,
-      kind,
-      metadata,
-      tabUrl: tab.url,
-      tabTitle: tab.title,
-      linkUrl: info.linkUrl,
-      selectionText: info.selectionText,
-    }));
+    const resource = (await parseResponse(
+      apiClient.v1.resources.captures.$post({
+        json: createCapturePayload({
+          captureId,
+          kind,
+          metadata,
+          tabUrl: tab.url,
+          tabTitle: tab.title,
+          linkUrl: info.linkUrl,
+          selectionText: info.selectionText,
+        }),
+      }),
+    )).data;
     capturedResourceId = resource.id;
     await savePendingCapture({
       captureId,
@@ -96,7 +101,11 @@ async function captureFromContextMenu(
     });
     await notifyCapture(captureId, resource.id);
     if (autoFill) {
-      await api.retryEnrichment(resource.id).catch((cause) =>
+      await parseResponse(
+        apiClient.v1.resources[":id"].enrichment.retry.$post({
+          param: { id: resource.id },
+        }),
+      ).catch((cause) =>
         console.error("Could not start automatic enrichment", cause)
       );
     }

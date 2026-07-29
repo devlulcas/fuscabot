@@ -1,4 +1,4 @@
-import type { DiscordChannel } from "../../../../shared/api.ts";
+import type { DiscordChannel } from "../api/channels.select.ts";
 import { InlineNotice } from "../../../components/page-status/page-status.tsx";
 import css from "./channel-list.module.css";
 import type { ChannelPatch } from "../model/channel-types.ts";

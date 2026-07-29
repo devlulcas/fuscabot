@@ -1,5 +1,5 @@
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { ResourcePage } from "../../../../shared/api.ts";
+import type { ResourcePage } from "../api/resources.select.ts";
 import {
   InlineNotice,
   PageError,

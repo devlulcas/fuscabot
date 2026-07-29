@@ -6,6 +6,9 @@
     "check": "deno fmt --check && deno lint && deno check src/*.ts src/**/*.ts vite.config.ts && deno run -A npm:typescript@7.0.2/tsc --noEmit -p tsconfig.json && deno task test && deno task build"
   },
   "imports": {
+    "@fuscabot/api": "../api/mod.ts",
+    "@hono/hono": "jsr:@hono/hono@^4.8.3",
+    "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6",
     "@tanstack/react-query": "npm:@tanstack/react-query@5",
     "@tanstack/react-query-persist-client": "npm:@tanstack/react-query-persist-client@5",
     "@tanstack/query-persist-client-core": "npm:@tanstack/query-persist-client-core@5",
@@ -16,6 +19,7 @@
     "@types/react-dom": "npm:@types/react-dom@19",
     "@vitejs/plugin-react": "npm:@vitejs/plugin-react@5",
     "axe-core": "npm:axe-core@4",
+    "hono": "npm:hono@^4.12.32",
     "jsdom": "npm:jsdom@27",
     "react": "npm:react@19",
     "react/jsx-runtime": "npm:react@19/jsx-runtime",

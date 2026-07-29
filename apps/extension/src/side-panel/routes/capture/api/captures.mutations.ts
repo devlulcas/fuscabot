@@ -1,7 +1,9 @@
+import { parseResponse } from "@hono/hono/client";
 import { mutationOptions } from "@tanstack/react-query";
-import { api } from "../../../../shared/api.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 import { savePendingCapture } from "../../../../shared/pending-capture.ts";
 import type { CapturePayload } from "../../../../shared/types.ts";
+import { selectDelivery } from "./captures.select.ts";
 import { saveBeforeDelivery } from "../model/capture-policy.ts";
 import type { ResourcePatch } from "../model/capture-types.ts";
 
@@ -26,7 +28,9 @@ export function createManualCaptureMutationOptions() {
           sourceLanguage: null,
         },
       };
-      const resource = await api.createCapture(payload);
+      const resource = (await parseResponse(
+        apiClient.v1.resources.captures.$post({ json: payload }),
+      )).data;
       await savePendingCapture({
         captureId,
         resourceId: resource.id,
@@ -44,7 +48,14 @@ export function saveResourceMutationOptions(
 }
 
 export function retryEnrichmentMutationOptions(resourceId: string) {
-  return mutationOptions({ mutationFn: () => api.retryEnrichment(resourceId) });
+  return mutationOptions({
+    mutationFn: async () =>
+      (await parseResponse(
+        apiClient.v1.resources[":id"].enrichment.retry.$post({
+          param: { id: resourceId },
+        }),
+      )).data,
+  });
 }
 
 export function publishResourceMutationOptions(
@@ -58,7 +69,13 @@ export function publishResourceMutationOptions(
       saveBeforeDelivery(
         patch,
         persistDraft,
-        () => api.publish(resourceId, destination || undefined),
+        async () =>
+          (await parseResponse(
+            apiClient.v1.resources[":id"].publication.$post({
+              param: { id: resourceId },
+              json: destination ? { channelId: destination } : {},
+            }),
+          )).data,
       ),
   });
 }
@@ -69,26 +86,65 @@ export function readLaterMutationOptions(
 ) {
   return mutationOptions({
     mutationFn: (patch: ResourcePatch) =>
-      saveBeforeDelivery(patch, persistDraft, () => api.readLater(resourceId)),
+      saveBeforeDelivery(
+        patch,
+        persistDraft,
+        async () =>
+          selectDelivery(
+            await parseResponse(
+              apiClient.v1.resources[":id"].deliveries["read-later"].$post({
+                param: { id: resourceId },
+              }),
+            ),
+          ),
+      ),
   });
 }
 
 export function unpublishMutationOptions(resourceId: string) {
-  return mutationOptions({ mutationFn: () => api.unpublish(resourceId) });
+  return mutationOptions({
+    mutationFn: async () =>
+      (await parseResponse(
+        apiClient.v1.resources[":id"].publication.$delete({
+          param: { id: resourceId },
+        }),
+      )).data,
+  });
 }
 
 export function retryWebsiteMutationOptions(resourceId: string) {
-  return mutationOptions({ mutationFn: () => api.publish(resourceId) });
+  return mutationOptions({
+    mutationFn: async () =>
+      (await parseResponse(
+        apiClient.v1.resources[":id"].publication.$post({
+          param: { id: resourceId },
+          json: {},
+        }),
+      )).data,
+  });
 }
 
 export function retryDiscordMutationOptions() {
   return mutationOptions({
-    mutationFn: (deliveryId: string) => api.retryDelivery(deliveryId),
+    mutationFn: async (deliveryId: string) =>
+      selectDelivery(
+        await parseResponse(
+          apiClient.v1.deliveries[":id"].retry.$post({
+            param: { id: deliveryId },
+          }),
+        ),
+      ),
   });
 }
 
 export function deleteResourceMutationOptions(resourceId: string) {
-  return mutationOptions({ mutationFn: () => api.deleteResource(resourceId) });
+  return mutationOptions({
+    mutationFn: async () => {
+      await parseResponse(
+        apiClient.v1.resources[":id"].$delete({ param: { id: resourceId } }),
+      );
+    },
+  });
 }
 
 function value(form: FormData, name: string): string {

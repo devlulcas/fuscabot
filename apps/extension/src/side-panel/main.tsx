@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { getConfig } from "../shared/config.ts";
-import { onSessionInvalidated } from "../shared/api.ts";
+import { onSessionInvalidated } from "../shared/hono-client.ts";
 import { applyAppearance } from "./routes/settings/model/appearance.ts";
 import { createAppQueryClient } from "./app/query-client.ts";
 import { RestoreGate } from "./app/restore-gate.tsx";
@@ -35,7 +35,7 @@ createRoot(root).render(
       persistOptions={{
         persister: indexedDbPersister,
         maxAge: DAY,
-        buster: `v1:${config.apiBaseUrl}:${config.sessionId ?? "anonymous"}`,
+        buster: `v1:${config.sessionId ?? "anonymous"}`,
         dehydrateOptions: {
           shouldDehydrateMutation: () => false,
           shouldDehydrateQuery: (query) =>

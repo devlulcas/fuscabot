@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError } from "../../../../shared/api.ts";
+import { ApiError } from "../../../../shared/hono-client.ts";
 import { isRetryableRead } from "../../../app/query-client.ts";
 import {
   capturePollInterval,

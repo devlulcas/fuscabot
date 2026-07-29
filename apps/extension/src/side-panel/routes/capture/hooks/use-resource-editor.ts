@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { parseResponse } from "@hono/hono/client";
 import { createElement, type ReactNode, useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, type PublicationResult } from "../../../../shared/api.ts";
+import { apiClient } from "../../../../shared/hono-client.ts";
 import { safeDiscordMessageUrl } from "../../../../shared/ui_security.ts";
 import { channelsQueryOptions } from "../../channels/api/channels.queries.ts";
 import { tagsQueryOptions } from "../../tags/api/tags.queries.ts";
@@ -21,6 +22,7 @@ import {
 } from "../api/captures.mutations.ts";
 import { canPublish, resolveDestination } from "../model/capture-policy.ts";
 import type { ResourcePatch } from "../model/capture-types.ts";
+import type { PublicationResult } from "../api/captures.select.ts";
 
 export function useResourceEditor(resourceId: string) {
   const queryClient = useQueryClient();
@@ -46,7 +48,12 @@ export function useResourceEditor(resourceId: string) {
     ]);
   }, [queryClient, resourceId]);
   const persistDraft = useCallback(async (patch: ResourcePatch) => {
-    const updated = await api.updateResource(resourceId, patch);
+    const updated = (await parseResponse(
+      apiClient.v1.resources[":id"].$patch({
+        param: { id: resourceId },
+        json: patch,
+      }),
+    )).data;
     queryClient.setQueryData(resourceQueryKeys.detail(resourceId), updated);
     await queryClient.invalidateQueries({ queryKey: resourceQueryKeys.lists });
     setDirtyStatus(null);

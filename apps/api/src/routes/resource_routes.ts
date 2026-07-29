@@ -17,7 +17,6 @@ const ResourceQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
 });
-const DeliveryShareSchema = z.object({ channelId: z.uuid() });
 
 export function createResourceRoutes(deps: AppDependencies) {
   return new Hono<AppEnv>()
@@ -110,25 +109,6 @@ export function createResourceRoutes(deps: AppDependencies) {
       const { id } = c.req.valid("param");
       return c.json({ data: await deps.enrichment.retry(c.get("session").sub, id) }, 200);
     })
-    .get("/:id/deliveries", zValidator("param", IdParamSchema), async (c) => {
-      if (!deps.deliveries) {
-        return error(c, 503, "DEPENDENCY_ERROR", "Delivery is unavailable");
-      }
-      const { id } = c.req.valid("param");
-      return c.json({ data: await deps.deliveries.list(c.get("session").sub, id) }, 200);
-    })
-    .post(
-      "/:id/deliveries",
-      zValidator("param", IdParamSchema),
-      zValidator("json", DeliveryShareSchema),
-      (c) => publishDelivery(c, deps, "share", c.req.valid("param").id, c.req.valid("json")),
-    )
-    .post(
-      "/:id/deliveries/discord",
-      zValidator("param", IdParamSchema),
-      zValidator("json", DeliveryShareSchema),
-      (c) => publishDelivery(c, deps, "share", c.req.valid("param").id, c.req.valid("json")),
-    )
     .post(
       "/:id/deliveries/read-later",
       zValidator("param", IdParamSchema),

@@ -1,3 +1,6 @@
-import { api } from "../../../../shared/api.ts";
+import type { InferRequestType } from "@hono/hono/client";
+import { apiClient } from "../../../../shared/hono-client.ts";
 
-export type ChannelPatch = Parameters<typeof api.updateChannel>[1];
+export type ChannelPatch = NonNullable<
+  InferRequestType<typeof apiClient.v1.channels[":id"]["$patch"]>["json"]
+>;

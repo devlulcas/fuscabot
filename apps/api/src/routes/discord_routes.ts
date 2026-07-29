@@ -5,7 +5,6 @@ import { error } from "../http/errors.ts";
 import { IdParamSchema, zValidator } from "../http/validation.ts";
 
 const SyncBodySchema = z.object({ guildId: z.string().min(1).optional() });
-const GuildBodySchema = z.object({ guildId: z.string().min(1) });
 const ChannelPatchSchema = z.object({
   routingDescription: z.string().trim().max(1_000).nullable().optional(),
   isActiveForRouting: z.boolean().optional(),
@@ -36,16 +35,6 @@ export function createDiscordRoutes(deps: AppDependencies) {
         return c.json({ data: await deps.channels.sync(c.get("session").sub, guildId) }, 200);
       }
       return c.json({ data: await deps.discord.listGuildTextChannels(guildId) }, 200);
-    })
-    .post("/setup/discord/guild", zValidator("json", GuildBodySchema), async (c) => {
-      if (!deps.channels) {
-        return error(c, 503, "DEPENDENCY_ERROR", "Channel storage is unavailable");
-      }
-      const { guildId } = c.req.valid("json");
-      if (!c.get("session").guildIds.includes(guildId)) {
-        return error(c, 403, "FORBIDDEN", "This Discord server is not allowed");
-      }
-      return c.json({ data: await deps.channels.selectGuild(c.get("session").sub, guildId) }, 200);
     })
     .get("/channels", async (c) => {
       if (!deps.channels) {

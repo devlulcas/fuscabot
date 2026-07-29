@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { ApiError, apiRequest } from "./api.ts";
+import { ApiError, authenticatedFetch } from "./hono-client.ts";
 import { DEFAULT_API_BASE_URL } from "./types.ts";
 
 type Stored = Record<string, unknown>;
@@ -24,7 +24,6 @@ function installChrome(config: Stored): { stored: Stored } {
 }
 
 const session = {
-  apiBaseUrl: DEFAULT_API_BASE_URL,
   theme: "dark",
   accessToken: "old-access",
   refreshToken: "old-refresh",
@@ -52,10 +51,11 @@ it("parallel 401 responses share one rotating refresh", async () => {
   };
   try {
     const responses = await Promise.all([
-      apiRequest<{ data: string }>("/v1/test"),
-      apiRequest<{ data: string }>("/v1/test"),
+      authenticatedFetch(`${DEFAULT_API_BASE_URL}/v1/test`),
+      authenticatedFetch(`${DEFAULT_API_BASE_URL}/v1/test`),
     ]);
-    expect(responses).toEqual([{ data: "ok" }, { data: "ok" }]);
+    expect(await Promise.all(responses.map((response) => response.json())))
+      .toEqual([{ data: "ok" }, { data: "ok" }]);
     expect(refreshes).toBe(1);
     expect(state.stored.refreshToken).toBe("new-refresh");
   } finally {
@@ -73,7 +73,9 @@ it("failed refresh clears all session credentials", async () => {
         : Response.json({ error: {} }, { status: 401 }),
     );
   try {
-    await expect(apiRequest("/v1/test")).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      authenticatedFetch(`${DEFAULT_API_BASE_URL}/v1/test`),
+    ).rejects.toBeInstanceOf(ApiError);
     expect(state.stored.accessToken).toBeUndefined();
     expect(state.stored.refreshToken).toBeUndefined();
     expect(state.stored.sessionId).toBeUndefined();
@@ -92,10 +94,58 @@ it("network failure during refresh preserves session credentials", async () => {
     return Promise.resolve(Response.json({ error: {} }, { status: 401 }));
   };
   try {
-    await expect(apiRequest("/v1/test")).rejects.toBeInstanceOf(ApiError);
+    await expect(
+      authenticatedFetch(`${DEFAULT_API_BASE_URL}/v1/test`),
+    ).rejects.toBeInstanceOf(ApiError);
     expect(state.stored.accessToken).toBe("old-access");
     expect(state.stored.refreshToken).toBe("old-refresh");
     expect(state.stored.sessionId).toBe("019432f0-7c00-7000-8000-000000000001");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+it("preserves Hono request headers and cancellation without cookies", async () => {
+  installChrome(session);
+  const originalFetch = globalThis.fetch;
+  let requestInit: RequestInit | undefined;
+  globalThis.fetch = (_input, init) => {
+    requestInit = init;
+    return Promise.resolve(Response.json({ data: "ok" }));
+  };
+  try {
+    const controller = new AbortController();
+    await authenticatedFetch(`${DEFAULT_API_BASE_URL}/v1/test`, {
+      method: "POST",
+      headers: { "x-request-id": "request-1" },
+      body: "{}",
+      signal: controller.signal,
+    });
+    const headers = new Headers(requestInit?.headers);
+    expect(headers.get("accept")).toBe("application/json");
+    expect(headers.get("authorization")).toBe("Bearer old-access");
+    expect(headers.get("x-request-id")).toBe("request-1");
+    expect(requestInit?.signal).toBe(controller.signal);
+    expect(requestInit?.credentials).toBeUndefined();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+it("preserves the server retry-after hint on API errors", async () => {
+  installChrome({ theme: "botanical" });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = () =>
+    Promise.resolve(
+      Response.json(
+        { error: { message: "Too many requests" } },
+        { status: 429, headers: { "retry-after": "7" } },
+      ),
+    );
+  try {
+    await expect(
+      authenticatedFetch(`${DEFAULT_API_BASE_URL}/v1/test`),
+    ).rejects.toMatchObject({ status: 429, retryAfterSeconds: 7 });
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -8,7 +8,8 @@ import type {
 import { compactEnrichmentInput } from "../domain/enrichment.ts";
 import type { StoredChannel } from "../domain/discord_setup.ts";
 import { InvalidReadLaterChannelError } from "../domain/discord_setup.ts";
-import { EnrichmentPreparingError } from "../domain/durable_delivery.ts";
+import { type DeliveryRecord, EnrichmentPreparingError } from "../domain/durable_delivery.ts";
+import type { EnrichmentState } from "../domain/enrichment.ts";
 import type { DiscordClient } from "../integrations/discord_client.ts";
 import type { ResourceRepository } from "../repositories/resource_repository.ts";
 import type { DiscordSetupCoordinator } from "./discord_setup_coordinator.ts";
@@ -28,17 +29,6 @@ export class RuntimeChannelCoordinator implements ChannelCoordinator {
     private readonly setup: DiscordSetupCoordinator,
     private readonly discord: DiscordClient,
   ) {}
-
-  async selectGuild(ownerId: string, guildId: string): Promise<ChannelRecord[]> {
-    assertOwner(ownerId, this.ownerId);
-    const guild = await this.discord.getGuild(guildId);
-    await this.setup.selectGuild(this.workspaceId, {
-      id: guild.id,
-      name: guild.name,
-      botUserId: "discord-bot",
-    });
-    return this.sync(ownerId, guildId);
-  }
 
   async sync(ownerId: string, guildId?: string): Promise<ChannelRecord[]> {
     assertOwner(ownerId, this.ownerId);
@@ -97,13 +87,13 @@ export class RuntimeEnrichmentCoordinator implements EnrichmentCoordinator {
     await this.enrichment.prepare(resourceId, await this.inputFor(resource));
   }
 
-  async retry(ownerId: string, resourceId: string): Promise<unknown> {
+  async retry(ownerId: string, resourceId: string): Promise<EnrichmentState> {
     assertOwner(ownerId, this.ownerId);
     const resource = await this.requireResource(resourceId);
     return this.enrichment.prepare(resourceId, await this.inputFor(resource));
   }
 
-  async get(ownerId: string, resourceId: string): Promise<unknown> {
+  async get(ownerId: string, resourceId: string): Promise<EnrichmentState> {
     assertOwner(ownerId, this.ownerId);
     await this.requireResource(resourceId);
     return this.enrichment.requireState(resourceId);
@@ -153,7 +143,7 @@ export class RuntimeDeliveryCoordinator implements DeliveryCoordinator {
     ownerId: string,
     resourceId: string,
     input: { channelId?: string; kind: "share" | "read_later" },
-  ): Promise<unknown> {
+  ): Promise<DeliveryRecord> {
     assertOwner(ownerId, this.ownerId);
     const resource = await this.resources.findById(this.workspaceId, resourceId);
     if (!resource) throw new ResourceNotFoundError();
@@ -180,12 +170,12 @@ export class RuntimeDeliveryCoordinator implements DeliveryCoordinator {
     );
   }
 
-  list(ownerId: string, resourceId: string): Promise<unknown[]> {
+  list(ownerId: string, resourceId: string): Promise<DeliveryRecord[]> {
     assertOwner(ownerId, this.ownerId);
     return this.delivery.history(this.workspaceId, resourceId);
   }
 
-  retry(ownerId: string, deliveryId: string): Promise<unknown> {
+  retry(ownerId: string, deliveryId: string): Promise<DeliveryRecord> {
     assertOwner(ownerId, this.ownerId);
     return this.delivery.retry(this.workspaceId, deliveryId);
   }

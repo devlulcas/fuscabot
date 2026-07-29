@@ -1,4 +1,4 @@
-import type { DiscordChannel } from "../../../../shared/api.ts";
+import type { DiscordChannel } from "../api/channels.select.ts";
 import { Actions } from "../../../components/actions/actions.tsx";
 import { Button } from "../../../components/actions/button.tsx";
 import { Form } from "../../../components/form/form.tsx";

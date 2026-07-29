@@ -5,6 +5,9 @@ export default defineConfig({
   root: "src",
   plugins: [react()],
   publicDir: "../public",
+  resolve: {
+    alias: [{ find: "@hono/hono", replacement: "hono" }],
+  },
   build: {
     outDir: "../dist",
     emptyOutDir: true,

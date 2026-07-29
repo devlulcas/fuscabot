@@ -17,10 +17,9 @@ deno task build
 Then open `chrome://extensions`, enable Developer mode, choose **Load
 unpacked**, and select `apps/extension/dist`.
 
-The manifest allows the development API (`http://localhost:8000`) and the
-production API (`https://fuscabot.xyz`). Production is the default; use Settings
-to select localhost during development. Only extension session/UI data is stored
-locally; Discord and Mistral credentials belong on the backend.
+The extension client uses the production API (`https://fuscabot.xyz`) in every
+environment. Only extension session/UI data is stored locally; Discord and
+Mistral credentials belong on the backend.
 
 The Chrome icon set uses the shared website favicon artwork at 16, 32, 48, and
 128 pixels and is copied into the unpacked build by Vite's public-directory

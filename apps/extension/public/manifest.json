@@ -12,7 +12,6 @@
     "scripting"
   ],
   "host_permissions": [
-    "http://localhost:8000/*",
     "https://fuscabot.xyz/*"
   ],
   "icons": {

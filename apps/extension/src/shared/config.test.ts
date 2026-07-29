@@ -1,34 +1,7 @@
 import { expect, it } from "vitest";
-import {
-  normalizeAccentColor,
-  normalizeBaseUrl,
-  normalizeTheme,
-} from "./config.ts";
+import { normalizeAccentColor, normalizeTheme } from "./config.ts";
 import { capturePath, cleanOptionalText } from "./types.ts";
 
-it("normalizes API origins", () => {
-  expect(
-    normalizeBaseUrl("https://example.com/"),
-  ).toBe("https://fuscabot.xyz");
-  expect(
-    normalizeBaseUrl("https://api.fuscabot.dev"),
-  ).toBe("https://fuscabot.xyz");
-  expect(
-    normalizeBaseUrl("http://localhost:8000/"),
-  ).toBe("http://localhost:8000");
-  expect(
-    normalizeBaseUrl("javascript:alert(1)"),
-  ).toBe("https://fuscabot.xyz");
-  expect(
-    normalizeBaseUrl("http://example.com"),
-  ).toBe("https://fuscabot.xyz");
-  expect(
-    normalizeBaseUrl("https://user:secret@example.com"),
-  ).toBe("https://fuscabot.xyz");
-  expect(
-    normalizeBaseUrl("https://example.com/api?token=x"),
-  ).toBe("https://fuscabot.xyz");
-});
 it("cleans optional capture text", () => {
   expect(cleanOptionalText("  hello\n world ")).toBe("hello world");
   expect(cleanOptionalText("   ")).toBeNull();

@@ -1,4 +1,4 @@
-import type { CanonicalTag } from "../../../../shared/api.ts";
+import type { CanonicalTag } from "../api/tags.select.ts";
 
 export type TagInput = {
   slug: string;

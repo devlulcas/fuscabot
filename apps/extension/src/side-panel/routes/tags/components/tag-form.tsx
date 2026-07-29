@@ -1,4 +1,4 @@
-import type { CanonicalTag } from "../../../../shared/api.ts";
+import type { CanonicalTag } from "../api/tags.select.ts";
 import { Actions } from "../../../components/actions/actions.tsx";
 import { Button } from "../../../components/actions/button.tsx";
 import { Card } from "../../../components/layout/card.tsx";

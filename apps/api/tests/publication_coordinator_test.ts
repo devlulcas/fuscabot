@@ -63,7 +63,7 @@ Deno.test("website succeeds independently when Discord delivery fails", async ()
     list: () => Promise.resolve([]),
     publish: () => Promise.reject(new Error("token and private URL must stay hidden")),
     retry: () => Promise.resolve({}),
-  });
+  } as never);
   const result = await coordinator.publish(ownerId, resourceId, channelId);
   assertEquals(result.website.status, "published");
   assertEquals(result.discord, {
@@ -92,7 +92,7 @@ Deno.test("successful Discord destination is not delivered twice", async () => {
       return Promise.resolve({});
     },
     retry: () => Promise.resolve({}),
-  });
+  } as never);
   const result = await coordinator.publish(ownerId, resourceId, channelId);
   assertEquals(result.discord.status, "already_sent");
   assertEquals(publishes, 0);

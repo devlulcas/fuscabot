@@ -14,6 +14,7 @@
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@zod/zod@4": "4.4.3",
+    "npm:@hono/zod-validator@~0.7.6": "0.7.6_hono@4.12.32_zod@4.4.3",
     "npm:@tanstack/ai-mistral@*": "0.2.2_@tanstack+ai@0.41.0_zod@4.4.3",
     "npm:@tanstack/ai-mistral@0.2.2": "0.2.2_@tanstack+ai@0.41.0_zod@4.4.3",
     "npm:@tanstack/ai@0.41.0": "0.41.0",
@@ -33,6 +34,7 @@
     "npm:drizzle-kit@0.31.4": "0.31.4",
     "npm:drizzle-orm@~0.44.2": "0.44.7_@types+pg@8.20.0_pg@8.22.0",
     "npm:event-source-polyfill@^1.0.31": "1.0.31",
+    "npm:hono@^4.12.32": "4.12.32",
     "npm:jsdom@27": "27.4.0",
     "npm:open@^10.2.0": "10.2.0",
     "npm:pg@^8.16.3": "8.22.0",
@@ -705,6 +707,13 @@
     },
     "@exodus/bytes@1.15.1": {
       "integrity": "sha512-S6mL0yNB/Abt9Ei4tq8gDhcczc4S3+vQ4ra7vxnAf+YHC02srtqxKKZghx2Dq6p0e66THKwR6r8N6P95wEty7Q=="
+    },
+    "@hono/zod-validator@0.7.6_hono@4.12.32_zod@4.4.3": {
+      "integrity": "sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==",
+      "dependencies": [
+        "hono",
+        "zod@4.4.3"
+      ]
     },
     "@jridgewell/gen-mapping@0.3.13": {
       "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
@@ -1527,6 +1536,9 @@
         "resolve-pkg-maps"
       ]
     },
+    "hono@4.12.32": {
+      "integrity": "sha512-XcuyW9qE2kJn07PkecMOBd5Vq/hMy7mmGw+idz1yblbg9N17ijJODrvPkn7/dwL3Kulj8LcRJ69DLOWf91dRUg=="
+    },
     "html-encoding-sniffer@6.0.0": {
       "integrity": "sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg==",
       "dependencies": [
@@ -2110,6 +2122,8 @@
       },
       "apps/extension": {
         "dependencies": [
+          "jsr:@hono/hono@^4.8.3",
+          "npm:@hono/zod-validator@~0.7.6",
           "npm:@tanstack/query-persist-client-core@5",
           "npm:@tanstack/react-query-persist-client@5",
           "npm:@tanstack/react-query@5",
@@ -2120,6 +2134,7 @@
           "npm:@types/react@19",
           "npm:@vitejs/plugin-react@5",
           "npm:axe-core@4",
+          "npm:hono@^4.12.32",
           "npm:jsdom@27",
           "npm:react-dom@19",
           "npm:react-router-dom@7",

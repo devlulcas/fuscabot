@@ -1,3 +1,4 @@
+import { parseResponse } from "@hono/hono/client";
 import {
   mutationOptions,
   type QueryClient,
@@ -5,8 +6,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { api } from "../../../../shared/api.ts";
 import { getConfig, saveConfig } from "../../../../shared/config.ts";
+import { API_BASE_URL, apiClient } from "../../../../shared/hono-client.ts";
 import { applyAppearance } from "../model/appearance.ts";
 import { settingsQueryKeys } from "./settings.queries.ts";
 import { resetCacheIdentity } from "../../../platform/cache-identity.ts";
@@ -25,29 +26,6 @@ export function saveAppearanceMutationOptions(
   });
 }
 
-export function saveApiMutationOptions(
-  queryClient: QueryClient,
-  setDirty: (dirty: boolean) => void,
-  setMessage: (message: string) => void,
-) {
-  return mutationOptions({
-    mutationFn: async (base: string) => {
-      const previous = await getConfig();
-      const updated = await saveConfig({ ...previous, apiBaseUrl: base });
-      if (updated.apiBaseUrl !== previous.apiBaseUrl) {
-        await resetCacheIdentity(queryClient);
-        globalThis.location.reload();
-      }
-      return updated;
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(settingsQueryKeys.config, updated);
-      setDirty(false);
-      setMessage("API URL saved.");
-    },
-  });
-}
-
 export function connectMutationOptions(
   queryClient: QueryClient,
   navigate: ReturnType<typeof useNavigate>,
@@ -57,7 +35,7 @@ export function connectMutationOptions(
     mutationFn: async () => {
       const current = await getConfig();
       const redirect = chrome.identity.getRedirectURL("discord");
-      const url = new URL("/v1/auth/discord/start", current.apiBaseUrl);
+      const url = new URL("/v1/auth/discord/start", API_BASE_URL);
       url.searchParams.set("extension_redirect", redirect);
       const result = await chrome.identity.launchWebAuthFlow({
         url: url.href,
@@ -84,7 +62,7 @@ export function connectMutationOptions(
 export function logoutMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     mutationFn: async () => {
-      await api.logout();
+      await parseResponse(apiClient.v1.auth.logout.$post());
       const current = await getConfig();
       await saveConfig({
         ...current,
@@ -100,7 +78,6 @@ export function logoutMutationOptions(queryClient: QueryClient) {
 }
 
 export function useSettingsMutations(
-  setDirty: (dirty: boolean) => void,
   setMessage: (message: string) => void,
 ) {
   const queryClient = useQueryClient();
@@ -110,9 +87,6 @@ export function useSettingsMutations(
   return {
     saveAppearance: useMutation(
       saveAppearanceMutationOptions(queryClient, setMessage),
-    ),
-    saveApi: useMutation(
-      saveApiMutationOptions(queryClient, setDirty, setMessage),
     ),
     connect: useMutation(
       connectMutationOptions(queryClient, navigate, returnTo),

@@ -1,5 +1,5 @@
-import type { CanonicalTag } from "../../../../shared/api.ts";
-import type { DiscordChannel } from "../../../../shared/api.ts";
+import type { CanonicalTag } from "../../tags/api/tags.select.ts";
+import type { DiscordChannel } from "../../channels/api/channels.select.ts";
 import type { ApiResource } from "../../../../shared/types.ts";
 import { Button } from "../../../components/actions/button.tsx";
 import { Actions } from "../../../components/actions/actions.tsx";
