@@ -1,0 +1,21 @@
+.badge {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--muted);
+  font: 700 9px/1 ui-monospace, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.ready {
+  color: var(--accent-2);
+  border-color: #3d756c;
+}
+.public {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.failed {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}

@@ -1,0 +1,41 @@
+.resourceForm {
+  gap: 12px;
+}
+.details {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-background);
+  overflow: clip;
+}
+.details summary {
+  padding: 14px 15px;
+  border-radius: inherit;
+  color: var(--label-ink);
+  cursor: pointer;
+  font-weight: 650;
+  touch-action: manipulation;
+}
+.details summary::marker {
+  color: var(--accent-2);
+}
+.details[open] summary {
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  color: var(--ink);
+  background: var(--subtle-background);
+}
+.details > .detailsActions {
+  padding: 20px 15px;
+  gap: 12px;
+}
+.details > .detailsActions button {
+  flex: 1 1 140px;
+}
+.destinationSummary {
+  padding: 11px 13px;
+  border-left: 2px solid var(--accent);
+  color: var(--muted);
+  background: var(--subtle-background);
+  font-size: 12px;
+}

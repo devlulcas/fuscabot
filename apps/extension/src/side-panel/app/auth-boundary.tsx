@@ -1,17 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router-dom";
-import { configQuery, sessionQuery } from "../data/queries.ts";
+import { useLocation } from "react-router-dom";
+import {
+  configQueryOptions,
+  sessionQueryOptions,
+} from "../routes/settings/api/settings.queries.ts";
 import {
   PageError,
   PageLoading,
 } from "../components/page-status/page-status.tsx";
-import page from "../components/layout/page.module.css";
+import { ButtonLink } from "../components/actions/button-link.tsx";
+import { Muted } from "../components/typography/muted.tsx";
+import { PageStack } from "../components/layout/page-stack.tsx";
 
 export function AuthBoundary({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const config = useQuery(configQuery());
+  const config = useQuery(configQueryOptions());
   const session = useQuery({
-    ...sessionQuery(),
+    ...sessionQueryOptions(),
     enabled: Boolean(config.data?.accessToken),
   });
   if (config.isPending || (config.data?.accessToken && session.isPending)) {
@@ -37,19 +42,18 @@ export function AuthBoundary({ children }: { children: React.ReactNode }) {
   }
   if (!config.data?.accessToken) {
     return (
-      <section className={page.stack}>
+      <PageStack>
         <h1>Connect Discord</h1>
-        <p className={page.muted}>
+        <Muted>
           Connect your account in Settings to use this page.
-        </p>
-        <Link
-          className={page.buttonLink}
+        </Muted>
+        <ButtonLink
           to="/settings"
           state={{ returnTo: `${location.pathname}${location.search}` }}
         >
           Open Settings
-        </Link>
-      </section>
+        </ButtonLink>
+      </PageStack>
     );
   }
   return children;

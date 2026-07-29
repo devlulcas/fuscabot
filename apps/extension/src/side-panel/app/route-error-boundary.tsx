@@ -1,5 +1,7 @@
-import { isRouteErrorResponse, Link, useRouteError } from "react-router-dom";
-import page from "../components/layout/page.module.css";
+import { isRouteErrorResponse, useRouteError } from "react-router-dom";
+import { ButtonLink } from "../components/actions/button-link.tsx";
+import { Muted } from "../components/typography/muted.tsx";
+import { PageStack } from "../components/layout/page-stack.tsx";
 
 export function RouteErrorBoundary() {
   const error = useRouteError();
@@ -9,10 +11,10 @@ export function RouteErrorBoundary() {
     ? error.message
     : "Unknown route error";
   return (
-    <section className={page.stack} role="alert">
+    <PageStack role="alert">
       <h1>Page Unavailable</h1>
-      <p className={page.muted}>{message}</p>
-      <Link className={page.buttonLink} to="/library">Open Library</Link>
-    </section>
+      <Muted>{message}</Muted>
+      <ButtonLink to="/library">Open Library</ButtonLink>
+    </PageStack>
   );
 }

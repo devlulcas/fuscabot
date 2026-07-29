@@ -1,0 +1,13 @@
+.search {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--search-background);
+}
+.search label:first-child,
+.search button {
+  grid-column: 1 / -1;
+}

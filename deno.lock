@@ -2098,7 +2098,6 @@
       },
       "apps/extension": {
         "dependencies": [
-          "jsr:@std/assert@1",
           "npm:@tanstack/query-persist-client-core@5",
           "npm:@tanstack/react-query-persist-client@5",
           "npm:@tanstack/react-query@5",

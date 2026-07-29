@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys.ts";
+import { captureQueryKeys } from "../routes/capture/api/captures.queries.ts";
+import { resourceQueryKeys } from "../routes/library/api/resources.queries.ts";
 
 export function installRuntimeBridge(queryClient: QueryClient): () => void {
   const listener = (message: Record<string, unknown>): void => {
@@ -16,10 +17,10 @@ export function installRuntimeBridge(queryClient: QueryClient): () => void {
     ) return;
     void Promise.all([
       queryClient.invalidateQueries({
-        queryKey: queryKeys.pendingCapture(message.captureId),
+        queryKey: captureQueryKeys.pending(message.captureId),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.resource(
+        queryKey: resourceQueryKeys.detail(
           typeof message.resourceId === "string"
             ? message.resourceId
             : message.captureId,

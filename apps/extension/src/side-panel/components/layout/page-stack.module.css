@@ -1,0 +1,7 @@
+.stack {
+  display: grid;
+  gap: 16px;
+}
+.stack .stack {
+  gap: 10px;
+}

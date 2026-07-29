@@ -1,9 +1,10 @@
-import styles from "./page-status.module.css";
+import css from "./page-status.module.css";
+import { Button } from "../actions/button.tsx";
 
 export function PageLoading({ label = "Loading…" }: { label?: string }) {
   return (
-    <div className={styles.loading} role="status">
-      <span className={styles.spinner} aria-hidden="true" />
+    <div className={css.loading} role="status">
+      <span className={css.spinner} aria-hidden="true" />
       {label}
     </div>
   );
@@ -14,10 +15,10 @@ export function PageError(
 ) {
   const message = error instanceof Error ? error.message : "Unknown error";
   return (
-    <section className={`${styles.notice} ${styles.error}`} role="alert">
+    <section className={`${css.notice} ${css.error}`} role="alert">
       <h1>Something Went Wrong</h1>
       <p>{message}</p>
-      {retry ? <button type="button" onClick={retry}>Retry</button> : null}
+      {retry ? <Button type="button" onClick={retry}>Retry</Button> : null}
     </section>
   );
 }
@@ -27,7 +28,7 @@ export function InlineNotice(
 ) {
   return (
     <p
-      className={`${styles.notice} ${error ? styles.error : ""}`}
+      className={`${css.notice} ${error ? css.error : ""}`}
       role={error ? "alert" : "status"}
     >
       {children}

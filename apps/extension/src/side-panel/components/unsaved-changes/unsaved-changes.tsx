@@ -1,5 +1,8 @@
 import { useBeforeUnload, useBlocker } from "react-router-dom";
-import styles from "../layout/page.module.css";
+import { Actions } from "../actions/actions.tsx";
+import { Button } from "../actions/button.tsx";
+import { Muted } from "../typography/muted.tsx";
+import css from "./unsaved-changes.module.css";
 
 export function UnsavedChanges({ when }: { when: boolean }) {
   const blocker = useBlocker(when);
@@ -10,27 +13,27 @@ export function UnsavedChanges({ when }: { when: boolean }) {
   });
   if (blocker.state !== "blocked") return null;
   return (
-    <div className={styles.dialogBackdrop}>
+    <div className={css.dialogBackdrop}>
       <section
-        className={styles.dialog}
+        className={css.dialog}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="unsaved-title"
       >
         <h2 id="unsaved-title">Discard Unsaved Changes?</h2>
-        <p className={styles.muted}>Your edits have not been saved.</p>
-        <div className={styles.actions}>
-          <button type="button" onClick={() => blocker.reset()}>
+        <Muted>Your edits have not been saved.</Muted>
+        <Actions>
+          <Button type="button" onClick={() => blocker.reset()}>
             Keep Editing
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={styles.danger}
+            variant="danger"
             onClick={() => blocker.proceed()}
           >
             Discard Changes
-          </button>
-        </div>
+          </Button>
+        </Actions>
       </section>
     </div>
   );

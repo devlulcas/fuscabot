@@ -1,103 +1,34 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { api } from "../../../shared/api.ts";
-import {
-  canonicalYouTubeUrl,
-  youtubeThumbnailUrl,
-} from "../../../shared/types.ts";
-import { safeWebUrl } from "../../../shared/ui_security.ts";
-import { PlayIcon } from "../../components/icons/icons.tsx";
-import {
-  InlineNotice,
-  PageError,
-  PageLoading,
-} from "../../components/page-status/page-status.tsx";
-import page from "../../components/layout/page.module.css";
-import { FIVE_MINUTES } from "../../data/queries.ts";
-import { queryKeys } from "../../data/query-keys.ts";
-import { librarySearchParams, parseLibrarySearch } from "./library-search.ts";
-
-const PAGE_SIZE = 25;
-const EMPTY_SELECTION = new Set<string>();
+import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { InlineNotice } from "../../components/page-status/page-status.tsx";
+import { PageStack } from "../../components/layout/page-stack.tsx";
+import { resourceListQueryOptions } from "./api/resources.queries.ts";
+import { useLibraryMutations } from "./api/resources.mutations.ts";
+import { LibraryPagination } from "./components/library-pagination.tsx";
+import { LibraryResourceList } from "./components/library-resource-list.tsx";
+import { LibrarySearchForm } from "./components/library-search-form.tsx";
+import { LibraryToolbar } from "./components/library-toolbar.tsx";
+import { useLibrarySearch } from "./hooks/use-library-search.ts";
+import { useLibrarySelection } from "./hooks/use-library-selection.ts";
 
 export function LibraryRoute() {
-  const [params, setParams] = useSearchParams();
-  const selectionScope = params.toString();
-  const filters = parseLibrarySearch(params);
-  const queryClient = useQueryClient();
-  const [selection, setSelection] = useState<{
-    scope: string;
-    ids: Set<string>;
-  }>(() => ({ scope: selectionScope, ids: new Set() }));
-  const selected = selection.scope === selectionScope
-    ? selection.ids
-    : EMPTY_SELECTION;
-  const setSelected = (ids: Set<string>) =>
-    setSelection({ scope: selectionScope, ids });
-  const resources = useQuery({
-    queryKey: queryKeys.resourceList({ ...filters }),
-    queryFn: ({ signal }) =>
-      api.listResources(filters.q, {
-        state: filters.state,
-        visibility: filters.visibility,
-        domain: filters.domain,
-        enrichmentStatus: filters.enrichmentStatus,
-        sort: filters.sort,
-        limit: PAGE_SIZE,
-        offset: (filters.page - 1) * PAGE_SIZE,
-        signal,
-      }),
-    staleTime: FIVE_MINUTES,
-  });
-  const bulk = useMutation({
-    mutationFn: (
-      { ids, action }: {
-        ids: string[];
-        action: "delete";
-      },
-    ) => api.bulkResources(ids, action),
-    onSuccess: async (result) => {
-      if (result.action === "delete") {
-        for (const id of result.affectedIds) {
-          queryClient.removeQueries({ queryKey: queryKeys.resource(id) });
-        }
-      }
-      await queryClient.invalidateQueries({ queryKey: queryKeys.resources });
-      setSelected(new Set());
-    },
-  });
-  const submit = (form: HTMLFormElement) => {
-    const data = new FormData(form);
-    setParams(librarySearchParams({
-      q: stringValue(data, "q"),
-      state: optionalEnum(data, "state", [
-        "inbox",
-        "read_later",
-        "shared",
-      ]),
-      visibility: optionalEnum(data, "visibility", ["public", "private"]),
-      domain: stringValue(data, "domain") || undefined,
-      enrichmentStatus: optionalEnum(data, "enrichmentStatus", [
-        "preparing",
-        "ready",
-        "failed",
-      ]),
-      sort: optionalEnum(data, "sort", ["newest", "oldest", "updated"]) ??
-        "newest",
-      page: 1,
-    }));
-    setSelected(new Set());
-  };
+  const search = useLibrarySearch();
+  const selection = useLibrarySelection(search.scope);
+  const resources = useQuery(resourceListQueryOptions(search.filters));
+  const bulk = useLibraryMutations(selection.clearSelection);
   const items = resources.data?.items ?? [];
-  const hasFilters = Boolean(
-    filters.q || filters.state || filters.visibility || filters.domain ||
-      filters.enrichmentStatus,
-  );
   const allSelected = items.length > 0 &&
-    items.every((item) => selected.has(item.id));
-  const runBulkDelete = () => {
-    const ids = [...selected];
+    items.every((item) => selection.selected.has(item.id));
+  const hasFilters = Boolean(
+    search.filters.q || search.filters.state || search.filters.visibility ||
+      search.filters.domain || search.filters.enrichmentStatus,
+  );
+  const submit = useCallback((form: HTMLFormElement) => {
+    search.submit(form);
+    selection.clearSelection();
+  }, [search, selection]);
+  const runBulkDelete = useCallback(() => {
+    const ids = [...selection.selected];
     if (!ids.length) return;
     if (
       !confirm(
@@ -107,102 +38,25 @@ export function LibraryRoute() {
       )
     ) return;
     bulk.mutate({ ids, action: "delete" });
-  };
+  }, [bulk, selection.selected]);
   return (
-    <section className={page.stack}>
+    <PageStack>
       <h1>Library</h1>
-      <form
-        key={params.toString()}
-        className={`${page.form} ${page.search}`}
-        role="search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit(event.currentTarget);
-        }}
-      >
-        <label>
-          Search<input
-            name="q"
-            type="search"
-            defaultValue={filters.q}
-            autoComplete="off"
-            placeholder="Title, URL, note, tag…"
-          />
-        </label>
-        <label>
-          State<select name="state" defaultValue={filters.state ?? ""}>
-            <option value="">All States</option>
-            <option value="inbox">Inbox</option>
-            <option value="read_later">Read Later</option>
-            <option value="shared">Shared</option>
-          </select>
-        </label>
-        <label>
-          Visibility<select
-            name="visibility"
-            defaultValue={filters.visibility ?? ""}
-          >
-            <option value="">All</option>
-            <option value="public">Public</option>
-            <option value="private">Private</option>
-          </select>
-        </label>
-        <label>
-          Domain<input
-            name="domain"
-            defaultValue={filters.domain}
-            autoComplete="off"
-            placeholder="example.com…"
-          />
-        </label>
-        <label>
-          AI Status<select
-            name="enrichmentStatus"
-            defaultValue={filters.enrichmentStatus ?? ""}
-          >
-            <option value="">Any</option>
-            <option value="failed">Failed</option>
-            <option value="preparing">Preparing</option>
-            <option value="ready">Ready</option>
-          </select>
-        </label>
-        <label>
-          Sort<select name="sort" defaultValue={filters.sort}>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="updated">Recently Updated</option>
-          </select>
-        </label>
-        <button type="submit" className={page.button}>Apply Filters</button>
-      </form>
-      <div className={`${page.card} ${page.toolbar}`}>
-        <label className={page.row}>
-          <input
-            type="checkbox"
-            aria-label="Select all resources on this page"
-            checked={allSelected}
-            disabled={!items.length || bulk.isPending}
-            onChange={(event) =>
-              setSelected(
-                event.target.checked
-                  ? new Set(items.map((item) => item.id))
-                  : new Set(),
-              )}
-          />{" "}
-          Select All
-        </label>
-        <span className={page.muted}>{selected.size} selected</span>
-        <div className={page.actions}>
-          <button
-            type="button"
-            disabled={!selected.size || bulk.isPending}
-            className={page.danger}
-            onClick={runBulkDelete}
-          >
-            Delete Selected
-          </button>
-        </div>
-      </div>
+      <LibrarySearchForm
+        filters={search.filters}
+        formKey={search.params.toString()}
+        onSubmit={submit}
+      />
+      <LibraryToolbar
+        count={selection.selected.size}
+        allSelected={allSelected}
+        disabled={bulk.isPending}
+        onSelectAll={(checked) =>
+          selection.replaceSelection(
+            checked ? new Set(items.map((item) => item.id)) : new Set(),
+          )}
+        onDelete={runBulkDelete}
+      />
       {bulk.error
         ? <InlineNotice error>{bulk.error.message}</InlineNotice>
         : null}
@@ -213,146 +67,18 @@ export function LibraryRoute() {
           </InlineNotice>
         )
         : null}
-      {resources.isPending
-        ? <PageLoading label="Loading resources…" />
-        : resources.isError
-        ? (
-          <PageError
-            error={resources.error}
-            retry={() => void resources.refetch()}
-          />
-        )
-        : items.length
-        ? (
-          <div className={page.list}>
-            {items.map((resource) => {
-              const youtubeUrl = canonicalYouTubeUrl(resource.normalizedUrl);
-              const thumbnailUrl = youtubeThumbnailUrl(resource.normalizedUrl);
-              return (
-                <article
-                  className={`${page.card} ${page.resource} ${
-                    thumbnailUrl ? page.resourceWithMedia : ""
-                  }`}
-                  key={resource.id}
-                >
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${resource.title}`}
-                    checked={selected.has(resource.id)}
-                    disabled={bulk.isPending}
-                    onChange={(event) =>
-                      setSelected((() => {
-                        const next = new Set(selected);
-                        if (event.target.checked) next.add(resource.id);
-                        else next.delete(resource.id);
-                        return next;
-                      })())}
-                  />
-                  {youtubeUrl && thumbnailUrl
-                    ? (
-                      <a
-                        className={page.resourceMedia}
-                        href={youtubeUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Play ${resource.title} on YouTube`}
-                      >
-                        <img
-                          src={thumbnailUrl}
-                          alt=""
-                          width="96"
-                          height="54"
-                          loading="lazy"
-                        />
-                        <span aria-hidden="true">
-                          <PlayIcon />
-                        </span>
-                      </a>
-                    )
-                    : null}
-                  <div className={page.resourceCopy}>
-                    <div className={page.resourceTitle}>
-                      <strong>{resource.title}</strong>
-                      {youtubeUrl
-                        ? <span className={page.status}>YouTube</span>
-                        : null}
-                      {resource.publicPublication
-                        ? (
-                          <span className={`${page.status} ${page.public}`}>
-                            Public
-                          </span>
-                        )
-                        : null}
-                    </div>
-                    <span className={`${page.muted} ${page.truncate}`}>
-                      {safeWebUrl(resource.originalUrl)}
-                    </span>
-                  </div>
-                  <div className={page.resourceActions}>
-                    <a
-                      href={safeWebUrl(resource.originalUrl) ?? "about:blank"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open Source
-                    </a>
-                    <Link
-                      className={`${page.buttonLink} ${page.compact}`}
-                      to={`/capture/${resource.id}`}
-                    >
-                      Review
-                    </Link>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )
-        : (
-          <InlineNotice>
-            {hasFilters
-              ? "No resources match these filters."
-              : "No resources found. Capture a page to start your library."}
-          </InlineNotice>
-        )}
-      <nav className={page.pagination} aria-label="Library pages">
-        <button
-          type="button"
-          className={page.button}
-          disabled={filters.page === 1}
-          onClick={() =>
-            setParams(
-              librarySearchParams({ ...filters, page: filters.page - 1 }),
-            )}
-        >
-          Previous
-        </button>
-        <span>Page {filters.page}</span>
-        <button
-          type="button"
-          className={page.button}
-          disabled={!resources.data?.pageInfo.hasMore}
-          onClick={() =>
-            setParams(
-              librarySearchParams({ ...filters, page: filters.page + 1 }),
-            )}
-        >
-          Next
-        </button>
-      </nav>
-    </section>
+      <LibraryResourceList
+        resources={resources}
+        selected={selection.selected}
+        disabled={bulk.isPending}
+        hasFilters={hasFilters}
+        onToggle={selection.toggle}
+      />
+      <LibraryPagination
+        currentPage={search.filters.page}
+        hasMore={resources.data?.pageInfo.hasMore ?? false}
+        onPageChange={search.goToPage}
+      />
+    </PageStack>
   );
-}
-
-function stringValue(data: FormData, name: string): string {
-  const value = data.get(name);
-  return typeof value === "string" ? value.trim() : "";
-}
-function optionalEnum<T extends string>(
-  data: FormData,
-  name: string,
-  values: readonly T[],
-): T | undefined {
-  const value = stringValue(data, name);
-  return values.find((candidate) => candidate === value);
 }

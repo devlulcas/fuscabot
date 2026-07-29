@@ -1,0 +1,40 @@
+.resultPanel {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  background: var(--surface-background);
+}
+.resultPanel h2 {
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--line);
+}
+.resultRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 15px;
+}
+.resultRow + .resultRow {
+  border-top: 1px solid var(--line);
+}
+.resultRow > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.resultRow span,
+.resultRow small {
+  color: var(--muted);
+}
+.resultRow button,
+.resultRow a {
+  flex: 0 0 auto;
+}
+@media (max-width: 340px) {
+  .resultRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

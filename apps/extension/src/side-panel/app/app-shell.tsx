@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { DiamondIcon } from "../components/icons/icons.tsx";
-import styles from "./app-shell.module.css";
+import css from "./app-shell.module.css";
 
 const links = [
   ["/capture", "Capture"],
@@ -13,9 +13,9 @@ const links = [
 export function AppShell() {
   return (
     <>
-      <a className={styles.skipLink} href="#main">Skip to content</a>
-      <header className={styles.header}>
-        <strong className={styles.brand}>
+      <a className={css.skipLink} href="#main">Skip to content</a>
+      <header className={css.header}>
+        <strong className={css.brand}>
           <DiamondIcon /> Fuscabot
         </strong>
         <nav aria-label="Main">
@@ -23,14 +23,14 @@ export function AppShell() {
             <NavLink
               key={to}
               to={to}
-              className={({ isActive }) => isActive ? styles.active : undefined}
+              className={({ isActive }) => isActive ? css.active : undefined}
             >
               {label}
             </NavLink>
           ))}
         </nav>
       </header>
-      <main id="main" className={styles.main}>
+      <main id="main" className={css.main}>
         <Outlet />
       </main>
     </>

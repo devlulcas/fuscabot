@@ -1,0 +1,14 @@
+.toolbar {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px 10px;
+}
+.selectAll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.toolbarActions {
+  grid-column: 1 / -1;
+}

@@ -1,0 +1,10 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 340px) {
+  .actions > button {
+    flex: 1 1 100%;
+  }
+}

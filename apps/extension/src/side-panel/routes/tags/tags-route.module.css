@@ -1,0 +1,8 @@
+.settings {
+  gap: 16px;
+}
+.settingsCard {
+  display: grid;
+  gap: 16px;
+  padding: 18px 15px;
+}

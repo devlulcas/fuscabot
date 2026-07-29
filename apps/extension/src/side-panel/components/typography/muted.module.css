@@ -1,0 +1,5 @@
+.muted {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

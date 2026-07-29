@@ -2,11 +2,10 @@
   "tasks": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test:ui": "node ../../node_modules/vitest/vitest.mjs run",
-    "check": "deno fmt --check && deno lint && deno check src/*.ts src/**/*.ts vite.config.ts && deno run -A npm:typescript@7.0.2/tsc --noEmit -p tsconfig.json && deno test && deno task test:ui && deno task build"
+    "test": "node ../../node_modules/vitest/vitest.mjs run",
+    "check": "deno fmt --check && deno lint && deno check src/*.ts src/**/*.ts vite.config.ts && deno run -A npm:typescript@7.0.2/tsc --noEmit -p tsconfig.json && deno task test && deno task build"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@1",
     "@tanstack/react-query": "npm:@tanstack/react-query@5",
     "@tanstack/react-query-persist-client": "npm:@tanstack/react-query-persist-client@5",
     "@tanstack/query-persist-client-core": "npm:@tanstack/query-persist-client-core@5",

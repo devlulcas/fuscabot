@@ -1,0 +1,61 @@
+.channelRow {
+  display: grid;
+  gap: 12px;
+  padding: 16px 13px;
+}
+.channelRow + .channelRow {
+  border-top: 1px solid var(--line);
+}
+.channelIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+.channelHash {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 7px;
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent) 10%, var(--subtle-background));
+  font-weight: 800;
+}
+.channelTitle {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+.channelTitle strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channelTitle span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.channelControls {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 6px;
+}
+.channelActions {
+  justify-content: flex-end;
+}
+.switch {
+  display: inline-flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 6px !important;
+  white-space: nowrap;
+}
