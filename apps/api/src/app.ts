@@ -1,6 +1,6 @@
-import { Hono } from "@hono/hono";
-import { bodyLimit } from "@hono/hono/body-limit";
-import type { ApplyGlobalResponse } from "@hono/hono/client";
+import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import type { ApplyGlobalResponse } from "hono/client";
 import type { ApiError } from "@fuscabot/contracts";
 import type {
   AppDependencies,

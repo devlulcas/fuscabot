@@ -4,6 +4,9 @@
 node_modules/
 dist/
 coverage/
-apps/web/src/client.bundle.js
+apps/web/.svelte-kit/
+apps/web/.deno-deploy/
+apps/web/playwright-report/
+apps/web/test-results/
 .DS_Store
 *.log

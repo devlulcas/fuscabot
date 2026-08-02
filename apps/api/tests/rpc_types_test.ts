@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { hc, type InferRequestType } from "@hono/hono/client";
+import { hc, type InferRequestType } from "hono/client";
 import type { AppType } from "@fuscabot/api";
 
 Deno.test("AppType exposes the API routes to the Hono client", () => {

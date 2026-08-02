@@ -1,5 +1,5 @@
 import { zValidator as honoZValidator } from "@hono/zod-validator";
-import type { ValidationTargets } from "@hono/hono";
+import type { ValidationTargets } from "hono";
 import { z } from "zod";
 
 export const zValidator = <

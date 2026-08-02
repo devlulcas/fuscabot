@@ -1,4 +1,4 @@
-import { Hono } from "@hono/hono";
+import { Hono } from "hono";
 import type { AppDependencies, AppEnv } from "../app_types.ts";
 import { error } from "../http/errors.ts";
 import { IdParamSchema, zValidator } from "../http/validation.ts";

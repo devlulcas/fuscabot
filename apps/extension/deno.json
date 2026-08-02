@@ -29,7 +29,6 @@
     "vite": "npm:vite@7",
     "vitest": "npm:vitest@4",
     "vitest/config": "npm:vitest@4/config",
-    "typescript": "npm:typescript@7.0.2",
     "zod": "npm:zod@4.4.3"
   },
   "compilerOptions": {

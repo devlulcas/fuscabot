@@ -1,3 +1,5 @@
+/// <reference types="@types/deno" />
+
 import { createApp } from "./app.ts";
 import {
   allowedExtensionOrigins,
@@ -5,15 +7,25 @@ import {
   requireRuntimeEnv,
   type RuntimeEnv,
 } from "./config/env.ts";
+import type {
+  PublicArchiveListInput,
+  PublicArchiveReader,
+} from "./repositories/public_archive_repository.ts";
 
 type RuntimeApplication = {
   fetch(request: Request): Response | Promise<Response>;
+  archive: PublicArchiveReader;
 };
 
 type RuntimeHandlerOptions = {
   build?: (source: Record<string, string>) => Promise<RuntimeApplication>;
   now?: () => number;
   failureCooldownMs?: number;
+};
+
+export type ApiRuntime = {
+  fetch(request: Request): Promise<Response>;
+  archive: PublicArchiveReader;
 };
 
 export function startServer(): void {
@@ -29,7 +41,14 @@ export function startServer(): void {
 export function createRuntimeHandler(
   source = Deno.env.toObject(),
   options: RuntimeHandlerOptions = {},
-) {
+): (request: Request) => Promise<Response> {
+  return createApiRuntime(source, options).fetch;
+}
+
+export function createApiRuntime(
+  source = Deno.env.toObject(),
+  options: RuntimeHandlerOptions = {},
+): ApiRuntime {
   const build = options.build ?? buildRuntimeApp;
   const now = options.now ?? Date.now;
   const failureCooldownMs = options.failureCooldownMs ?? 5_000;
@@ -48,7 +67,7 @@ export function createRuntimeHandler(
     }
     return runtimeApp;
   };
-  return async (request: Request): Promise<Response> => {
+  const fetch = async (request: Request): Promise<Response> => {
     const pathname = new URL(request.url).pathname;
     if (pathname === "/health") {
       return safeJson({ status: "ok" });
@@ -66,6 +85,12 @@ export function createRuntimeHandler(
       }, 503);
     }
   };
+  const archive: PublicArchiveReader = {
+    list: async (input: PublicArchiveListInput) => (await getRuntimeApp()).archive.list(input),
+    getBySlug: async (slug, locale) => (await getRuntimeApp()).archive.getBySlug(slug, locale),
+    listForSitemap: async () => (await getRuntimeApp()).archive.listForSitemap(),
+  };
+  return { fetch, archive };
 }
 
 async function buildRuntimeApp(source: Record<string, string>) {
@@ -84,6 +109,7 @@ async function buildRuntimeApp(source: Record<string, string>) {
     { PostgresDurableDeliveryRepository },
     { PostgresEnrichmentStore },
     { PostgresResourceRepository },
+    { PostgresPublicArchiveRepository },
     { PostgresAuthRepository },
     { DrizzleRateLimitStore },
     { AuthService },
@@ -108,6 +134,7 @@ async function buildRuntimeApp(source: Record<string, string>) {
     import("./repositories/durable_delivery_repository.ts"),
     import("./repositories/enrichment_repository.ts"),
     import("./repositories/postgres_resource_repository.ts"),
+    import("./repositories/public_archive_repository.ts"),
     import("./repositories/auth_repository.ts"),
     import("./repositories/rate_limit_repository.ts"),
     import("./services/auth_service.ts"),
@@ -197,6 +224,7 @@ async function buildRuntimeApp(source: Record<string, string>) {
   });
   return {
     fetch: (request: Request) => api.fetch(request),
+    archive: new PostgresPublicArchiveRepository(appDatabase, workspace.id),
   };
 }
 

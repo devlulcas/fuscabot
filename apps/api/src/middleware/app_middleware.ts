@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from "@hono/hono";
+import type { MiddlewareHandler } from "hono";
 import type { AppDependencies, AppEnv } from "../app_types.ts";
 import { error, handleError } from "../http/errors.ts";
 import {

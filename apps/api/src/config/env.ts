@@ -1,3 +1,5 @@
+/// <reference types="@types/deno" />
+
 import { z } from "zod";
 
 const EnvSchema = z.object({

@@ -1,22 +1,32 @@
 {
   "imports": {
-    "@fuscabot/contracts": "../../packages/contracts/mod.ts",
-    "@hono/hono": "jsr:@hono/hono@^4.8.3",
-    "@std/assert": "jsr:@std/assert@^1.0.13",
-    "@std/path": "jsr:@std/path@^1.1.6"
+    "@fuscabot/api": "../api/mod.ts",
+    "@fuscabot/contracts": "../../packages/contracts/mod.ts"
   },
   "tasks": {
-    "build": "deno bundle --config deno.client.json --platform browser --minify --output src/client.bundle.js src/client.tsx",
-    "check": "deno task build && deno fmt --check && deno lint && deno check mod.ts src/app_test.ts && deno check --config deno.client.json src/client.tsx && deno test --allow-read=public",
-    "test": "deno task build && deno test --allow-read=public"
+    "sync": "deno run -A npm:@sveltejs/kit@2.70.2/svelte-kit sync",
+    "dev": "deno run -A npm:vite@8.2.0 dev",
+    "build": "deno run -A npm:vite@8.2.0 build",
+    "preview": "deno run -A npm:vite@8.2.0 preview",
+    "start": "deno run -A .deno-deploy/server.ts",
+    "check": "deno task sync && deno run -A npm:svelte-check@4.7.4 --tsconfig ./tsconfig.json",
+    "test": "deno task test:unit",
+    "test:unit": "deno run -A npm:vitest@4.1.0 run",
+    "test:e2e": "deno run -A npm:playwright@1.62.1 test"
   },
-  "compilerOptions": {
-    "jsx": "react-jsx",
-    "jsxImportSource": "@hono/hono/jsx"
+  "fmt": {
+    "lineWidth": 100,
+    "exclude": [".svelte-kit/", ".deno-deploy/", "playwright-report/", "test-results/"]
   },
-  "fmt": { "lineWidth": 100, "exclude": ["src/client.bundle.js"] },
   "lint": {
-    "exclude": ["src/client.bundle.js"],
+    "exclude": [
+      ".svelte-kit/",
+      ".deno-deploy/",
+      "src/routes/",
+      "playwright-report/",
+      "test-results/"
+    ],
     "rules": { "tags": ["recommended"] }
-  }
+  },
+  "exclude": [".svelte-kit/", ".deno-deploy/", "playwright-report/", "test-results/"]
 }

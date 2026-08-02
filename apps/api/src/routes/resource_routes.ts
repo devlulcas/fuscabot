@@ -1,4 +1,4 @@
-import { type Context, Hono } from "@hono/hono";
+import { type Context, Hono } from "hono";
 import { BulkResourceActionSchema, PublicationRequestSchema } from "@fuscabot/contracts";
 import { z } from "zod";
 import type { AppDependencies, AppEnv } from "../app_types.ts";

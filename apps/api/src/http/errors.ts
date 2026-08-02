@@ -1,5 +1,5 @@
-import { HTTPException } from "@hono/hono/http-exception";
-import type { Context } from "@hono/hono";
+import { HTTPException } from "hono/http-exception";
+import type { Context } from "hono";
 import type { ApiError } from "@fuscabot/contracts";
 import { ZodError } from "zod";
 import { AuthError } from "../services/auth_service.ts";

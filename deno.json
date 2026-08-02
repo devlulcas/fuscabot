@@ -9,23 +9,29 @@
   "deploy": {
     "org": "devlulcas",
     "app": "fuscabot",
+    "install": "deno install --allow-scripts=npm:@deno/svelte-adapter,npm:esbuild,npm:@sveltejs/kit,npm:svelte-preprocess",
+    "build": "deno task build:web",
     "predeploy": "deno task predeploy",
     "runtime": {
       "type": "dynamic",
-      "entrypoint": "./apps/api/main.ts",
-      "cwd": "."
+      "entrypoint": "./.deno-deploy/server.ts",
+      "cwd": "./apps/web"
     }
   },
   "tasks": {
-    "check": "deno task build:web && deno task fmt:check && deno task lint && deno task typecheck && deno task test",
-    "fmt": "deno fmt",
-    "fmt:check": "deno fmt --check",
+    "check": "deno task fmt:check && deno task lint && deno task typecheck && deno task test && deno task build:web",
+    "fmt": "deno fmt --unstable-component",
+    "fmt:check": "deno fmt --unstable-component --check",
     "lint": "deno lint",
-    "typecheck": "deno check apps/api/src/server.ts apps/web/mod.ts packages/contracts/mod.ts && deno task --cwd apps/extension check",
-    "test": "deno test -A apps/api apps/web packages/contracts",
+    "typecheck": "deno task --cwd apps/api check && deno task --cwd apps/web check && deno check packages/contracts/mod.ts && deno task --cwd apps/extension check",
+    "test": "deno task --cwd apps/api test && deno task --cwd apps/web test:unit && deno test -A packages/contracts",
+    "dev": "deno task --cwd apps/web dev",
+    "start": "deno task build:web && deno task --cwd apps/web start",
     "dev:api": "deno task --cwd apps/api dev",
+    "dev:web": "deno task --cwd apps/web dev",
     "build:extension": "deno task --cwd apps/extension build",
     "build:web": "deno task --cwd apps/web build",
+    "test:web:e2e": "deno task --cwd apps/web test:e2e",
     "db:generate": "deno task --cwd apps/api db:generate",
     "db:check": "deno task --cwd apps/api db:check",
     "db:migrate": "deno task --cwd apps/api migrate",
@@ -35,11 +41,26 @@
   "fmt": {
     "exclude": [
       "apps/extension/dist/",
-      "apps/web/src/client.bundle.js"
+      "apps/web/.svelte-kit/",
+      "apps/web/.deno-deploy/",
+      "apps/web/playwright-report/",
+      "apps/web/test-results/"
     ]
   },
   "lint": {
-    "exclude": ["apps/extension/dist/", "apps/web/src/client.bundle.js"]
+    "exclude": [
+      "apps/extension/dist/",
+      "apps/web/.svelte-kit/",
+      "apps/web/.deno-deploy/",
+      "apps/web/playwright-report/",
+      "apps/web/test-results/"
+    ]
   },
-  "exclude": ["apps/extension/dist/", "apps/web/src/client.bundle.js"]
+  "exclude": [
+    "apps/extension/dist/",
+    "apps/web/.svelte-kit/",
+    "apps/web/.deno-deploy/",
+    "apps/web/playwright-report/",
+    "apps/web/test-results/"
+  ]
 }

@@ -1,7 +1,7 @@
 # Fuscabot API
 
-The API is a Deno/Hono service. Its modules do not connect to PostgreSQL or external services at
-import time, which keeps health checks, tests, and Deno Deploy startup deterministic.
+The API is an importable Deno/Hono service package. Its modules do not connect to PostgreSQL or
+external services at import time, which keeps health checks, tests, and startup deterministic.
 
 ## Local development
 
@@ -66,6 +66,7 @@ PUBLIC_SITE_ORIGIN=https://fuscabot.xyz
 ```
 
 The API uses this origin to construct public publication URLs returned to the extension and linked
-from Discord messages. The separately maintained `apps/web` frontend is not imported, built, or
-served by the API runtime. Run `deno task migrate` before starting the application. Inbox, Read
-Later, and Shared derive from delivery history.
+from Discord messages. The SvelteKit application imports the API package from server-only modules,
+uses its public archive facade for SSR, and forwards `/v1/**` to its web-standard fetch handler. The
+API package does not import, build, or render the frontend. Run `deno task migrate` before starting
+the application. Inbox, Read Later, and Shared derive from delivery history.

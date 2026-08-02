@@ -1,6 +1,6 @@
 # Discord Link Library
 
-![Fuscabot Archive: A public collection of useful links](apps/web/public/social/fuscabot-og-e923a46a.jpg)
+![Fuscabot Archive: A public collection of useful links](apps/web/public/assets/social/fuscabot-og-e923a46a.jpg)
 
 An extension-first library that captures and enriches links, publishes reviewed
 snapshots to Discord, and exposes only explicitly published resources through a
@@ -17,8 +17,10 @@ read-only bilingual archive. PostgreSQL is the source of truth.
 
 ```sh
 deno task check
+deno task dev
 deno task dev:api
 deno task build:web
+deno task test:web:e2e
 deno task build:extension
 deno task db:generate
 deno task db:migrate
@@ -27,8 +29,17 @@ deno task db:migrate
 ## Repository layout
 
 ```text
-apps/api          Deno + Hono HTTP API and Drizzle schema
+apps/api          Importable Deno + Hono API runtime and Drizzle schema
 apps/extension    Vite + React Manifest V3 extension
-apps/web          Hono JSX public archive
+apps/web          SvelteKit + Svelte 5 public archive and deploy entrypoint
 packages/contracts Shared boundary schemas and pure domain rules
 ```
+
+## Deployment boundary
+
+The SvelteKit application is the main Deno Deploy runtime. It imports
+`@fuscabot/api` only from server modules, reads the public archive through a
+typed backend facade, and forwards `/v1/**` requests to Hono without rewriting
+their method, headers, body, query, or response. `/health` is the only health
+probe. The extension-facing API contracts and OAuth callback URL remain
+unchanged.

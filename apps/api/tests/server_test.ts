@@ -1,9 +1,17 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { createApp } from "../src/app.ts";
-import { createRuntimeHandler } from "../src/server.ts";
+import type { PublicArchiveReader } from "../src/repositories/public_archive_repository.ts";
+import { createApiRuntime, createRuntimeHandler } from "../src/server.ts";
+
+const archive: PublicArchiveReader = {
+  list: () => Promise.resolve({ items: [], total: 0, tags: [] }),
+  getBySlug: () => Promise.resolve(null),
+  listForSitemap: () => Promise.resolve([]),
+};
 
 const runtime = () => ({
   fetch: () => Response.json({ data: "ok" }),
+  archive,
 });
 
 Deno.test("liveness is dependency-free and does not initialize runtime", async () => {
@@ -25,6 +33,7 @@ Deno.test("non-API routes use the JSON not-found envelope", async () => {
     build: () =>
       Promise.resolve({
         fetch: (request: Request) => api.fetch(request),
+        archive,
       }),
   });
 
@@ -70,6 +79,25 @@ Deno.test("concurrent requests initialize the runtime once", async () => {
   release();
   const responses = await Promise.all(requests);
   assertEquals([builds, ...responses.map((response) => response.status)], [1, 200, 200]);
+});
+
+Deno.test("API fetches and archive reads share one lazy runtime", async () => {
+  let builds = 0;
+  const runtimeFacade = createApiRuntime({}, {
+    build: () => {
+      builds++;
+      return Promise.resolve(runtime());
+    },
+  });
+
+  const [response, result] = await Promise.all([
+    runtimeFacade.fetch(new Request("https://api.test/v1/resources")),
+    runtimeFacade.archive.list({ locale: "en", page: 1, pageSize: 20 }),
+  ]);
+
+  assertEquals(response.status, 200);
+  assertEquals(result.total, 0);
+  assertEquals(builds, 1);
 });
 
 Deno.test("initialization failures use a cooldown before retry", async () => {
