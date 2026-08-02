@@ -5,12 +5,9 @@ import {
   requireRuntimeEnv,
   type RuntimeEnv,
 } from "./config/env.ts";
-import type { RateLimitStore } from "./http/rate_limit.ts";
-import { logInfo } from "./observability/log.ts";
 
 type RuntimeApplication = {
-  fetch(request: Request, clientKey: string): Response | Promise<Response>;
-  readiness(): Promise<void>;
+  fetch(request: Request): Response | Promise<Response>;
 };
 
 type RuntimeHandlerOptions = {
@@ -51,21 +48,14 @@ export function createRuntimeHandler(
     }
     return runtimeApp;
   };
-  return async (
-    request: Request,
-    info?: Deno.ServeHandlerInfo,
-  ): Promise<Response> => {
+  return async (request: Request): Promise<Response> => {
     const pathname = new URL(request.url).pathname;
-    if (pathname === "/health" || pathname === "/healthz") {
+    if (pathname === "/health") {
       return safeJson({ status: "ok" });
     }
     try {
       const runtime = await getRuntimeApp();
-      if (pathname === "/readyz") {
-        await runtime.readiness();
-        return safeJson({ status: "ready" });
-      }
-      return await runtime.fetch(request, remoteAddressKey(info));
+      return await runtime.fetch(request);
     } catch {
       return safeJson({
         error: {
@@ -94,7 +84,6 @@ async function buildRuntimeApp(source: Record<string, string>) {
     { PostgresDurableDeliveryRepository },
     { PostgresEnrichmentStore },
     { PostgresResourceRepository },
-    { PostgresPublicArchiveRepository },
     { PostgresAuthRepository },
     { DrizzleRateLimitStore },
     { AuthService },
@@ -104,7 +93,6 @@ async function buildRuntimeApp(source: Record<string, string>) {
     { ResourceService },
     { RuntimePublicationCoordinator },
     { PostgresTagCoordinator },
-    { createPublicWebApp },
     {
       discordSnapshotSender,
       RuntimeChannelCoordinator,
@@ -120,7 +108,6 @@ async function buildRuntimeApp(source: Record<string, string>) {
     import("./repositories/durable_delivery_repository.ts"),
     import("./repositories/enrichment_repository.ts"),
     import("./repositories/postgres_resource_repository.ts"),
-    import("./repositories/public_archive_repository.ts"),
     import("./repositories/auth_repository.ts"),
     import("./repositories/rate_limit_repository.ts"),
     import("./services/auth_service.ts"),
@@ -130,7 +117,6 @@ async function buildRuntimeApp(source: Record<string, string>) {
     import("./services/resource_service.ts"),
     import("./services/publication_coordinator.ts"),
     import("./services/tag_coordinator.ts"),
-    import("../../web/mod.ts"),
     import("./services/runtime_coordinators.ts"),
   ]);
   const database = createDatabasePool(runtimeEnv.DATABASE_URL);
@@ -209,86 +195,9 @@ async function buildRuntimeApp(source: Record<string, string>) {
     requireAuth: true,
     rateLimits,
   });
-  const publicWeb = createPublicWebApp({
-    reader: new PostgresPublicArchiveRepository(appDatabase, workspace.id),
-    origin: runtimeEnv.PUBLIC_SITE_ORIGIN,
-    umami: runtimeEnv.UMAMI_SCRIPT_URL && runtimeEnv.UMAMI_WEBSITE_ID
-      ? {
-        scriptUrl: runtimeEnv.UMAMI_SCRIPT_URL,
-        websiteId: runtimeEnv.UMAMI_WEBSITE_ID,
-        domain: new URL(runtimeEnv.PUBLIC_SITE_ORIGIN).hostname,
-        hostUrl: runtimeEnv.UMAMI_HOST_URL,
-      }
-      : undefined,
-  });
   return {
-    fetch: async (request: Request, clientKey: string) => {
-      const url = new URL(request.url);
-      if (url.pathname === "/v1" || url.pathname.startsWith("/v1/")) {
-        return await api.fetch(request);
-      }
-      const requestId = crypto.randomUUID();
-      const startedAt = performance.now();
-      let response: Response;
-      if (!url.pathname.startsWith("/assets/")) {
-        const limited = await publicRateLimit(
-          rateLimits,
-          clientKey,
-          url.searchParams.has("q"),
-        );
-        if (limited) {
-          response = limited;
-        } else {
-          response = await publicWeb.fetch(request);
-        }
-      } else {
-        response = await publicWeb.fetch(request);
-      }
-      response.headers.set("x-request-id", requestId);
-      logInfo("public_request_complete", {
-        requestId,
-        method: request.method,
-        path: url.pathname,
-        status: response.status,
-        durationMs: Math.round(performance.now() - startedAt),
-      });
-      return response;
-    },
-    readiness: async () => {
-      await database.query("SELECT 1");
-    },
+    fetch: (request: Request) => api.fetch(request),
   };
-}
-
-async function publicRateLimit(
-  store: RateLimitStore,
-  key: string,
-  isSearch: boolean,
-): Promise<Response | null> {
-  const result = await store.consume({
-    scope: isSearch ? "public-search" : "public-pages",
-    key,
-    limit: isSearch ? 30 : 120,
-    windowMs: 60_000,
-  });
-  if (result.allowed) return null;
-  return new Response("Too many requests", {
-    status: 429,
-    headers: {
-      "cache-control": "no-store",
-      "content-type": "text/plain; charset=utf-8",
-      "retry-after": String(result.retryAfterSeconds),
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
-    },
-  });
-}
-
-function remoteAddressKey(info?: Deno.ServeHandlerInfo): string {
-  const address = info?.remoteAddr;
-  if (!address) return "unknown";
-  if ("hostname" in address) return address.hostname;
-  return `${address.transport}:local`;
 }
 
 function chromiumRedirectOrigin(origin: string): string[] {

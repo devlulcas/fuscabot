@@ -6,7 +6,6 @@
   "deploy": {
     "org": "devlulcas",
     "app": "fuscabot",
-    "build": "deno task build:web",
     "runtime": {
       "type": "dynamic",
       "entrypoint": "./main.ts",
@@ -30,14 +29,13 @@
     "zod": "jsr:@zod/zod@4"
   },
   "tasks": {
-    "build:web": "deno task --cwd ../web build",
-    "dev": "deno task build:web && deno run --watch --allow-env --allow-net src/server.ts",
-    "start": "deno task build:web && deno run --allow-env --allow-net src/server.ts",
-    "check": "deno task build:web && deno check main.ts src/server.ts src/db/schema.ts",
+    "dev": "deno run --watch --allow-env --allow-net src/server.ts",
+    "start": "deno run --allow-env --allow-net src/server.ts",
+    "check": "deno check main.ts src/server.ts src/db/schema.ts",
     "db:generate": "deno run -A npm:drizzle-kit@0.31.4 generate --config=drizzle.config.ts",
     "db:check": "deno run -A npm:drizzle-kit@0.31.4 check --config=drizzle.config.ts",
     "migrate": "deno run --allow-env --allow-net --allow-read=drizzle src/db/migrate.ts",
-    "test": "deno task build:web && deno test --allow-env"
+    "test": "deno test --allow-env --allow-read"
   },
   "compilerOptions": { "strict": true },
   "fmt": { "lineWidth": 100 },

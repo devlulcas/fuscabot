@@ -45,7 +45,6 @@ export function createApp(
   app.use("*", requestLifecycle(deps));
 
   app.get("/health", (c) => c.json({ status: "ok" }));
-  app.get("/healthz", (c) => c.json({ status: "ok" }));
 
   app.use(
     "/v1/*",

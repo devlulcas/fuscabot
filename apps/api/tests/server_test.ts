@@ -1,9 +1,9 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
+import { createApp } from "../src/app.ts";
 import { createRuntimeHandler } from "../src/server.ts";
 
-const runtime = (readiness: () => Promise<void> = () => Promise.resolve()) => ({
+const runtime = () => ({
   fetch: () => Response.json({ data: "ok" }),
-  readiness,
 });
 
 Deno.test("liveness is dependency-free and does not initialize runtime", async () => {
@@ -14,48 +14,37 @@ Deno.test("liveness is dependency-free and does not initialize runtime", async (
       return Promise.resolve(runtime());
     },
   });
-  const response = await handler(new Request("https://api.test/healthz"));
+  const response = await handler(new Request("https://api.test/health"));
   assertEquals([response.status, await response.json(), builds], [200, { status: "ok" }, 0]);
   assertEquals(response.headers.get("x-content-type-options"), "nosniff");
 });
 
-Deno.test("root initializes the runtime public site instead of returning health JSON", async () => {
-  let clientKey = "";
+Deno.test("non-API routes use the JSON not-found envelope", async () => {
+  const api = createApp();
   const handler = createRuntimeHandler({}, {
     build: () =>
       Promise.resolve({
-        fetch: (_request: Request, key: string) => {
-          clientKey = key;
-          return new Response("<h1>Fuscabot Archive</h1>", {
-            headers: { "content-type": "text/html" },
-          });
-        },
-        readiness: () => Promise.resolve(),
+        fetch: (request: Request) => api.fetch(request),
       }),
   });
-  const response = await handler(
-    new Request("https://fuscabot.test/"),
-    {
-      remoteAddr: {
-        transport: "tcp",
-        hostname: "203.0.113.8",
-        port: 443,
-      },
-      completed: Promise.resolve(),
-    },
-  );
-  assertEquals(response.status, 200);
-  assertEquals(response.headers.get("content-type"), "text/html");
-  assertEquals(clientKey, "203.0.113.8");
-  assertStringIncludes(await response.text(), "Fuscabot Archive");
+
+  for (const path of ["/", "/healthz", "/readyz", "/assets/app.css", "/missing"]) {
+    const response = await handler(new Request(`https://api.test${path}`));
+    assertEquals(response.status, 404);
+    assertEquals(await response.json(), {
+      error: { code: "NOT_FOUND", message: "Route not found", retryable: false },
+    });
+    assertEquals(Boolean(response.headers.get("x-request-id")), true);
+    assertEquals(response.headers.get("x-content-type-options"), "nosniff");
+  }
 });
 
-Deno.test("readiness fails closed without leaking initialization details", async () => {
+Deno.test("requests fail closed without leaking initialization details", async () => {
   const sentinel = "postgres://secret:password@database.internal/app";
   const handler = createRuntimeHandler({}, {
     build: () => Promise.reject(new Error(sentinel)),
   });
-  const response = await handler(new Request("https://api.test/readyz"));
+  const response = await handler(new Request("https://api.test/v1/resources"));
   const text = await response.text();
   assertEquals(response.status, 503);
   assertEquals(text.includes(sentinel), false);
@@ -63,28 +52,24 @@ Deno.test("readiness fails closed without leaking initialization details", async
   assertEquals(Boolean(response.headers.get("x-request-id")), true);
 });
 
-Deno.test("readiness probes dependencies and concurrent initialization runs once", async () => {
+Deno.test("concurrent requests initialize the runtime once", async () => {
   let builds = 0;
-  let probes = 0;
   let release!: () => void;
   const waiting = new Promise<void>((resolve) => release = resolve);
   const handler = createRuntimeHandler({}, {
     build: async () => {
       builds++;
       await waiting;
-      return runtime(() => {
-        probes++;
-        return Promise.resolve();
-      });
+      return runtime();
     },
   });
   const requests = [
-    handler(new Request("https://api.test/readyz")),
     handler(new Request("https://api.test/v1/resources")),
+    handler(new Request("https://api.test/v1/tags")),
   ];
   release();
-  const [ready, api] = await Promise.all(requests);
-  assertEquals([builds, probes, ready.status, api.status], [1, 1, 200, 200]);
+  const responses = await Promise.all(requests);
+  assertEquals([builds, ...responses.map((response) => response.status)], [1, 200, 200]);
 });
 
 Deno.test("initialization failures use a cooldown before retry", async () => {

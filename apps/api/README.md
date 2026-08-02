@@ -15,9 +15,9 @@ deno task test
 deno task check
 ```
 
-`GET /health` is intentionally available without a database connection. The same process serves the
-public archive at `/`; public pages require a ready database and never infer visibility from Inbox
-or Discord delivery state.
+`GET /health` is the only health endpoint and is intentionally available without initializing the
+database-backed runtime. The API process serves JSON endpoints only; unknown paths use the standard
+JSON `NOT_FOUND` response.
 
 ## Discord connection
 
@@ -57,7 +57,7 @@ Discord credentials, the Mistral key, and the session signing secret belong only
 environment variables. On Deno Deploy, load them as secrets into the appropriate
 development/production context; never bundle them with the extension.
 
-## Public archive configuration
+## Public publication configuration
 
 Production requires the exact public origin:
 
@@ -65,14 +65,7 @@ Production requires the exact public origin:
 PUBLIC_SITE_ORIGIN=https://fuscabot.xyz
 ```
 
-Optional Umami tracking is enabled only when both values are present:
-
-```text
-UMAMI_SCRIPT_URL=https://cloud.umami.is/script.js
-UMAMI_WEBSITE_ID=b7f428a4-b9d3-402d-a8ec-f5ba944f728f
-```
-
-`UMAMI_HOST_URL` may override the collection origin for a self-hosted tracker. Public HTML is
-revalidated on every request with ETags; static fingerprinted assets are immutable. Run
-`deno task migrate` before starting the application. Inbox, Read Later, and Shared derive from
-delivery history.
+The API uses this origin to construct public publication URLs returned to the extension and linked
+from Discord messages. The separately maintained `apps/web` frontend is not imported, built, or
+served by the API runtime. Run `deno task migrate` before starting the application. Inbox, Read
+Later, and Shared derive from delivery history.

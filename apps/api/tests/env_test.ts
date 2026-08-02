@@ -37,7 +37,7 @@ Deno.test("runtime requires exact extension or local development origins", () =>
   );
 });
 
-Deno.test("runtime validates public origin and complete Umami configuration", () => {
+Deno.test("runtime validates the public publication origin", () => {
   const base = {
     ...runtime,
     ALLOWED_EXTENSION_ORIGINS: "http://localhost:8000",
@@ -48,24 +48,6 @@ Deno.test("runtime validates public origin and complete Umami configuration", ()
       PUBLIC_SITE_ORIGIN: "https://example.com/archive",
     }))
   );
-  assertThrows(() =>
-    requireRuntimeEnv(loadEnv({
-      ...base,
-      UMAMI_SCRIPT_URL: "https://cloud.umami.is/script.js",
-    }))
-  );
-  assertThrows(() =>
-    requireRuntimeEnv(loadEnv({
-      ...base,
-      UMAMI_SCRIPT_URL: "http://analytics.example/script.js",
-      UMAMI_WEBSITE_ID: "b7f428a4-b9d3-402d-a8ec-f5ba944f728f",
-    }))
-  );
-  const configured = requireRuntimeEnv(loadEnv({
-    ...base,
-    UMAMI_SCRIPT_URL: "https://cloud.umami.is/script.js",
-    UMAMI_WEBSITE_ID: "b7f428a4-b9d3-402d-a8ec-f5ba944f728f",
-  }));
+  const configured = requireRuntimeEnv(loadEnv(base));
   assertEquals(configured.PUBLIC_SITE_ORIGIN, "https://fuscabot.xyz");
-  assertEquals(configured.UMAMI_WEBSITE_ID, "b7f428a4-b9d3-402d-a8ec-f5ba944f728f");
 });

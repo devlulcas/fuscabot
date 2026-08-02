@@ -9,7 +9,6 @@
   "deploy": {
     "org": "devlulcas",
     "app": "fuscabot",
-    "build": "deno task build:web",
     "predeploy": "deno task predeploy",
     "runtime": {
       "type": "dynamic",
@@ -23,7 +22,7 @@
     "fmt:check": "deno fmt --check",
     "lint": "deno lint",
     "typecheck": "deno check apps/api/src/server.ts apps/web/mod.ts packages/contracts/mod.ts && deno task --cwd apps/extension check",
-    "test": "deno test -A",
+    "test": "deno test -A apps/api apps/web packages/contracts",
     "dev:api": "deno task --cwd apps/api dev",
     "build:extension": "deno task --cwd apps/extension build",
     "build:web": "deno task --cwd apps/web build",
