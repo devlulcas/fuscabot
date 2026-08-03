@@ -6,7 +6,7 @@
     "@hono/zod-validator": "0.7.6",
     "@tanstack/ai": "0.41.0",
     "@tanstack/ai-mistral": "0.2.2",
-    "drizzle-orm": "0.44.7",
+    "drizzle-orm": "0.45.2",
     "hono": "4.12.32",
     "pg": "8.22.0",
     "zod": "4.4.3"
